@@ -154,65 +154,75 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| AUTH-01 | — | Pending |
-| AUTH-02 | — | Pending |
-| AUTH-03 | — | Pending |
-| AUTH-04 | — | Pending |
-| AUTH-05 | — | Pending |
-| CURR-01 | — | Pending |
-| CURR-02 | — | Pending |
-| CURR-03 | — | Pending |
-| CURR-04 | — | Pending |
-| GINF-01 | — | Pending |
-| GINF-02 | — | Pending |
-| GINF-03 | — | Pending |
-| GINF-04 | — | Pending |
-| GINF-05 | — | Pending |
-| GINF-06 | — | Pending |
-| GINF-07 | — | Pending |
-| GINF-08 | — | Pending |
-| GINF-09 | — | Pending |
-| BJK-01 | — | Pending |
-| BJK-02 | — | Pending |
-| BJK-03 | — | Pending |
-| BJK-04 | — | Pending |
-| ROUL-01 | — | Pending |
-| ROUL-02 | — | Pending |
-| ROUL-03 | — | Pending |
-| ROUL-04 | — | Pending |
-| ROUL-05 | — | Pending |
-| ROUL-06 | — | Pending |
-| ROUL-07 | — | Pending |
-| PLNK-01 | — | Pending |
-| PLNK-02 | — | Pending |
-| PLNK-03 | — | Pending |
-| MINE-01 | — | Pending |
-| MINE-02 | — | Pending |
-| MINE-03 | — | Pending |
-| MINE-04 | — | Pending |
-| MINE-05 | — | Pending |
-| LDR-01 | — | Pending |
-| LDR-02 | — | Pending |
-| LDR-03 | — | Pending |
-| LDR-04 | — | Pending |
-| LDR-05 | — | Pending |
-| PROF-01 | — | Pending |
-| PROF-02 | — | Pending |
-| PROF-03 | — | Pending |
-| ADMIN-01 | — | Pending |
-| ADMIN-02 | — | Pending |
-| ADMIN-03 | — | Pending |
-| ADMIN-04 | — | Pending |
-| ADMIN-05 | — | Pending |
-| ANTI-01 | — | Pending |
-| ANTI-02 | — | Pending |
-| ANTI-03 | — | Pending |
+| AUTH-01 | Phase 2 | Pending |
+| AUTH-02 | Phase 2 | Pending |
+| AUTH-03 | Phase 2 | Pending |
+| AUTH-04 | Phase 2 | Pending |
+| AUTH-05 | Phase 2 | Pending |
+| CURR-01 | Phase 3 | Pending |
+| CURR-02 | Phase 3 | Pending |
+| CURR-03 | Phase 3 | Pending |
+| CURR-04 | Phase 3 | Pending |
+| GINF-01 | Phase 3 | Pending |
+| GINF-02 | Phase 3 | Pending |
+| GINF-03 | Phase 3 | Pending |
+| GINF-04 | Phase 3 | Pending |
+| GINF-05 | Phase 3 | Pending |
+| GINF-06 | Phase 4 | Pending |
+| GINF-07 | Phase 4 | Pending |
+| GINF-08 | Phase 4 | Pending |
+| GINF-09 | Phase 4 | Pending |
+| BJK-01 | Phase 5 | Pending |
+| BJK-02 | Phase 5 | Pending |
+| BJK-03 | Phase 5 | Pending |
+| BJK-04 | Phase 5 | Pending |
+| ROUL-01 | Phase 4 | Pending |
+| ROUL-02 | Phase 4 | Pending |
+| ROUL-03 | Phase 4 | Pending |
+| ROUL-04 | Phase 4 | Pending |
+| ROUL-05 | Phase 4 | Pending |
+| ROUL-06 | Phase 4 | Pending |
+| ROUL-07 | Phase 4 | Pending |
+| PLNK-01 | Phase 5 | Pending |
+| PLNK-02 | Phase 5 | Pending |
+| PLNK-03 | Phase 5 | Pending |
+| MINE-01 | Phase 5 | Pending |
+| MINE-02 | Phase 5 | Pending |
+| MINE-03 | Phase 5 | Pending |
+| MINE-04 | Phase 5 | Pending |
+| MINE-05 | Phase 5 | Pending |
+| LDR-01 | Phase 6 | Pending |
+| LDR-02 | Phase 6 | Pending |
+| LDR-03 | Phase 6 | Pending |
+| LDR-04 | Phase 6 | Pending |
+| LDR-05 | Phase 6 | Pending |
+| PROF-01 | Phase 7 | Pending |
+| PROF-02 | Phase 7 | Pending |
+| PROF-03 | Phase 7 | Pending |
+| ADMIN-01 | Phase 8 | Pending |
+| ADMIN-02 | Phase 8 | Pending |
+| ADMIN-03 | Phase 8 | Pending |
+| ADMIN-04 | Phase 8 | Pending |
+| ADMIN-05 | Phase 8 | Pending |
+| ANTI-01 | Phase 8 | Pending |
+| ANTI-02 | Phase 8 | Pending |
+| ANTI-03 | Phase 8 | Pending |
 
 **Coverage:**
-- v1 requirements: 52 total
-- Mapped to phases: 0 (pending roadmap)
-- Unmapped: 52 ⚠️
+- v1 requirements: 53 total (note: original count of 52 was a typo — actual enumerated requirements = 53)
+- Mapped to phases: 53/53
+- Unmapped: 0
+
+**Phase distribution:**
+- Phase 1 (Foundation): 0 requirements (infrastructure — unblocks all phases)
+- Phase 2 (Auth): AUTH-01..05 — 5 requirements
+- Phase 3 (Wallet): CURR-01..04, GINF-01..05 — 9 requirements
+- Phase 4 (Game Infra + Roulette): GINF-06..09, ROUL-01..07 — 11 requirements
+- Phase 5 (Remaining Games): BJK-01..04, PLNK-01..03, MINE-01..05 — 12 requirements
+- Phase 6 (Leaderboards): LDR-01..05 — 5 requirements
+- Phase 7 (Profile): PROF-01..03 — 3 requirements
+- Phase 8 (Admin + Anti-Cheat): ADMIN-01..05, ANTI-01..03 — 8 requirements
 
 ---
 *Requirements defined: 2026-02-27*
-*Last updated: 2026-02-27 after initial definition*
+*Last updated: 2026-02-27 — traceability filled in after roadmap creation*
