@@ -18,14 +18,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-02-27)
 
 **Core value:** Players can jump in daily, claim their bonus, play fair-odds casino games with virtual coins, and compete on leaderboards — no real-money risk.
-**Current focus:** Phase 1 — Foundation
+**Current focus:** Phase 2 — Auth & Accounts
 
 ## Current Position
 
-Phase: 1 of 8 (Foundation)
-Plan: 3 of 3 in current phase (PHASE COMPLETE)
-Status: In progress — Phase 1 complete, ready for Phase 2
-Last activity: 2026-02-28 — Plan 03 complete: Express backend skeleton + React/Vite frontend scaffold
+Phase: 2 of 8 (Auth & Accounts)
+Plan: 0 of 3 in current phase (PLANNED — ready to execute)
+Status: Phase 2 planned — 3 plans ready (02-01, 02-02, 02-03)
+Last activity: 2026-02-28 — Phase 2 plans created: user model+registration, login+JWT+profile, logout+password reset+frontend auth
 
 Progress: [██░░░░░░░░] 12%
 
@@ -82,13 +82,13 @@ None yet.
 
 ### Blockers/Concerns
 
-- [Phase 2]: Email infrastructure for password reset (AUTH-04) requires a decision: Nodemailer vs SendGrid. Resolve before Phase 2 planning starts.
-- [Phase 2]: bcrypt native compilation (node-gyp) needs validation against deployment environment before Phase 2 build.
+- [Phase 2 — RESOLVED]: Email infrastructure → Nodemailer with Mailtrap for dev, configurable SMTP_* env vars for prod
+- [Phase 2 — RESOLVED]: bcrypt native compilation → using bcryptjs (pure JS, same API, zero node-gyp risk)
 - [Phase 5]: Blackjack session storage during multi-step play — DB game_sessions vs in-process Map. Resolve during Phase 5 planning.
 - [Phase 4/5]: Roulette wheel animation complexity is HIGH — evaluate Motion 12 vs GSAP during Phase 4 planning before committing to implementation approach.
 
 ## Session Continuity
 
 Last session: 2026-02-28
-Stopped at: Completed 01-foundation-03-PLAN.md — Express backend skeleton + React/Vite frontend scaffold. Phase 1 complete. Ready for Phase 2 (Auth).
+Stopped at: Phase 2 plans complete. Run /gsd:execute-phase 2 to begin execution.
 Resume file: None
