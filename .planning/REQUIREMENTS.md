@@ -19,16 +19,16 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Virtual Currency
 
-- [ ] **CURR-01**: New users receive a starting balance sufficient for approximately 50–100 minimum bets
+- [x] **CURR-01**: New users receive a starting balance sufficient for approximately 50–100 minimum bets
 - [ ] **CURR-02**: User can claim a daily bonus once per 24 hours from the dashboard
 - [ ] **CURR-03**: User's balance is always visible in a persistent header/sidebar on every page
 - [ ] **CURR-04**: User's balance updates after each game round without a page refresh
 
 ### Game Infrastructure
 
-- [ ] **GINF-01**: All games deduct the bet amount from the user's balance before play begins
+- [x] **GINF-01**: All games deduct the bet amount from the user's balance before play begins
 - [ ] **GINF-02**: All game outcomes are calculated server-side using a cryptographically secure RNG (never client-side)
-- [ ] **GINF-03**: Winnings are credited to the user's balance after the outcome is resolved server-side
+- [x] **GINF-03**: Winnings are credited to the user's balance after the outcome is resolved server-side
 - [ ] **GINF-04**: Every game round logs: UserID, GameType, BetAmount, Outcome, Profit, Timestamp
 - [ ] **GINF-05**: Each game enforces minimum and maximum bet limits; bets outside range are rejected before play
 - [ ] **GINF-06**: Each game shows quick-select bet chips (e.g. 10 / 50 / 100 / 500 / Max) plus Half and Double buttons
@@ -159,13 +159,13 @@ Which phases cover which requirements. Updated during roadmap creation.
 | AUTH-03 | Phase 2 | Pending |
 | AUTH-04 | Phase 2 | Pending |
 | AUTH-05 | Phase 2 | Complete |
-| CURR-01 | Phase 3 | Pending |
+| CURR-01 | Phase 3 | Complete |
 | CURR-02 | Phase 3 | Pending |
 | CURR-03 | Phase 3 | Pending |
 | CURR-04 | Phase 3 | Pending |
-| GINF-01 | Phase 3 | Pending |
+| GINF-01 | Phase 3 | Complete |
 | GINF-02 | Phase 3 | Pending |
-| GINF-03 | Phase 3 | Pending |
+| GINF-03 | Phase 3 | Complete |
 | GINF-04 | Phase 3 | Pending |
 | GINF-05 | Phase 3 | Pending |
 | GINF-06 | Phase 4 | Pending |

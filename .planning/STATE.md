@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-last_updated: "2026-03-02T04:53:42.728Z"
+last_updated: "2026-03-02T17:05:46.030Z"
 progress:
-  total_phases: 2
+  total_phases: 3
   completed_phases: 2
-  total_plans: 6
-  completed_plans: 6
+  total_plans: 9
+  completed_plans: 7
 ---
 
 # Project State
@@ -22,10 +22,10 @@ See: .planning/PROJECT.md (updated 2026-02-27)
 
 ## Current Position
 
-Phase: 2 of 8 (Auth & Accounts) — COMPLETE
-Plan: 3 of 3 complete (Phase 2 fully done)
-Status: Phase 2 complete — Phase 3 (Wallet & Transactions) next
-Last activity: 2026-03-02 — Completed 02-03: logout/forgot-password/reset-password + full frontend auth layer
+Phase: 3 of 8 (Wallet & Transactions) — IN PROGRESS
+Plan: 1 of 3 complete (Phase 3 in progress)
+Status: Phase 3 Plan 1 complete — WalletService foundation built
+Last activity: 2026-03-02 — Completed 03-01: WalletService deductBet/settleBet/claimDailyBonus + wallet router + 1000-coin starting balance
 
 Progress: [█████░░░░░] 50%
 
@@ -57,6 +57,7 @@ Progress: [█████░░░░░] 50%
 | Phase 02-auth-accounts P01 | 3 min | 2 tasks | 11 files |
 | Phase 02-auth-accounts P02 | 4 min | 2 tasks | 3 files |
 | Phase 02-auth-accounts P03 | 2 min | 2 tasks | 12 files |
+| Phase 03-wallet-currency P01 | 2 | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -91,6 +92,9 @@ Recent decisions affecting current work:
 - [Phase 02-auth-accounts P03]: auth:session-expired CustomEvent bridges axios interceptor to React state without coupling the two layers
 - [Phase 02-auth-accounts P03]: POST /api/auth/forgot-password always returns 200 regardless of email existence — no enumeration even on server errors
 - [Phase 02-auth-accounts P03]: POST /api/auth/reset-password auto-logs user in on success — returns accessToken + sets refresh cookie
+- [Phase 03-wallet-currency]: All balance mutations use db.transaction() + .select().for('update') — single choke-point for all game engine phases (3-8)
+- [Phase 03-wallet-currency]: Aggregate columns use sql template expressions — avoids lost-update anomalies from JS read-modify-write
+- [Phase 03-wallet-currency]: No noWait/skipLocked on .for() calls — Drizzle ORM bug #3554 makes these options unreliable
 
 ### Pending Todos
 
@@ -107,5 +111,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-02
-Stopped at: Completed 02-03-PLAN.md (logout/forgot-password/reset-password + full frontend auth layer)
+Stopped at: Completed 03-01-PLAN.md (WalletService foundation: deductBet/settleBet/claimDailyBonus + wallet router + 1000-coin starting balance)
 Resume file: None
