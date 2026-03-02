@@ -2,7 +2,9 @@ import { Router, type IRouter } from 'express';
 import { z } from 'zod';
 import { validate } from '../middleware/validate.js';
 import { authLimiter } from '../middleware/rateLimiter.js';
-import { register, verifyEmail } from '../services/authService.js';
+import { register, verifyEmail, login, refreshToken, getProfile } from '../services/authService.js';
+import { requireAuth } from '../middleware/requireAuth.js';
+import { env } from '../env.js';
 
 export const authRouter: IRouter = Router();
 
@@ -44,6 +46,95 @@ authRouter.get('/verify-email', async (req, res) => {
       return;
     }
     console.error('[auth] verify-email error:', err);
+    res.status(500).json({ error: 'An unexpected error occurred' });
+  }
+});
+
+const loginSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(1),
+});
+
+// POST /api/auth/login
+authRouter.post('/login', authLimiter, validate(loginSchema), async (req, res) => {
+  try {
+    const { accessToken, rawRefreshToken } = await login(
+      req.body.email as string,
+      req.body.password as string
+    );
+
+    res.cookie('refreshToken', rawRefreshToken, {
+      httpOnly: true,
+      secure: env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      path: '/api/auth/refresh',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    res.json({ accessToken });
+  } catch (err: unknown) {
+    const code = (err as { code?: string }).code;
+    if (code === 'INVALID_CREDENTIALS') {
+      res.status(401).json({ error: 'Invalid credentials' });
+      return;
+    }
+    if (code === 'EMAIL_NOT_VERIFIED') {
+      res.status(403).json({ error: 'Please verify your email before logging in' });
+      return;
+    }
+    if (code === 'ACCOUNT_BANNED') {
+      res.status(403).json({ error: 'Your account has been suspended' });
+      return;
+    }
+    console.error('[auth] login error:', err);
+    res.status(500).json({ error: 'An unexpected error occurred' });
+  }
+});
+
+// POST /api/auth/refresh
+// Cookie is scoped to /api/auth/refresh — browser only sends it to this route
+authRouter.post('/refresh', async (req, res) => {
+  const rawToken: string | undefined = req.cookies['refreshToken'];
+  if (!rawToken) {
+    res.status(401).json({ error: 'No refresh token' });
+    return;
+  }
+
+  try {
+    const result = await refreshToken(rawToken);
+    if (!result) {
+      res.clearCookie('refreshToken', { path: '/api/auth/refresh' });
+      res.status(401).json({ error: 'Session expired. Please log in again.' });
+      return;
+    }
+
+    // Re-set cookie with fresh maxAge (sliding expiry)
+    res.cookie('refreshToken', result.rawRefreshToken, {
+      httpOnly: true,
+      secure: env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      path: '/api/auth/refresh',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    res.json({ accessToken: result.accessToken });
+  } catch (err) {
+    console.error('[auth] refresh error:', err);
+    res.status(500).json({ error: 'An unexpected error occurred' });
+  }
+});
+
+// GET /api/auth/me
+authRouter.get('/me', requireAuth, async (req, res) => {
+  try {
+    const profile = await getProfile(req.user!.id);
+    res.json(profile);
+  } catch (err: unknown) {
+    if ((err as { code?: string }).code === 'NOT_FOUND') {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+    console.error('[auth] me error:', err);
     res.status(500).json({ error: 'An unexpected error occurred' });
   }
 });
