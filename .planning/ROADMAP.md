@@ -13,7 +13,7 @@ Eight phases build the platform from the ground up, following a hard-constrained
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Foundation** - Project scaffold, PostgreSQL schema, Express skeleton, React scaffold — the base everything else sits on
-- [ ] **Phase 2: Auth & Accounts** - User registration, login, sessions, password reset, and profile data model
+- [x] **Phase 2: Auth & Accounts** - User registration, login, sessions, password reset, and profile data model
 - [ ] **Phase 3: Wallet & Currency** - Virtual coin system, starting balance, daily bonus, and atomic bet transaction pipeline
 - [ ] **Phase 4: Game Infrastructure & Roulette** - Server-side RNG pattern, bet validation, game logging, and the first complete game (Roulette) end-to-end
 - [ ] **Phase 5: Remaining Games** - Plinko (stateless), Mines (session state), and Blackjack (multi-step session) in complexity order
@@ -52,9 +52,9 @@ Plans:
 **Plans**: TBD
 
 Plans:
-- [ ] 02-01: User model, registration endpoint, bcrypt hashing
-- [ ] 02-02: Login, JWT issuance (15-min access + 7-day refresh), authenticate middleware
-- [ ] 02-03: Logout, token revocation, password reset flow
+- [x] 02-01: User model, registration endpoint, bcrypt hashing
+- [x] 02-02: Login, JWT issuance (15-min access + 7-day refresh), authenticate middleware
+- [x] 02-03: Logout, token revocation, password reset flow
 
 ### Phase 3: Wallet & Currency
 **Goal**: The virtual coin economy is live — users start with coins, can earn more daily, and every bet deduction/credit is atomic with no race condition possible
@@ -162,7 +162,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation | 3/3 | Complete   | 2026-02-28 |
-| 2. Auth & Accounts | 2/3 | In Progress|  |
+| 2. Auth & Accounts | 3/3 | Complete   | 2026-03-02 |
 | 3. Wallet & Currency | 0/3 | Not started | - |
 | 4. Game Infrastructure & Roulette | 0/3 | Not started | - |
 | 5. Remaining Games | 0/3 | Not started | - |

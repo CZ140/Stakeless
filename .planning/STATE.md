@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-last_updated: "2026-03-02T04:44:00.000Z"
+last_updated: "2026-03-02T04:48:00.000Z"
 progress:
   total_phases: 8
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 12
-  completed_plans: 5
+  completed_plans: 6
 ---
 
 # Project State
@@ -18,33 +18,33 @@ progress:
 See: .planning/PROJECT.md (updated 2026-02-27)
 
 **Core value:** Players can jump in daily, claim their bonus, play fair-odds casino games with virtual coins, and compete on leaderboards — no real-money risk.
-**Current focus:** Phase 2 — Auth & Accounts
+**Current focus:** Phase 3 — Wallet & Transactions
 
 ## Current Position
 
-Phase: 2 of 8 (Auth & Accounts)
-Plan: 2 of 3 in current phase (IN PROGRESS — 02-01 and 02-02 complete)
-Status: Phase 2 executing — 02-01 complete, 02-02 complete, 02-03 ready
-Last activity: 2026-03-02 — Completed 02-02: login/refresh/me endpoints, requireAuth middleware
+Phase: 2 of 8 (Auth & Accounts) — COMPLETE
+Plan: 3 of 3 complete (Phase 2 fully done)
+Status: Phase 2 complete — Phase 3 (Wallet & Transactions) next
+Last activity: 2026-03-02 — Completed 02-03: logout/forgot-password/reset-password + full frontend auth layer
 
-Progress: [████░░░░░░] 42%
+Progress: [█████░░░░░] 50%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 5
+- Total plans completed: 6
 - Average duration: 4 min
-- Total execution time: 0.19 hours
+- Total execution time: 0.20 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01-foundation | 3 | 11 min | 4 min |
-| 02-auth-accounts | 2 | 7 min | 4 min |
+| 02-auth-accounts | 3 | 9 min | 3 min |
 
 **Recent Trend:**
-- Last 5 plans: 4 min, 4 min, 3 min, 3 min, 4 min
+- Last 5 plans: 4 min, 4 min, 3 min, 3 min, 2 min
 - Trend: stable
 
 *Updated after each plan completion*
@@ -56,6 +56,7 @@ Progress: [████░░░░░░] 42%
 | Phase 01-foundation P03 | 3 min | 2 tasks | 10 files |
 | Phase 02-auth-accounts P01 | 3 min | 2 tasks | 11 files |
 | Phase 02-auth-accounts P02 | 4 min | 2 tasks | 3 files |
+| Phase 02-auth-accounts P03 | 2 min | 2 tasks | 12 files |
 
 ## Accumulated Context
 
@@ -85,6 +86,11 @@ Recent decisions affecting current work:
 - [Phase 02-auth-accounts P02]: requireAuth returns generic 401 for both missing and invalid/expired tokens — no distinction to prevent information leakage
 - [Phase 02-auth-accounts P02]: Refresh cookie path scoped to /api/auth/refresh — browser only sends cookie to that single path
 - [Phase 02-auth-accounts P02]: isBanned checked after password validation — prevents enumeration of banned accounts via different error response
+- [Phase 02-auth-accounts P03]: refreshingPromise singleton in axios interceptor prevents N concurrent 401s from triggering N parallel refresh calls — one refresh attempt gates all queued requests
+- [Phase 02-auth-accounts P03]: Access token stored in closure variable (client.ts module scope) and React state (AuthContext) — never localStorage/sessionStorage
+- [Phase 02-auth-accounts P03]: auth:session-expired CustomEvent bridges axios interceptor to React state without coupling the two layers
+- [Phase 02-auth-accounts P03]: POST /api/auth/forgot-password always returns 200 regardless of email existence — no enumeration even on server errors
+- [Phase 02-auth-accounts P03]: POST /api/auth/reset-password auto-logs user in on success — returns accessToken + sets refresh cookie
 
 ### Pending Todos
 
@@ -101,5 +107,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-02
-Stopped at: Completed 02-02-PLAN.md (login/refresh/me endpoints, requireAuth middleware)
+Stopped at: Completed 02-03-PLAN.md (logout/forgot-password/reset-password + full frontend auth layer)
 Resume file: None
