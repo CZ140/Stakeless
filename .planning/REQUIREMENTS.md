@@ -11,7 +11,7 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Authentication
 
-- [ ] **AUTH-01**: User can register an account with email and password
+- [x] **AUTH-01**: User can register an account with email and password
 - [ ] **AUTH-02**: User can log in and maintain a persistent session across browser refreshes (JWT)
 - [ ] **AUTH-03**: User can log out from any page
 - [ ] **AUTH-04**: User can reset password via email link
@@ -154,7 +154,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| AUTH-01 | Phase 2 | Pending |
+| AUTH-01 | Phase 2 | Complete |
 | AUTH-02 | Phase 2 | Pending |
 | AUTH-03 | Phase 2 | Pending |
 | AUTH-04 | Phase 2 | Pending |
