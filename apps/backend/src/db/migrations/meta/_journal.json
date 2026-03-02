@@ -8,6 +8,13 @@
       "when": 1772240980700,
       "tag": "0000_pale_captain_cross",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1772426162721,
+      "tag": "0001_unusual_wrecking_crew",
+      "breakpoints": true
     }
   ]
 }

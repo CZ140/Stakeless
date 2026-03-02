@@ -9,6 +9,14 @@ import { z } from 'zod';
 const envSchema = z.object({
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
   PORT: z.coerce.number().min(1024).max(65535).default(3000),
+  NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+  JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters'),
+  SMTP_HOST: z.string().min(1, 'SMTP_HOST is required'),
+  SMTP_PORT: z.coerce.number().default(587),
+  SMTP_USER: z.string().min(1, 'SMTP_USER is required'),
+  SMTP_PASS: z.string().min(1, 'SMTP_PASS is required'),
+  SMTP_FROM: z.string().email('SMTP_FROM must be a valid email'),
+  FRONTEND_URL: z.string().url().default('http://localhost:5173'),
 });
 
 const parsed = envSchema.safeParse(process.env);
