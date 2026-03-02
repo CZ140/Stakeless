@@ -1,8 +1,8 @@
 import bcrypt from 'bcryptjs';
-import { eq, and, isNull } from 'drizzle-orm';
+import { eq, and, isNull, gt } from 'drizzle-orm';
 import { db } from '../db/index.js';
-import { users, emailVerificationTokens } from '../db/schema.js';
-import { generateOpaqueToken, hashToken } from './tokenService.js';
+import { users, emailVerificationTokens, refreshTokens } from '../db/schema.js';
+import { generateOpaqueToken, hashToken, signAccessToken } from './tokenService.js';
 import { sendVerificationEmail } from './emailService.js';
 import { env } from '../env.js';
 
@@ -86,4 +86,113 @@ export async function verifyEmail(rawToken: string): Promise<void> {
   await db.update(users)
     .set({ isEmailVerified: true })
     .where(eq(users.id, record.userId));
+}
+
+export async function login(
+  email: string,
+  password: string
+): Promise<{ accessToken: string; rawRefreshToken: string }> {
+  const [user] = await db.select().from(users)
+    .where(eq(users.email, email.toLowerCase()))
+    .limit(1);
+
+  // Generic error for both "email not found" and "wrong password" — prevents email enumeration
+  const invalidErr = Object.assign(new Error('Invalid credentials'), { code: 'INVALID_CREDENTIALS' });
+
+  if (!user) {
+    // Run bcrypt anyway to prevent timing-based email enumeration
+    await bcrypt.compare(password, '$2a$12$invalidhashplaceholderXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX');
+    throw invalidErr;
+  }
+
+  const passwordValid = await bcrypt.compare(password, user.passwordHash);
+  if (!passwordValid) throw invalidErr;
+
+  if (!user.isEmailVerified) {
+    throw Object.assign(new Error('Email not verified'), { code: 'EMAIL_NOT_VERIFIED' });
+  }
+
+  if (user.isBanned) {
+    throw Object.assign(new Error('Account banned'), { code: 'ACCOUNT_BANNED' });
+  }
+
+  // Issue tokens
+  const accessToken = await signAccessToken(user.id);
+  const rawRefreshToken = generateOpaqueToken();
+  const tokenHash = hashToken(rawRefreshToken);
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+  await db.insert(refreshTokens).values({ userId: user.id, tokenHash, expiresAt });
+
+  // Update lastLoginAt
+  await db.update(users)
+    .set({ lastLoginAt: new Date() })
+    .where(eq(users.id, user.id));
+
+  return { accessToken, rawRefreshToken };
+}
+
+export async function refreshToken(
+  rawToken: string
+): Promise<{ accessToken: string; rawRefreshToken: string } | null> {
+  const tokenHash = hashToken(rawToken);
+  const now = new Date();
+
+  const [existing] = await db.select().from(refreshTokens)
+    .where(
+      and(
+        eq(refreshTokens.tokenHash, tokenHash),
+        gt(refreshTokens.expiresAt, now),
+      )
+    )
+    .limit(1);
+
+  if (!existing) return null;
+
+  // Rotate: delete old row, insert new one
+  await db.delete(refreshTokens).where(eq(refreshTokens.id, existing.id));
+
+  const newRawToken = generateOpaqueToken();
+  const newTokenHash = hashToken(newRawToken);
+  const newExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+  await db.insert(refreshTokens).values({
+    userId: existing.userId,
+    tokenHash: newTokenHash,
+    expiresAt: newExpiresAt,
+  });
+
+  const accessToken = await signAccessToken(existing.userId);
+
+  return { accessToken, rawRefreshToken: newRawToken };
+}
+
+export async function getProfile(userId: number) {
+  const [user] = await db.select({
+    id: users.id,
+    email: users.email,
+    balance: users.balance,
+    totalWagered: users.totalWagered,
+    totalProfit: users.totalProfit,
+    totalLoss: users.totalLoss,
+    lastBonusClaimedAt: users.lastBonusClaimedAt,
+    createdAt: users.createdAt,
+    lastLoginAt: users.lastLoginAt,
+  }).from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+
+  if (!user) throw Object.assign(new Error('User not found'), { code: 'NOT_FOUND' });
+
+  return {
+    id: user.id,
+    email: user.email,
+    balance: user.balance,
+    totalWagered: user.totalWagered,
+    totalProfit: user.totalProfit,
+    totalLoss: user.totalLoss,
+    dailyBonusTimestamp: user.lastBonusClaimedAt?.toISOString() ?? null,
+    createdAt: user.createdAt.toISOString(),
+    lastLoginAt: user.lastLoginAt?.toISOString() ?? null,
+  };
 }
