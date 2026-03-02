@@ -49,7 +49,7 @@ Plans:
   3. A user can log out from any page and their session is immediately invalidated
   4. A user can request a password reset email and use the link to set a new password
   5. The user record stores balance, total wagered, total profit, total loss, daily bonus timestamp, account creation date, and last login date — all readable via the profile API
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
 - [x] 02-01: User model, registration endpoint, bcrypt hashing
@@ -66,12 +66,12 @@ Plans:
   3. The user's current balance is visible in the persistent header on every page at all times
   4. After any game round completes, the balance displayed in the header updates without a page refresh
   5. Ten simultaneous bet requests from the same user result in at most one successful deduction — no double-spend is possible
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 03-01: WalletService with atomic PostgreSQL transaction (SELECT FOR UPDATE), starting balance on registration
-- [ ] 03-02: Daily bonus endpoint with 24-hour gate, balance read API, header balance display (React)
-- [ ] 03-03: Bet deduct/credit pipeline (GINF-01, GINF-03), game_logs append (GINF-04), bet limit enforcement (GINF-05), server-side RNG setup (GINF-02)
+- [ ] 03-01-PLAN.md — WalletService (SELECT FOR UPDATE atomicity), claimDailyBonus, settleBet/deductBet, starting balance on registration
+- [ ] 03-02-PLAN.md — Zustand balance store, AuthContext wiring, Header with animated BalanceDisplay, DailyBonusCard, DashboardPage
+- [ ] 03-03-PLAN.md — validateBet middleware, POST /api/wallet/bet coin-flip pipeline (GINF-01..05), BetRequest/BetResponse shared types
 
 ### Phase 4: Game Infrastructure & Roulette
 **Goal**: The full game resolution pipeline is proven end-to-end with Roulette — a player places a bet, the server resolves it with cryptographic RNG, the balance updates, the round is logged, and the animated wheel reveals the result
