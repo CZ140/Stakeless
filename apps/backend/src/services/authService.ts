@@ -40,6 +40,7 @@ export async function register(email: string, password: string): Promise<void> {
     email: email.toLowerCase(),
     passwordHash,
     username,
+    balance: 1000, // CURR-01: 1,000 coins starting balance (≥50 minimum bets at 1 coin each)
   }).returning({ id: users.id });
 
   if (!newUser) throw new Error('Failed to create user');

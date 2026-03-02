@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import { healthRouter } from './routes/health.js';
 import { authRouter } from './routes/auth.js';
+import { walletRouter } from './routes/wallet.js';
 
 export function createApp(): Express {
   const app = express();
@@ -28,6 +29,7 @@ export function createApp(): Express {
   // Routes
   app.use('/api', healthRouter);
   app.use('/api/auth', authRouter);
+  app.use('/api/wallet', walletRouter);
 
   return app;
 }
