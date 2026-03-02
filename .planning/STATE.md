@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-last_updated: "2026-03-02T17:09:29.433Z"
+last_updated: "2026-03-02T17:10:30Z"
 progress:
   total_phases: 3
   completed_phases: 2
@@ -58,6 +58,7 @@ Progress: [███████░░░] 62%
 | Phase 02-auth-accounts P02 | 4 min | 2 tasks | 3 files |
 | Phase 02-auth-accounts P03 | 2 min | 2 tasks | 12 files |
 | Phase 03-wallet-currency P01 | 2 | 2 tasks | 5 files |
+| Phase 03-wallet-currency P02 | 3 min | 2 tasks | 10 files |
 | Phase 03-wallet-currency P03 | 1 | 2 tasks | 3 files |
 
 ## Accumulated Context
@@ -98,6 +99,9 @@ Recent decisions affecting current work:
 - [Phase 03-wallet-currency]: No noWait/skipLocked on .for() calls — Drizzle ORM bug #3554 makes these options unreliable
 - [Phase 03-wallet-currency]: crypto.randomInt(0,2) used for game outcome — Math.random() never in game resolution code (GINF-02)
 - [Phase 03-wallet-currency]: deductBet and settleBet remain separate transactions — Phase 4/5 stateful games need them decoupled
+- [Phase 03-wallet-currency P02]: Zustand v5 double-parens TypeScript pattern required: create<State>()((set) => ...) — single parens causes TS inference failure in v5
+- [Phase 03-wallet-currency P02]: Balance initialization uses prevTokenRef to detect null→value accessToken transition — avoids double-fetch during mount refresh
+- [Phase 03-wallet-currency P02]: Framer Motion spring animation (useSpring + useTransform) used for balance counter — react-countup is React 19 incompatible
 
 ### Pending Todos
 
@@ -114,5 +118,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-02
-Stopped at: Completed 03-03-PLAN.md (POST /api/wallet/bet coin-flip + validateBet middleware + BetRequest/BetResponse shared types)
+Stopped at: Completed 03-02-PLAN.md (Frontend wallet layer: Zustand balance store, animated header balance display, DailyBonusCard, DashboardPage)
 Resume file: None

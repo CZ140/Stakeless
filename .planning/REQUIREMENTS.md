@@ -20,9 +20,9 @@ Requirements for initial release. Each maps to roadmap phases.
 ### Virtual Currency
 
 - [x] **CURR-01**: New users receive a starting balance sufficient for approximately 50–100 minimum bets
-- [ ] **CURR-02**: User can claim a daily bonus once per 24 hours from the dashboard
-- [ ] **CURR-03**: User's balance is always visible in a persistent header/sidebar on every page
-- [ ] **CURR-04**: User's balance updates after each game round without a page refresh
+- [x] **CURR-02**: User can claim a daily bonus once per 24 hours from the dashboard
+- [x] **CURR-03**: User's balance is always visible in a persistent header/sidebar on every page
+- [x] **CURR-04**: User's balance updates after each game round without a page refresh
 
 ### Game Infrastructure
 
@@ -160,9 +160,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | AUTH-04 | Phase 2 | Pending |
 | AUTH-05 | Phase 2 | Complete |
 | CURR-01 | Phase 3 | Complete |
-| CURR-02 | Phase 3 | Pending |
-| CURR-03 | Phase 3 | Pending |
-| CURR-04 | Phase 3 | Pending |
+| CURR-02 | Phase 3 | Complete |
+| CURR-03 | Phase 3 | Complete |
+| CURR-04 | Phase 3 | Complete |
 | GINF-01 | Phase 3 | Complete |
 | GINF-02 | Phase 3 | Complete |
 | GINF-03 | Phase 3 | Complete |
