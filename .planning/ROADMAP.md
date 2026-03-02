@@ -81,7 +81,7 @@ Plans:
 **Gap Closure:** Closes gaps from v1.0 MILESTONE-AUDIT.md
 
 Plans:
-- [ ] 03.1-01-PLAN.md — Add logout button to `Header.tsx`; fix `ProtectedRoute.tsx` session-expired redirect
+- [x] 03.1-01-PLAN.md — Add logout button to `Header.tsx`; fix `ProtectedRoute.tsx` session-expired redirect
 
 ---
 
@@ -176,7 +176,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8
 | 1. Foundation | 3/3 | Complete   | 2026-02-28 |
 | 2. Auth & Accounts | 3/3 | Complete   | 2026-03-02 |
 | 3. Wallet & Currency | 3/3 | Complete   | 2026-03-02 |
-| 3.1. Auth UI Gap Closure | 0/1 | Not started | - |
+| 3.1. Auth UI Gap Closure | 1/1 | Complete   | 2026-03-02 |
 | 4. Game Infrastructure & Roulette | 0/3 | Not started | - |
 | 5. Remaining Games | 0/3 | Not started | - |
 | 6. Leaderboards & Real-Time | 0/2 | Not started | - |

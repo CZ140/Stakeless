@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-last_updated: "2026-03-02T17:15:51.702Z"
+last_updated: "2026-03-02T18:22:30Z"
 progress:
-  total_phases: 3
-  completed_phases: 3
-  total_plans: 9
-  completed_plans: 9
+  total_phases: 4
+  completed_phases: 4
+  total_plans: 10
+  completed_plans: 10
 ---
 
 # Project State
@@ -18,16 +18,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-02-27)
 
 **Core value:** Players can jump in daily, claim their bonus, play fair-odds casino games with virtual coins, and compete on leaderboards — no real-money risk.
-**Current focus:** Phase 3 — Wallet & Transactions
+**Current focus:** Phase 3.1 — Auth UI Gap Closure (complete) → Phase 4: Game Infrastructure & Roulette
 
 ## Current Position
 
-Phase: 3 of 8 (Wallet & Transactions) — IN PROGRESS
-Plan: 3 of 3 complete (Phase 3 complete)
-Status: Phase 3 Plan 3 complete — Bet pipeline (POST /api/wallet/bet + validateBet + BetRequest/BetResponse)
-Last activity: 2026-03-02 — Completed 03-03: validateBet middleware, POST /api/wallet/bet coin-flip endpoint, shared BetRequest/BetResponse types
+Phase: 3.1 of 8 (Auth UI Gap Closure) — COMPLETE
+Plan: 1 of 1 complete (Phase 3.1 complete)
+Status: Phase 3.1 Plan 1 complete — Sign Out button in Header, ProtectedRoute session-expired redirect, AUTH-03 closed
+Last activity: 2026-03-02 — Completed 03.1-01: Sign Out button in Header.tsx + /login?expired=true redirect in ProtectedRoute.tsx
 
-Progress: [███████░░░] 62%
+Progress: [███████░░░] 65%
 
 ## Performance Metrics
 
@@ -60,6 +60,7 @@ Progress: [███████░░░] 62%
 | Phase 03-wallet-currency P01 | 2 | 2 tasks | 5 files |
 | Phase 03-wallet-currency P02 | 3 min | 2 tasks | 10 files |
 | Phase 03-wallet-currency P03 | 1 | 2 tasks | 3 files |
+| Phase 03.1-auth-ui-gap-closure P01 | 45 min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -102,6 +103,9 @@ Recent decisions affecting current work:
 - [Phase 03-wallet-currency P02]: Zustand v5 double-parens TypeScript pattern required: create<State>()((set) => ...) — single parens causes TS inference failure in v5
 - [Phase 03-wallet-currency P02]: Balance initialization uses prevTokenRef to detect null→value accessToken transition — avoids double-fetch during mount refresh
 - [Phase 03-wallet-currency P02]: Framer Motion spring animation (useSpring + useTransform) used for balance counter — react-countup is React 19 incompatible
+- [Phase 03.1-auth-ui-gap-closure P01]: onClick={() => void signOut()} pattern — void operator discards Promise<void> to satisfy strict TS MouseEventHandler return type
+- [Phase 03.1-auth-ui-gap-closure P01]: ?expired=true redirect in ProtectedRoute is unconditional — first-time visitors to protected pages will also see session-expired banner; accepted UX inaccuracy for v1.0
+- [Phase 03.1-auth-ui-gap-closure P01]: Sign Out button scope limited to pages rendering Header (currently DashboardPage); game pages in Phase 4+ need Header in their layout to surface logout
 
 ### Pending Todos
 
@@ -118,5 +122,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-02
-Stopped at: Completed 03-02-PLAN.md (Frontend wallet layer: Zustand balance store, animated header balance display, DailyBonusCard, DashboardPage)
+Stopped at: Completed 03.1-01-PLAN.md (Sign Out button in Header, ProtectedRoute session-expired redirect — AUTH-03 gap closed)
 Resume file: None
