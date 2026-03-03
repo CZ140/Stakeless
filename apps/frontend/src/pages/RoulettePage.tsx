@@ -21,7 +21,7 @@ export function RoulettePage() {
   const { placedChips, gamePhase, isMuted, setGamePhase, clearAll, addToHistory } = useRouletteStore();
   const { playWin, playLoss } = useGameSounds(isMuted);
   const [winningPocket, setWinningPocket] = useState<number | null>(null);
-  const [lastResult, setLastResult] = useState<{ winningPocket: number; netAmount: number } | null>(null);
+  const [lastResult, setLastResult] = useState<{ winningPocket: number; netAmount: number; bets: typeof placedChips } | null>(null);
   const [showHowTo, setShowHowTo] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pendingBalance, setPendingBalance] = useState<number | null>(null);
@@ -58,7 +58,7 @@ export function RoulettePage() {
       const netAmount = profit - totalBet;
 
       setWinningPocket(pocket);
-      setLastResult({ winningPocket: pocket, netAmount });
+      setLastResult({ winningPocket: pocket, netAmount, bets: [...placedChips] });
       // gamePhase stays 'spinning' - RouletteWheel's onSettled transitions to 'result'
       // Balance update deferred to onSettled to sync with animation end
       setPendingBalance(newBalance);
@@ -131,6 +131,7 @@ export function RoulettePage() {
               visible={isResult}
               winningPocket={lastResult?.winningPocket ?? null}
               netAmount={lastResult?.netAmount ?? 0}
+              bets={lastResult?.bets ?? []}
             />
           </div>
 
