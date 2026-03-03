@@ -45,12 +45,12 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Roulette
 
-- [ ] **ROUL-01**: User can play European Roulette (single zero, 37 pockets)
-- [ ] **ROUL-02**: User can place Red/Black bets
-- [ ] **ROUL-03**: User can place Odd/Even bets
-- [ ] **ROUL-04**: User can place straight-up single number bets
-- [ ] **ROUL-05**: User can place Dozens bets (1–12, 13–24, 25–36)
-- [ ] **ROUL-06**: User can place Columns bets
+- [x] **ROUL-01**: User can play European Roulette (single zero, 37 pockets)
+- [x] **ROUL-02**: User can place Red/Black bets
+- [x] **ROUL-03**: User can place Odd/Even bets
+- [x] **ROUL-04**: User can place straight-up single number bets
+- [x] **ROUL-05**: User can place Dozens bets (1–12, 13–24, 25–36)
+- [x] **ROUL-06**: User can place Columns bets
 - [ ] **ROUL-07**: Animated wheel spin reveals the result; ball decelerates realistically before stopping
 
 ### Plinko
@@ -176,12 +176,12 @@ Which phases cover which requirements. Updated during roadmap creation.
 | BJK-02 | Phase 5 | Pending |
 | BJK-03 | Phase 5 | Pending |
 | BJK-04 | Phase 5 | Pending |
-| ROUL-01 | Phase 4 | Pending |
-| ROUL-02 | Phase 4 | Pending |
-| ROUL-03 | Phase 4 | Pending |
-| ROUL-04 | Phase 4 | Pending |
-| ROUL-05 | Phase 4 | Pending |
-| ROUL-06 | Phase 4 | Pending |
+| ROUL-01 | Phase 4 | Complete |
+| ROUL-02 | Phase 4 | Complete |
+| ROUL-03 | Phase 4 | Complete |
+| ROUL-04 | Phase 4 | Complete |
+| ROUL-05 | Phase 4 | Complete |
+| ROUL-06 | Phase 4 | Complete |
 | ROUL-07 | Phase 4 | Pending |
 | PLNK-01 | Phase 5 | Pending |
 | PLNK-02 | Phase 5 | Pending |

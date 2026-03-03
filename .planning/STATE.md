@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-last_updated: "2026-03-03T03:05:00Z"
+last_updated: "2026-03-03T03:04:11Z"
 progress:
   total_phases: 4
   completed_phases: 4
@@ -18,14 +18,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-02-27)
 
 **Core value:** Players can jump in daily, claim their bonus, play fair-odds casino games with virtual coins, and compete on leaderboards — no real-money risk.
-**Current focus:** Phase 4 — Game Infrastructure & Roulette (in progress, Plan 02 of 03 complete)
+**Current focus:** Phase 4 — Game Infrastructure & Roulette (in progress, Plans 01 and 02 of 03 complete)
 
 ## Current Position
 
 Phase: 4 of 8 (Game Infrastructure & Roulette) — IN PROGRESS
-Plan: 2 of 3 complete
-Status: Phase 4 Plan 2 complete — GameCard component, DashboardPage game cards section, /games/roulette ProtectedRoute, RoulettePage placeholder
-Last activity: 2026-03-03 — Completed 04-02: GameCard.tsx + DashboardPage games section + App.tsx roulette route
+Plan: 2 of 3 complete (04-01 and 04-02 both complete)
+Status: Phase 4 Plan 01 complete — rouletteService.ts pure resolver + TDD (19 cases) + gamesRouter POST /roulette/bet + app.ts registration
+Last activity: 2026-03-03 — Completed 04-01: rouletteService.ts + games.ts + app.ts update; vitest setup
 
 Progress: [████████░░] 70%
 
@@ -61,7 +61,7 @@ Progress: [████████░░] 70%
 | Phase 03-wallet-currency P02 | 3 min | 2 tasks | 10 files |
 | Phase 03-wallet-currency P03 | 1 | 2 tasks | 3 files |
 | Phase 03.1-auth-ui-gap-closure P01 | 45 min | 2 tasks | 2 files |
-| Phase 04-game-infrastructure P01 | 4 min | 2 tasks | 3 files |
+| Phase 04-game-infrastructure P01 | 3 min | 2 tasks | 6 files |
 | Phase 04-game-infrastructure P02 | 4 min | 2 tasks | 4 files |
 
 ## Accumulated Context
@@ -108,6 +108,10 @@ Recent decisions affecting current work:
 - [Phase 03.1-auth-ui-gap-closure P01]: onClick={() => void signOut()} pattern — void operator discards Promise<void> to satisfy strict TS MouseEventHandler return type
 - [Phase 03.1-auth-ui-gap-closure P01]: ?expired=true redirect in ProtectedRoute is unconditional — first-time visitors to protected pages will also see session-expired banner; accepted UX inaccuracy for v1.0
 - [Phase 03.1-auth-ui-gap-closure P01]: Sign Out button scope limited to pages rendering Header (currently DashboardPage); game pages in Phase 4+ need Header in their layout to surface logout
+- [Phase 04-game-infrastructure P01]: vitest installed as backend test runner; walletService.test.ts excluded (documentation stubs only, no runnable suites)
+- [Phase 04-game-infrastructure P01]: resolveRouletteBets returns pure profit only — deductBet already removes the stake; profit = net winnings added back
+- [Phase 04-game-infrastructure P01]: col_3 uses pocket % 3 === 0 safely — zero pocket guard handles zero before switch statement
+- [Phase 04-game-infrastructure P01]: crypto.randomInt(0, 37) selects index into WHEEL_SEQUENCE — maps to actual European pocket number (not the index itself)
 - [Phase 04-game-infrastructure P02]: GameCard id prop kept in interface even though not used in render — Phase 5 games may need it for analytics/tracking
 - [Phase 04-game-infrastructure P02]: RoulettePage created as minimal placeholder (Header + loading text) so App.tsx import resolves without errors before Plan 03 implements the full UI
 - [Phase 04-game-infrastructure P02]: GAMES array defined at module scope above DashboardPage function — constant data, no need to move inside component
@@ -127,5 +131,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-03
-Stopped at: Completed 04-02-PLAN.md (GameCard component, DashboardPage game cards, /games/roulette ProtectedRoute, RoulettePage placeholder)
+Stopped at: Completed 04-01-PLAN.md (rouletteService.ts pure resolver + vitest TDD + gamesRouter POST /roulette/bet + app.ts registration)
 Resume file: None
