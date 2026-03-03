@@ -5,6 +5,7 @@ import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { VerifyEmailPage } from './pages/VerifyEmailPage';
 import { DashboardPage } from './pages/DashboardPage';
+import { RoulettePage } from './pages/RoulettePage';
 import { ProtectedRoute } from './components/ProtectedRoute';
 
 export default function App() {
@@ -28,6 +29,14 @@ export default function App() {
         element={
           <ProtectedRoute>
             <DashboardPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/games/roulette"
+        element={
+          <ProtectedRoute>
+            <RoulettePage />
           </ProtectedRoute>
         }
       />

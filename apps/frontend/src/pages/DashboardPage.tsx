@@ -3,6 +3,14 @@ import { apiClient } from '../api/client';
 import { useBalanceStore } from '../stores/balanceStore';
 import { Header } from '../components/Header';
 import { DailyBonusCard } from '../components/DailyBonusCard';
+import { GameCard } from '../components/GameCard';
+
+const GAMES = [
+  { id: 'roulette',  name: 'Roulette',  icon: '🎡', description: 'European wheel, 37 pockets',    route: '/games/roulette',  available: true  },
+  { id: 'plinko',    name: 'Plinko',    icon: '⚫', description: 'Drop the ball, ride the pegs',  route: '/games/plinko',    available: false },
+  { id: 'mines',     name: 'Mines',     icon: '💣', description: 'Avoid the mines, cash out big', route: '/games/mines',     available: false },
+  { id: 'blackjack', name: 'Blackjack', icon: '🃏', description: 'Beat the dealer to 21',         route: '/games/blackjack', available: false },
+];
 
 interface MeResponse {
   id: number;
@@ -52,6 +60,15 @@ export function DashboardPage() {
           <DailyBonusCard
             dailyBonusTimestamp={profile?.dailyBonusTimestamp ?? null}
           />
+        </div>
+
+        <div style={{ marginTop: '48px' }}>
+          <h2 style={{ fontSize: '1.4rem', color: '#e0d7ff', marginBottom: '20px' }}>Games</h2>
+          <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+            {GAMES.map((game) => (
+              <GameCard key={game.id} {...game} />
+            ))}
+          </div>
         </div>
       </main>
     </div>
