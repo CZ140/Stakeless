@@ -5,6 +5,7 @@ import { RouletteTable } from '../components/RouletteTable';
 import { ChipRack } from '../components/ChipRack';
 import { ResultOverlay } from '../components/ResultOverlay';
 import { HowToPlayModal } from '../components/HowToPlayModal';
+import { RouletteHistory } from '../components/RouletteHistory';
 import { useRouletteStore } from '../stores/rouletteStore';
 import { useBalanceStore } from '../stores/balanceStore';
 import { useGameSounds } from '../hooks/useGameSounds';
@@ -17,7 +18,7 @@ interface RouletteResponse {
 }
 
 export function RoulettePage() {
-  const { placedChips, gamePhase, isMuted, setGamePhase, clearAll } = useRouletteStore();
+  const { placedChips, gamePhase, isMuted, setGamePhase, clearAll, addToHistory } = useRouletteStore();
   const { playWin, playLoss } = useGameSounds(isMuted);
   const [winningPocket, setWinningPocket] = useState<number | null>(null);
   const [lastResult, setLastResult] = useState<{ winningPocket: number; netAmount: number } | null>(null);
@@ -80,6 +81,7 @@ export function RoulettePage() {
     const net = lastResult?.netAmount ?? 0;
     if (net > 0) playWin();
     else playLoss();
+    if (lastResult) addToHistory(lastResult.winningPocket);
     setGamePhase('result');
     clearAll();
   }
@@ -118,7 +120,7 @@ export function RoulettePage() {
           </div>
         )}
 
-        <div style={{ display: 'flex', gap: '32px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
+        <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
           {/* Left: Wheel */}
           <div style={{ position: 'relative', flex: '0 0 auto' }}>
             <RouletteWheel
@@ -132,7 +134,7 @@ export function RoulettePage() {
             />
           </div>
 
-          {/* Right: Table + Controls */}
+          {/* Center: Table + Controls */}
           <div style={{ flex: 1, minWidth: '300px' }}>
             <RouletteTable disabled={isSpinning || isResult} />
             <div style={{ marginTop: '20px' }}>
@@ -145,6 +147,9 @@ export function RoulettePage() {
               />
             </div>
           </div>
+
+          {/* Right: History sidebar */}
+          <RouletteHistory />
         </div>
       </main>
 

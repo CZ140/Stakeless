@@ -12,12 +12,26 @@ export interface PlacedChip {
 }
 
 export type GamePhase = 'betting' | 'spinning' | 'result';
+export type PocketColor = 'red' | 'black' | 'green';
+
+export interface HistoryEntry {
+  pocket: number;
+  color: PocketColor;
+}
+
+const RED_NUMBERS = new Set([1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36]);
+
+export function getPocketColor(pocket: number): PocketColor {
+  if (pocket === 0) return 'green';
+  return RED_NUMBERS.has(pocket) ? 'red' : 'black';
+}
 
 interface RouletteState {
   selectedChip: number;
   placedChips: PlacedChip[];
   gamePhase: GamePhase;
   isMuted: boolean;
+  history: HistoryEntry[];
   // Actions
   setSelectedChip: (amount: number) => void;
   placeChip: (zone: BetZone) => void;
@@ -28,6 +42,7 @@ interface RouletteState {
   rebet: (chips: PlacedChip[]) => void;
   setGamePhase: (phase: GamePhase) => void;
   toggleMute: () => void;
+  addToHistory: (pocket: number) => void;
 }
 
 export const useRouletteStore = create<RouletteState>()((set) => ({
@@ -35,6 +50,7 @@ export const useRouletteStore = create<RouletteState>()((set) => ({
   placedChips: [],
   gamePhase: 'betting',
   isMuted: localStorage.getItem('mute') === 'true',
+  history: [],
   setSelectedChip: (amount) => set({ selectedChip: amount }),
   placeChip: (zone) => set((s) => ({
     placedChips: [...s.placedChips, { zone, amount: s.selectedChip }],
@@ -53,5 +69,10 @@ export const useRouletteStore = create<RouletteState>()((set) => ({
     const next = !s.isMuted;
     localStorage.setItem('mute', String(next));
     return { isMuted: next };
+  }),
+  addToHistory: (pocket) => set((s) => {
+    const entry: HistoryEntry = { pocket, color: getPocketColor(pocket) };
+    // Keep last 30 entries, newest first
+    return { history: [entry, ...s.history].slice(0, 30) };
   }),
 }));
