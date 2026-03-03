@@ -759,6 +759,7 @@ gamesRouter.post('/blackjack/double', requireAuth, async (req, res) => {
         card,
         playerHand: state.playerHand,
         dealerHand: state.dealerHand,
+        dealerValue: calculateHandValue(state.dealerHand).value,
         outcome: 'player_bust',
         newBalance,
       });
@@ -786,6 +787,7 @@ gamesRouter.post('/blackjack/double', requireAuth, async (req, res) => {
       card,
       playerHand: state.playerHand,
       dealerHand: state.dealerHand,
+      dealerValue: calculateHandValue(state.dealerHand).value,
       outcome,
       newBalance,
     });
