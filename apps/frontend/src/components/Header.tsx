@@ -27,9 +27,7 @@ export function Header() {
         Virtual Casino
       </Link>
       <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-        <Link to="/profile" style={{ textDecoration: 'none', color: 'inherit' }}>
-          <BalanceDisplay />
-        </Link>
+        <BalanceDisplay />
         <button
           onClick={() => void signOut()}
           style={{
