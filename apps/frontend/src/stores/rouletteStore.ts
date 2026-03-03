@@ -46,12 +46,15 @@ interface RouletteState {
 }
 
 export const useRouletteStore = create<RouletteState>()((set) => ({
-  selectedChip: 10,
+  selectedChip: Number(localStorage.getItem('selectedChip_roulette')) || 10,
   placedChips: [],
   gamePhase: 'betting',
-  isMuted: localStorage.getItem('mute') === 'true',
+  isMuted: localStorage.getItem('isMuted_roulette') === 'true',
   history: [],
-  setSelectedChip: (amount) => set({ selectedChip: amount }),
+  setSelectedChip: (amount) => {
+    localStorage.setItem('selectedChip_roulette', String(amount));
+    set({ selectedChip: amount });
+  },
   placeChip: (zone) => set((s) => ({
     placedChips: [...s.placedChips, { zone, amount: s.selectedChip }],
   })),
@@ -67,7 +70,7 @@ export const useRouletteStore = create<RouletteState>()((set) => ({
   setGamePhase: (phase) => set({ gamePhase: phase }),
   toggleMute: () => set((s) => {
     const next = !s.isMuted;
-    localStorage.setItem('mute', String(next));
+    localStorage.setItem('isMuted_roulette', String(next));
     return { isMuted: next };
   }),
   addToHistory: (pocket) => set((s) => {
