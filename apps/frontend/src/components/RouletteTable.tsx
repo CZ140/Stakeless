@@ -113,29 +113,39 @@ export function RouletteTable({ disabled }: RouletteTableProps) {
         </div>
       </div>
 
-      {/* Outside bets */}
-      <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-        {([
-          ['red', 'Red'],
-          ['black', 'Black'],
-          ['odd', 'Odd'],
-          ['even', 'Even'],
-          ['dozen_1', '1-12'],
-          ['dozen_2', '13-24'],
-          ['dozen_3', '25-36'],
-          ['col_1', 'Col 1'],
-          ['col_2', 'Col 2'],
-          ['col_3', 'Col 3'],
-        ] as [BetZone, string][]).map(([zone, label]) => (
-          <div
-            key={zone}
-            onClick={() => handlePlace(zone)}
-            style={{ ...cellStyle('#1a1a2e'), flex: 1, minWidth: '70px' }}
-          >
-            {label}
+      {/* Outside bets — Row 1: Columns, Row 2: Dozens */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '4px', marginTop: '4px' }}>
+        {(['col_1', 'col_2', 'col_3'] as BetZone[]).map((zone, i) => (
+          <div key={zone} onClick={() => handlePlace(zone)} style={cellStyle('#1a1a2e')}>
+            Col {i + 1}
             <ChipBadge zone={zone} />
           </div>
         ))}
+        {(['dozen_1', 'dozen_2', 'dozen_3'] as BetZone[]).map((zone, i) => (
+          <div key={zone} onClick={() => handlePlace(zone)} style={cellStyle('#1a1a2e')}>
+            {['1-12', '13-24', '25-36'][i]}
+            <ChipBadge zone={zone} />
+          </div>
+        ))}
+      </div>
+      {/* Outside bets — Row 3: Red / Even / Odd / Black */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '4px', marginTop: '4px' }}>
+        <div onClick={() => handlePlace('red')} style={cellStyle('#dc2626')}>
+          Red
+          <ChipBadge zone="red" />
+        </div>
+        <div onClick={() => handlePlace('even')} style={cellStyle('#1a1a2e')}>
+          Even
+          <ChipBadge zone="even" />
+        </div>
+        <div onClick={() => handlePlace('odd')} style={cellStyle('#1a1a2e')}>
+          Odd
+          <ChipBadge zone="odd" />
+        </div>
+        <div onClick={() => handlePlace('black')} style={cellStyle('#111827')}>
+          Black
+          <ChipBadge zone="black" />
+        </div>
       </div>
     </div>
   );

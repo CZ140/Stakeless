@@ -42,12 +42,12 @@ export function RouletteWheel({ winningPocket, onSettled }: RouletteWheelProps) 
     // spin is always visually dramatic, and we accumulate from the true (non-modded) last rotation
     // so that subsequent spins keep rotating forward instead of snapping back.
     const pocketCentreAngle = pocketIndex * POCKET_ANGLE + POCKET_ANGLE / 2;
-    // Normalise current accumulated rotation to [0, 360) so the next pocketCentreAngle is always
-    // reached by moving forward. Then add 5 full rotations minimum.
+    // When the wheel rotates clockwise by R degrees, the gradient position under the top arrow is
+    // (360 - R%360) % 360. To land pocketCentreAngle under the arrow we need:
+    //   R % 360 = (360 - pocketCentreAngle) % 360
+    const targetAngle = (360 - pocketCentreAngle) % 360;
     const currentNorm = currentRotationRef.current % 360;
-    // How far forward we need to rotate from the current normalised position to reach the target.
-    // Always move forward (clockwise): if the target is behind us in the circle, wrap around.
-    const delta = (pocketCentreAngle - currentNorm + 360) % 360;
+    const delta = (targetAngle - currentNorm + 360) % 360;
     const targetRotation = currentRotationRef.current + 5 * 360 + delta;
     gsap.to(containerRef.current, {
       rotation: targetRotation,
