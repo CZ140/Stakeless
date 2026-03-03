@@ -177,7 +177,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8
 | 2. Auth & Accounts | 3/3 | Complete   | 2026-03-02 |
 | 3. Wallet & Currency | 3/3 | Complete   | 2026-03-02 |
 | 3.1. Auth UI Gap Closure | 1/1 | Complete   | 2026-03-02 |
-| 4. Game Infrastructure & Roulette | 0/3 | Not started | - |
+| 4. Game Infrastructure & Roulette | 1/3 | In Progress|  |
 | 5. Remaining Games | 0/3 | Not started | - |
 | 6. Leaderboards & Real-Time | 0/2 | Not started | - |
 | 7. Player Profile | 0/2 | Not started | - |

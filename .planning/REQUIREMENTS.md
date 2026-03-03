@@ -31,10 +31,10 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **GINF-03**: Winnings are credited to the user's balance after the outcome is resolved server-side
 - [x] **GINF-04**: Every game round logs: UserID, GameType, BetAmount, Outcome, Profit, Timestamp
 - [x] **GINF-05**: Each game enforces minimum and maximum bet limits; bets outside range are rejected before play
-- [ ] **GINF-06**: Each game shows quick-select bet chips (e.g. 10 / 50 / 100 / 500 / Max) plus Half and Double buttons
-- [ ] **GINF-07**: Each game pre-fills the bet amount with the user's last bet on that game
-- [ ] **GINF-08**: Each game plays a win or loss animation and sound effect after each round outcome; mute toggle state persists across sessions via localStorage
-- [ ] **GINF-09**: Each game has an accessible how-to-play rules panel (modal or collapsible section)
+- [x] **GINF-06**: Each game shows quick-select bet chips (e.g. 10 / 50 / 100 / 500 / Max) plus Half and Double buttons
+- [x] **GINF-07**: Each game pre-fills the bet amount with the user's last bet on that game
+- [x] **GINF-08**: Each game plays a win or loss animation and sound effect after each round outcome; mute toggle state persists across sessions via localStorage
+- [x] **GINF-09**: Each game has an accessible how-to-play rules panel (modal or collapsible section)
 
 ### Blackjack
 
@@ -168,10 +168,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | GINF-03 | Phase 3 | Complete |
 | GINF-04 | Phase 3 | Complete |
 | GINF-05 | Phase 3 | Complete |
-| GINF-06 | Phase 4 | Pending |
-| GINF-07 | Phase 4 | Pending |
-| GINF-08 | Phase 4 | Pending |
-| GINF-09 | Phase 4 | Pending |
+| GINF-06 | Phase 4 | Complete |
+| GINF-07 | Phase 4 | Complete |
+| GINF-08 | Phase 4 | Complete |
+| GINF-09 | Phase 4 | Complete |
 | BJK-01 | Phase 5 | Pending |
 | BJK-02 | Phase 5 | Pending |
 | BJK-03 | Phase 5 | Pending |
