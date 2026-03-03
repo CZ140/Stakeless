@@ -131,9 +131,10 @@ Plans:
 **Success Criteria** (what must be TRUE):
   1. A Phase 04 VERIFICATION.md exists and marks GINF-06..09 and ROUL-01..07 as SATISFIED with evidence from the codebase
   2. Roulette page loads with the user's last selected chip denomination pre-filled (same localStorage behavior as Plinko, Mines, and Blackjack)
+**Plans**: 1 plan
 
 Plans:
-- [ ] 05.1-01-PLAN.md — Run gsd:verify-work on Phase 04 to produce VERIFICATION.md; fix `rouletteStore.ts` selectedChip init from localStorage
+- [ ] 05.1-01-PLAN.md — Fix `rouletteStore.ts` selectedChip + mute localStorage persistence; write Phase 04 VERIFICATION.md with evidence for all 11 requirements
 
 ### Phase 5.2: Blackjack Double Down & Header Profile Link Fix *(INSERTED — gap closure)*
 **Goal:** Fix the critical Blackjack Double Down API defect that leaves dealer hand total blank, and remove the broken /profile header link
