@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-last_updated: "2026-03-03T06:26:09.015Z"
+last_updated: "2026-03-03T06:27:18.085Z"
 progress:
   total_phases: 6
-  completed_phases: 5
+  completed_phases: 6
   total_plans: 18
-  completed_plans: 17
+  completed_plans: 18
 ---
 
 # Project State
@@ -18,16 +18,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-02-27)
 
 **Core value:** Players can jump in daily, claim their bonus, play fair-odds casino games with virtual coins, and compete on leaderboards — no real-money risk.
-**Current focus:** Phase 5 — Remaining Games (Plinko, Mines, Blackjack) — In Progress
+**Current focus:** Phase 6 — User Experience Polish (leaderboards, avatars, recent bets history)
 
 ## Current Position
 
-Phase: 5 of 8 (Remaining Games — Plinko, Mines, Blackjack)
-Plan: 1 of 5 complete in Phase 5 (05-01 Plinko backend + frontend done)
-Status: Phase 5 in progress — Plinko playable at /games/plinko; 05-02 through 05-05 remaining
-Last activity: 2026-03-03 — Completed 05-01: Plinko backend service + POST /api/games/plinko/bet + PlinkoPage SVG board + ball animation
+Phase: 5 of 8 COMPLETE (Remaining Games — Plinko, Mines, Blackjack — all done)
+Plan: 5 of 5 complete in Phase 5
+Status: Phase 5 complete — all four v1 games playable: Roulette, Plinko, Mines, Blackjack
+Last activity: 2026-03-03 — Completed 05-05: Blackjack frontend — store, card component, full page UI, 4 games on dashboard
 
-Progress: [██████████] 87%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -68,6 +68,7 @@ Progress: [██████████] 87%
 | Phase 05-remaining-games P04 | 5 | 2 tasks | 3 files |
 | Phase 05-remaining-games P01 | 6 | 3 tasks | 7 files |
 | Phase 05-remaining-games P03 | 2 | 2 tasks | 4 files |
+| Phase 05-remaining-games P05 | 3 min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -134,6 +135,8 @@ Recent decisions affecting current work:
 - [Phase 05-remaining-games]: Frontend PLINKO_MULTIPLIERS table mirrors backend — maintained manually (no shared package needed for v1.0)
 - [Phase 05-remaining-games]: Cash Out button only shown when tilesRevealed > 0 — prevents cashout before any safe tiles revealed (matches backend 400 guard)
 - [Phase 05-remaining-games]: Balance not updated on mine hit — bet already deducted at start; no payout means no setBalance call needed
+- [Phase 05-remaining-games]: BlackjackCard animation: CSS @keyframes injected once into document.head via animationInjected guard — avoids duplicate style injection on re-renders
+- [Phase 05-remaining-games]: Blackjack dealer hand: shows only dealerUpCard + face-down during player_turn; full dealerHand revealed on stand/double/settle
 
 ### Pending Todos
 
@@ -150,5 +153,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-03
-Stopped at: Completed 05-01-PLAN.md (Plinko game — backend service + REST endpoint + frontend PlinkoPage + SVG board animation)
+Stopped at: Completed 05-05-PLAN.md (Blackjack frontend — Zustand store + BlackjackCard component + BlackjackPage + all 4 games enabled on dashboard — Phase 5 complete)
 Resume file: None

@@ -17,7 +17,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 3: Wallet & Currency** - Virtual coin system, starting balance, daily bonus, and atomic bet transaction pipeline
 - [ ] **Phase 3.1: Auth UI Gap Closure** *(INSERTED — gap closure)* - Add logout button to Header and fix session-expired redirect to close the AUTH-03 integration gap
 - [x] **Phase 4: Game Infrastructure & Roulette** - Server-side RNG pattern, bet validation, game logging, and the first complete game (Roulette) end-to-end (completed 2026-03-03)
-- [ ] **Phase 5: Remaining Games** - Plinko (stateless), Mines (session state), and Blackjack (multi-step session) in complexity order
+- [x] **Phase 5: Remaining Games** - Plinko (stateless), Mines (session state), and Blackjack (multi-step session) in complexity order (completed 2026-03-03)
 - [ ] **Phase 6: Leaderboards & Real-Time** - WebSocket server, balance push, and all three live leaderboard dimensions
 - [ ] **Phase 7: Player Profile** - Public profile page with stats and balance/wagered charts
 - [ ] **Phase 8: Admin & Anti-Cheat** - Role-gated admin panel, player management, audit log, rate limiting, and bot detection
@@ -180,7 +180,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8
 | 3. Wallet & Currency | 3/3 | Complete   | 2026-03-02 |
 | 3.1. Auth UI Gap Closure | 1/1 | Complete   | 2026-03-02 |
 | 4. Game Infrastructure & Roulette | 3/3 | Complete   | 2026-03-03 |
-| 5. Remaining Games | 4/5 | In Progress|  |
+| 5. Remaining Games | 5/5 | Complete   | 2026-03-03 |
 | 6. Leaderboards & Real-Time | 0/2 | Not started | - |
 | 7. Player Profile | 0/2 | Not started | - |
 | 8. Admin & Anti-Cheat | 0/3 | Not started | - |
