@@ -31,7 +31,12 @@ export function HowToPlayModal({ open, onClose }: HowToPlayModalProps) {
               zIndex: 200,
             }}
           />
-          {/* Modal */}
+          {/* Centering wrapper — flexbox so Framer Motion transform doesn't fight translate(-50%,-50%) */}
+          <div style={{
+            position: 'fixed', inset: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            zIndex: 201, pointerEvents: 'none',
+          }}>
           <motion.div
             key="htplay-modal"
             initial={{ opacity: 0, scale: 0.95 }}
@@ -39,17 +44,14 @@ export function HowToPlayModal({ open, onClose }: HowToPlayModalProps) {
             exit={{ opacity: 0, scale: 0.95 }}
             transition={{ duration: 0.2 }}
             style={{
-              position: 'fixed',
-              top: '50%', left: '50%',
-              transform: 'translate(-50%, -50%)',
               backgroundColor: '#1a1a2e',
               borderRadius: '16px',
               padding: '32px',
-              zIndex: 201,
               maxWidth: '560px',
               width: '90vw',
               maxHeight: '80vh',
               overflowY: 'auto',
+              pointerEvents: 'auto',
             }}
           >
             <h2 style={{ color: '#e0d7ff', marginTop: 0, marginBottom: '16px' }}>
@@ -100,6 +102,7 @@ export function HowToPlayModal({ open, onClose }: HowToPlayModalProps) {
               Got It
             </button>
           </motion.div>
+          </div>
         </>
       )}
     </AnimatePresence>
