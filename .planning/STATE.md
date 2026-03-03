@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-last_updated: "2026-03-03T06:21:11.703Z"
+last_updated: "2026-03-03T06:26:09.015Z"
 progress:
   total_phases: 6
   completed_phases: 5
   total_plans: 18
-  completed_plans: 16
+  completed_plans: 17
 ---
 
 # Project State
@@ -67,6 +67,7 @@ Progress: [██████████] 87%
 | Phase 05-remaining-games P02 | 3 | 2 tasks | 3 files |
 | Phase 05-remaining-games P04 | 5 | 2 tasks | 3 files |
 | Phase 05-remaining-games P01 | 6 | 3 tasks | 7 files |
+| Phase 05-remaining-games P03 | 2 | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -131,6 +132,8 @@ Recent decisions affecting current work:
 - [Phase 05-remaining-games]: dealerPlay returns new state (immutable) — avoids mutation bugs in disconnect auto-complete flow
 - [Phase 05-remaining-games]: Plinko ball path pre-computed client-side using Fisher-Yates-shuffled L/R decisions constrained to land at server-determined bucket
 - [Phase 05-remaining-games]: Frontend PLINKO_MULTIPLIERS table mirrors backend — maintained manually (no shared package needed for v1.0)
+- [Phase 05-remaining-games]: Cash Out button only shown when tilesRevealed > 0 — prevents cashout before any safe tiles revealed (matches backend 400 guard)
+- [Phase 05-remaining-games]: Balance not updated on mine hit — bet already deducted at start; no payout means no setBalance call needed
 
 ### Pending Todos
 
