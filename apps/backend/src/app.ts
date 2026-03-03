@@ -6,6 +6,7 @@ import { healthRouter } from './routes/health.js';
 import { authRouter } from './routes/auth.js';
 import { walletRouter } from './routes/wallet.js';
 import { gamesRouter } from './routes/games.js';
+import { devRouter } from './routes/dev.js';
 
 export function createApp(): Express {
   const app = express();
@@ -32,6 +33,11 @@ export function createApp(): Express {
   app.use('/api/auth', authRouter);
   app.use('/api/wallet', walletRouter);
   app.use('/api/games', gamesRouter);
+
+  // Dev-only routes — never registered in production
+  if (process.env.NODE_ENV !== 'production') {
+    app.use('/api/dev', devRouter);
+  }
 
   return app;
 }
