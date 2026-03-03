@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-last_updated: "2026-03-03T06:17:12.279Z"
+last_updated: "2026-03-03T06:18:40.968Z"
 progress:
   total_phases: 6
   completed_phases: 5
   total_plans: 18
-  completed_plans: 14
+  completed_plans: 15
 ---
 
 # Project State
@@ -23,9 +23,9 @@ See: .planning/PROJECT.md (updated 2026-02-27)
 ## Current Position
 
 Phase: 5 of 8 (Remaining Games — Plinko, Mines, Blackjack)
-Plan: 2 of 5 complete in Phase 5 (05-02 Mines backend done)
-Status: Phase 5 in progress — Mines backend complete; 05-01 Plinko backend, 05-03 Blackjack backend also running in wave 1
-Last activity: 2026-03-03 — Completed 05-02: Mines backend (minesService TDD + 4 REST routes, session-state pattern)
+Plan: 4 of 5 complete in Phase 5 (05-01 Plinko, 05-02 Mines, 05-03 Mines UI, 05-04 Blackjack backend done)
+Status: Phase 5 in progress — Blackjack backend complete; 05-05 Blackjack UI remaining
+Last activity: 2026-03-03 — Completed 05-04: Blackjack backend (blackjackService TDD + 5 routes, 3:2 natural payout, disconnect auto-complete)
 
 Progress: [██████████] 87%
 
@@ -65,6 +65,7 @@ Progress: [██████████] 87%
 | Phase 04-game-infrastructure P02 | 4 min | 2 tasks | 4 files |
 | Phase 04-game-infrastructure P03 | 45 min | 3 tasks | 8 files |
 | Phase 05-remaining-games P02 | 3 | 2 tasks | 3 files |
+| Phase 05-remaining-games P04 | 5 | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -124,6 +125,9 @@ Recent decisions affecting current work:
 - [Phase 05-remaining-games]: calculateMinesMultiplier uses hypergeometric compound formula with 0.97 house factor — monotonically growing, higher mine count = higher multiplier per reveal
 - [Phase 05-remaining-games]: Mines cashout: settleBet profit=payout (gross), not net profit — deductBet already removed stake; explode: settleBet profit=0, bet fully lost
 - [Phase 05-remaining-games]: GET /mines/active-session hides grid boolean array from client mid-round — only revealed indices and mineCount returned (MINE-01)
+- [Phase 05-remaining-games]: Dealer hole card never sent to client during player_turn — security by design
+- [Phase 05-remaining-games]: Natural blackjack profit = betAmount + floor(betAmount * 0.5) for 3:2 payout (roulette profit semantics)
+- [Phase 05-remaining-games]: dealerPlay returns new state (immutable) — avoids mutation bugs in disconnect auto-complete flow
 
 ### Pending Todos
 
@@ -134,11 +138,11 @@ None yet.
 - [Phase 2 — RESOLVED]: Email infrastructure → Nodemailer with Mailtrap for dev, configurable SMTP_* env vars for prod
 - [Phase 2 — RESOLVED]: bcrypt native compilation → using bcryptjs (pure JS, same API, zero node-gyp risk)
 - [Phase 2 P01 — PENDING]: Migration 0001_unusual_wrecking_crew.sql generated but not applied — Docker Desktop was not running. Run: docker compose up -d && pnpm --filter backend db:migrate
-- [Phase 5]: Blackjack session storage during multi-step play — DB game_sessions vs in-process Map. Resolve during Phase 5 planning.
+- [Phase 5 — RESOLVED]: Blackjack session storage → DB game_sessions table (same pattern as Mines). JSON-encoded BlackjackSessionState in state column.
 - [Phase 4/5]: Roulette wheel animation complexity is HIGH — evaluate Motion 12 vs GSAP during Phase 4 planning before committing to implementation approach.
 
 ## Session Continuity
 
 Last session: 2026-03-03
-Stopped at: Completed 05-02-PLAN.md (Mines backend — minesService TDD + 4 REST routes)
+Stopped at: Completed 05-04-PLAN.md (Blackjack backend — blackjackService TDD + deal/hit/stand/double/active-session routes)
 Resume file: None
