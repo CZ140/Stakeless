@@ -6,6 +6,7 @@ import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { VerifyEmailPage } from './pages/VerifyEmailPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { RoulettePage } from './pages/RoulettePage';
+import { PlinkoPage } from './pages/PlinkoPage';
 import { ProtectedRoute } from './components/ProtectedRoute';
 
 export default function App() {
@@ -37,6 +38,14 @@ export default function App() {
         element={
           <ProtectedRoute>
             <RoulettePage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/games/plinko"
+        element={
+          <ProtectedRoute>
+            <PlinkoPage />
           </ProtectedRoute>
         }
       />
