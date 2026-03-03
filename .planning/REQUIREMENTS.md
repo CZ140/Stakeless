@@ -61,11 +61,11 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Mines
 
-- [ ] **MINE-01**: User can select a bet amount and number of mines before starting a round
-- [ ] **MINE-02**: User clicks tiles; a safe tile reveals a gem and increases the active multiplier; a mine tile ends the round and loses the bet
-- [ ] **MINE-03**: User can cash out at any point during an active round to receive the current multiplier payout
+- [x] **MINE-01**: User can select a bet amount and number of mines before starting a round
+- [x] **MINE-02**: User clicks tiles; a safe tile reveals a gem and increases the active multiplier; a mine tile ends the round and loses the bet
+- [x] **MINE-03**: User can cash out at any point during an active round to receive the current multiplier payout
 - [ ] **MINE-04**: Cash Out button is visually prominent during an active round and displays the current multiplier value
-- [ ] **MINE-05**: Mine grid state is stored server-side; client sends tile coordinates, server validates and returns outcome
+- [x] **MINE-05**: Mine grid state is stored server-side; client sends tile coordinates, server validates and returns outcome
 
 ### Leaderboards
 
@@ -186,11 +186,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PLNK-01 | Phase 5 | Pending |
 | PLNK-02 | Phase 5 | Pending |
 | PLNK-03 | Phase 5 | Pending |
-| MINE-01 | Phase 5 | Pending |
-| MINE-02 | Phase 5 | Pending |
-| MINE-03 | Phase 5 | Pending |
+| MINE-01 | Phase 5 | Complete |
+| MINE-02 | Phase 5 | Complete |
+| MINE-03 | Phase 5 | Complete |
 | MINE-04 | Phase 5 | Pending |
-| MINE-05 | Phase 5 | Pending |
+| MINE-05 | Phase 5 | Complete |
 | LDR-01 | Phase 6 | Pending |
 | LDR-02 | Phase 6 | Pending |
 | LDR-03 | Phase 6 | Pending |

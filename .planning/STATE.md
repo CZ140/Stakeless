@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-last_updated: "2026-03-03T03:04:11Z"
+last_updated: "2026-03-03T06:17:12.279Z"
 progress:
-  total_phases: 4
-  completed_phases: 4
-  total_plans: 10
-  completed_plans: 10
+  total_phases: 6
+  completed_phases: 5
+  total_plans: 18
+  completed_plans: 14
 ---
 
 # Project State
@@ -18,14 +18,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-02-27)
 
 **Core value:** Players can jump in daily, claim their bonus, play fair-odds casino games with virtual coins, and compete on leaderboards — no real-money risk.
-**Current focus:** Phase 4 — Game Infrastructure & Roulette (COMPLETE — all 3 plans done)
+**Current focus:** Phase 5 — Remaining Games (Plinko, Mines, Blackjack) — In Progress
 
 ## Current Position
 
-Phase: 4 of 8 (Game Infrastructure & Roulette) — COMPLETE
-Plan: 3 of 3 complete (04-01, 04-02, 04-03 all complete)
-Status: Phase 4 complete — full roulette game playable at /games/roulette: GSAP wheel + betting table + chip indicators + result overlay
-Last activity: 2026-03-02 — Completed 04-03: Roulette UI components + bug fixes (wheel rotation math, chip badges, UX flow)
+Phase: 5 of 8 (Remaining Games — Plinko, Mines, Blackjack)
+Plan: 2 of 5 complete in Phase 5 (05-02 Mines backend done)
+Status: Phase 5 in progress — Mines backend complete; 05-01 Plinko backend, 05-03 Blackjack backend also running in wave 1
+Last activity: 2026-03-03 — Completed 05-02: Mines backend (minesService TDD + 4 REST routes, session-state pattern)
 
 Progress: [██████████] 87%
 
@@ -64,6 +64,7 @@ Progress: [██████████] 87%
 | Phase 04-game-infrastructure P01 | 3 min | 2 tasks | 6 files |
 | Phase 04-game-infrastructure P02 | 4 min | 2 tasks | 4 files |
 | Phase 04-game-infrastructure P03 | 45 min | 3 tasks | 8 files |
+| Phase 05-remaining-games P02 | 3 | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -120,6 +121,9 @@ Recent decisions affecting current work:
 - [Phase 04-game-infrastructure P03]: pocketCentreAngle = index * POCKET_ANGLE + POCKET_ANGLE/2 — brings pocket centre (not leading edge) under 12 o'clock arrow
 - [Phase 04-game-infrastructure P03]: ChipRack spinDisabled vs disabled split — bet controls lock during spinning+result, Spin button locks only during spinning so it handles overlay dismiss
 - [Phase 04-game-infrastructure P03]: No Play Again button — Spin button handles overlay dismiss and new round, reducing UI surface to single action verb
+- [Phase 05-remaining-games]: calculateMinesMultiplier uses hypergeometric compound formula with 0.97 house factor — monotonically growing, higher mine count = higher multiplier per reveal
+- [Phase 05-remaining-games]: Mines cashout: settleBet profit=payout (gross), not net profit — deductBet already removed stake; explode: settleBet profit=0, bet fully lost
+- [Phase 05-remaining-games]: GET /mines/active-session hides grid boolean array from client mid-round — only revealed indices and mineCount returned (MINE-01)
 
 ### Pending Todos
 
@@ -135,6 +139,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-02
-Stopped at: Completed 04-03-PLAN.md (Roulette UI — wheel, table, chip indicators, result overlay, bug fixes)
+Last session: 2026-03-03
+Stopped at: Completed 05-02-PLAN.md (Mines backend — minesService TDD + 4 REST routes)
 Resume file: None
