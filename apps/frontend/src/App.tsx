@@ -9,6 +9,7 @@ import { RoulettePage } from './pages/RoulettePage';
 import { PlinkoPage } from './pages/PlinkoPage';
 import { MinesPage } from './pages/MinesPage';
 import { BlackjackPage } from './pages/BlackjackPage';
+import { LeaderboardPage } from './pages/LeaderboardPage';
 import { ProtectedRoute } from './components/ProtectedRoute';
 
 export default function App() {
@@ -67,6 +68,7 @@ export default function App() {
           </ProtectedRoute>
         }
       />
+      <Route path="/leaderboard" element={<LeaderboardPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
