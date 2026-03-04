@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-last_updated: "2026-03-04T03:50:52.177Z"
+last_updated: "2026-03-04T04:55:49.306Z"
 progress:
   total_phases: 9
   completed_phases: 9
@@ -22,10 +22,10 @@ See: .planning/PROJECT.md (updated 2026-02-27)
 
 ## Current Position
 
-Phase: 6 of 8 IN PROGRESS (Leaderboards + Real-Time)
-Plan: 2 of 2 complete in Phase 6 — awaiting checkpoint:human-verify
-Status: Phase 6 Plan 02 tasks complete (socket frontend + LeaderboardPage) — checkpoint:human-verify Task 3 awaiting user verification
-Last activity: 2026-03-04 — Completed 06-02: LeaderboardPage, socket singleton, Zustand store, useLeaderboard hook, AuthContext socket wiring
+Phase: 6 of 8 COMPLETE (Leaderboards + Real-Time)
+Plan: 2 of 2 complete in Phase 6 — Phase 6 fully complete
+Status: Phase 6 complete — all features verified: leaderboard backend (Socket.IO server, REST, balance:update push) + frontend (LeaderboardPage, socket singleton, Zustand store, live-update hook, AuthContext wiring)
+Last activity: 2026-03-04 — Completed 06-02: LeaderboardPage verified by user (three tabs, live updates, own-rank display, balance header updates, nav link)
 
 Progress: [██████████] 100%
 
@@ -72,7 +72,7 @@ Progress: [██████████] 100%
 | Phase 05.1-phase04-verification-roulette-fix P01 | 3 min | 2 tasks | 2 files |
 | Phase 05.2-blackjack-double-header-fix P01 | 2 | 2 tasks | 2 files |
 | Phase 06-leaderboards-real-time P01 | 8 min | 2 tasks | 8 files |
-| Phase 06-leaderboards-real-time P02 | 4 | 2 tasks | 7 files |
+| Phase 06-leaderboards-real-time P02 | 4 min | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -155,6 +155,9 @@ Recent decisions affecting current work:
 - [Phase 06-leaderboards-real-time]: Explicit Socket type annotation required on socket.ts — pnpm dependency isolation causes TS2742 portability error without it
 - [Phase 06-leaderboards-real-time]: Guest socket connect in useLeaderboard hook — AuthContext only connects when accessToken truthy; guests need explicit connect to receive live broadcasts
 - [Phase 06-leaderboards-real-time]: balance:update listener registered once in AuthContext — prevents duplicate listeners across multiple game pages
+- [Phase 06-leaderboards-real-time P02]: Explicit Socket type annotation (: Socket) required on socket.ts export — pnpm dependency isolation causes TS2742 portability error without it
+- [Phase 06-leaderboards-real-time P02]: Conditional socket.disconnect() in useLeaderboard cleanup — only disconnects if no accessToken so it does not disrupt the AuthContext-owned lifecycle for authenticated users
+- [Phase 06-leaderboards-real-time P02]: apiClient used for GET /leaderboard even for guests — sends no Authorization header when accessToken is null; backend returns null ownRanks for unauthenticated requests gracefully
 
 ### Pending Todos
 
@@ -170,6 +173,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-03
-Stopped at: Completed 06-01-PLAN.md (Socket.IO server + leaderboard REST endpoint + balance:update push wired to all 11 game settlements)
+Last session: 2026-03-04
+Stopped at: Completed 06-02-PLAN.md (LeaderboardPage frontend, socket singleton, Zustand store, live-update hook, AuthContext socket wiring — Phase 6 fully complete and human-verified)
 Resume file: None
