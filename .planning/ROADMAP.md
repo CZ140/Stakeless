@@ -20,7 +20,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 5: Remaining Games** - Plinko (stateless), Mines (session state), and Blackjack (multi-step session) in complexity order (completed 2026-03-03)
 - [ ] **Phase 5.1: Phase 04 Verification & Roulette Persistence Fix** *(INSERTED — gap closure)* - Create Phase 04 VERIFICATION.md and fix Roulette selectedChip localStorage seed
 - [ ] **Phase 5.2: Blackjack Double Down & Header Profile Link Fix** *(INSERTED — gap closure)* - Fix missing dealerValue in /blackjack/double response and remove broken /profile header link
-- [ ] **Phase 6: Leaderboards & Real-Time** - WebSocket server, balance push, and all three live leaderboard dimensions
+- [x] **Phase 6: Leaderboards & Real-Time** - WebSocket server, balance push, and all three live leaderboard dimensions (completed 2026-03-04)
 - [ ] **Phase 7: Player Profile** - Public profile page with stats and balance/wagered charts
 - [ ] **Phase 8: Admin & Anti-Cheat** - Role-gated admin panel, player management, audit log, rate limiting, and bot detection
 
@@ -210,6 +210,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8
 | 5. Remaining Games | 5/5 | Complete   | 2026-03-03 |
 | 5.1. Phase 04 Verification & Roulette Fix | 1/1 | Complete   | 2026-03-03 |
 | 5.2. Blackjack Double Down & Header Fix | 0/1 | Not started | - |
-| 6. Leaderboards & Real-Time | 1/2 | In Progress|  |
+| 6. Leaderboards & Real-Time | 2/2 | Complete   | 2026-03-04 |
 | 7. Player Profile | 0/2 | Not started | - |
 | 8. Admin & Anti-Cheat | 0/3 | Not started | - |

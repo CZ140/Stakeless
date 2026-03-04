@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-last_updated: "2026-03-04T03:43:49Z"
+last_updated: "2026-03-04T03:50:52.177Z"
 progress:
-  total_phases: 8
-  completed_phases: 8
-  total_plans: 21
-  completed_plans: 21
+  total_phases: 9
+  completed_phases: 9
+  total_plans: 22
+  completed_plans: 22
 ---
 
 # Project State
@@ -23,9 +23,9 @@ See: .planning/PROJECT.md (updated 2026-02-27)
 ## Current Position
 
 Phase: 6 of 8 IN PROGRESS (Leaderboards + Real-Time)
-Plan: 1 of 2 complete in Phase 6
-Status: Phase 6 Plan 01 complete — Socket.IO server, GET /api/leaderboard, 7s leaderboard:update broadcast, balance:update push at all 11 game settlement points
-Last activity: 2026-03-03 — Completed 06-01: Socket.IO infrastructure + leaderboard REST endpoint
+Plan: 2 of 2 complete in Phase 6 — awaiting checkpoint:human-verify
+Status: Phase 6 Plan 02 tasks complete (socket frontend + LeaderboardPage) — checkpoint:human-verify Task 3 awaiting user verification
+Last activity: 2026-03-04 — Completed 06-02: LeaderboardPage, socket singleton, Zustand store, useLeaderboard hook, AuthContext socket wiring
 
 Progress: [██████████] 100%
 
@@ -72,6 +72,7 @@ Progress: [██████████] 100%
 | Phase 05.1-phase04-verification-roulette-fix P01 | 3 min | 2 tasks | 2 files |
 | Phase 05.2-blackjack-double-header-fix P01 | 2 | 2 tasks | 2 files |
 | Phase 06-leaderboards-real-time P01 | 8 min | 2 tasks | 8 files |
+| Phase 06-leaderboards-real-time P02 | 4 | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -151,6 +152,9 @@ Recent decisions affecting current work:
 - [Phase 06-leaderboards-real-time P01]: Module-scoped broadcastInterval guard prevents duplicate timers on hot reload (ts-node-dev restarts module, not process)
 - [Phase 06-leaderboards-real-time P01]: PostgreSQL rank() OVER window function for ownRanks — fetching all users into JS would not scale; single indexed query is O(log n)
 - [Phase 06-leaderboards-real-time P01]: Socket.IO CORS configured separately from Express cors() — Socket.IO has its own CORS layer for WebSocket upgrade handshake
+- [Phase 06-leaderboards-real-time]: Explicit Socket type annotation required on socket.ts — pnpm dependency isolation causes TS2742 portability error without it
+- [Phase 06-leaderboards-real-time]: Guest socket connect in useLeaderboard hook — AuthContext only connects when accessToken truthy; guests need explicit connect to receive live broadcasts
+- [Phase 06-leaderboards-real-time]: balance:update listener registered once in AuthContext — prevents duplicate listeners across multiple game pages
 
 ### Pending Todos
 
