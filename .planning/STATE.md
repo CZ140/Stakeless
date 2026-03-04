@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-last_updated: "2026-03-03T22:13:40.220Z"
+last_updated: "2026-03-04T03:43:49Z"
 progress:
   total_phases: 8
   completed_phases: 8
-  total_plans: 20
-  completed_plans: 20
+  total_plans: 21
+  completed_plans: 21
 ---
 
 # Project State
@@ -22,10 +22,10 @@ See: .planning/PROJECT.md (updated 2026-02-27)
 
 ## Current Position
 
-Phase: 5.2 of 8 COMPLETE (Blackjack Double Down dealerValue fix + Header BalanceDisplay Link removal)
-Plan: 1 of 1 complete in Phase 5.2
-Status: Phase 5.2 complete — BJK-02/BJK-04/AUTH-05 traceability gaps closed; dealerValue in both double response paths; BalanceDisplay no longer navigates to /profile
-Last activity: 2026-03-03 — Completed 05.2-01: Added dealerValue to /blackjack/double bust and normal-completion responses; removed broken Link wrapper from Header BalanceDisplay
+Phase: 6 of 8 IN PROGRESS (Leaderboards + Real-Time)
+Plan: 1 of 2 complete in Phase 6
+Status: Phase 6 Plan 01 complete — Socket.IO server, GET /api/leaderboard, 7s leaderboard:update broadcast, balance:update push at all 11 game settlement points
+Last activity: 2026-03-03 — Completed 06-01: Socket.IO infrastructure + leaderboard REST endpoint
 
 Progress: [██████████] 100%
 
@@ -71,6 +71,7 @@ Progress: [██████████] 100%
 | Phase 05-remaining-games P05 | 3 min | 2 tasks | 5 files |
 | Phase 05.1-phase04-verification-roulette-fix P01 | 3 min | 2 tasks | 2 files |
 | Phase 05.2-blackjack-double-header-fix P01 | 2 | 2 tasks | 2 files |
+| Phase 06-leaderboards-real-time P01 | 8 min | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -144,6 +145,12 @@ Recent decisions affecting current work:
 - [Phase 05.1-phase04-verification-roulette-fix]: Accept one-time mute preference reset as acceptable UX tradeoff for v1 key normalization
 - [Phase 05.2-blackjack-double-header-fix]: dealerValue added to both double handler response branches (bust and normal completion), mirroring stand handler pattern — no playerValue added per minimal-change policy
 - [Phase 05.2-blackjack-double-header-fix]: Link wrapper around BalanceDisplay removed entirely; Link import retained because Logo link still uses it
+- [Phase 06-leaderboards-real-time P01]: Socket.IO server attached to http.createServer(app) replacing app.listen() — required for WebSocket upgrade; Socket.IO cannot attach to an already-listening Express server
+- [Phase 06-leaderboards-real-time P01]: Permissive auth middleware: invalid/expired JWT treated as guest — leaderboard page is public, blocking on bad tokens would break guest access
+- [Phase 06-leaderboards-real-time P01]: 7-second leaderboard:update broadcast interval — within user-approved 5–10s discretion range; balances DB load vs perceived real-time freshness
+- [Phase 06-leaderboards-real-time P01]: Module-scoped broadcastInterval guard prevents duplicate timers on hot reload (ts-node-dev restarts module, not process)
+- [Phase 06-leaderboards-real-time P01]: PostgreSQL rank() OVER window function for ownRanks — fetching all users into JS would not scale; single indexed query is O(log n)
+- [Phase 06-leaderboards-real-time P01]: Socket.IO CORS configured separately from Express cors() — Socket.IO has its own CORS layer for WebSocket upgrade handshake
 
 ### Pending Todos
 
@@ -160,5 +167,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-03
-Stopped at: Completed 05.2-01-PLAN.md (dealerValue added to /blackjack/double both response paths; Link wrapper removed from Header BalanceDisplay)
+Stopped at: Completed 06-01-PLAN.md (Socket.IO server + leaderboard REST endpoint + balance:update push wired to all 11 game settlements)
 Resume file: None

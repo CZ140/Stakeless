@@ -69,11 +69,11 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Leaderboards
 
-- [ ] **LDR-01**: Balance leaderboard displays top users ranked by current balance
-- [ ] **LDR-02**: Total Wagered leaderboard displays top users ranked by lifetime amount wagered
-- [ ] **LDR-03**: Profit leaderboard displays top users ranked by total profit
-- [ ] **LDR-04**: All leaderboards update in real-time via WebSocket push
-- [ ] **LDR-05**: Each leaderboard shows the logged-in user's own rank even when they are not in the top 10
+- [x] **LDR-01**: Balance leaderboard displays top users ranked by current balance
+- [x] **LDR-02**: Total Wagered leaderboard displays top users ranked by lifetime amount wagered
+- [x] **LDR-03**: Profit leaderboard displays top users ranked by total profit
+- [x] **LDR-04**: All leaderboards update in real-time via WebSocket push
+- [x] **LDR-05**: Each leaderboard shows the logged-in user's own rank even when they are not in the top 10
 
 ### Player Profile
 
@@ -191,11 +191,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 | MINE-03 | Phase 5 | Complete |
 | MINE-04 | Phase 5 | Complete |
 | MINE-05 | Phase 5 | Complete |
-| LDR-01 | Phase 6 | Pending |
-| LDR-02 | Phase 6 | Pending |
-| LDR-03 | Phase 6 | Pending |
-| LDR-04 | Phase 6 | Pending |
-| LDR-05 | Phase 6 | Pending |
+| LDR-01 | Phase 6 | Complete |
+| LDR-02 | Phase 6 | Complete |
+| LDR-03 | Phase 6 | Complete |
+| LDR-04 | Phase 6 | Complete |
+| LDR-05 | Phase 6 | Complete |
 | PROF-01 | Phase 7 | Pending |
 | PROF-02 | Phase 7 | Pending |
 | PROF-03 | Phase 7 | Pending |

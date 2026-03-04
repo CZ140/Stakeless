@@ -210,6 +210,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8
 | 5. Remaining Games | 5/5 | Complete   | 2026-03-03 |
 | 5.1. Phase 04 Verification & Roulette Fix | 1/1 | Complete   | 2026-03-03 |
 | 5.2. Blackjack Double Down & Header Fix | 0/1 | Not started | - |
-| 6. Leaderboards & Real-Time | 0/2 | Not started | - |
+| 6. Leaderboards & Real-Time | 1/2 | In Progress|  |
 | 7. Player Profile | 0/2 | Not started | - |
 | 8. Admin & Anti-Cheat | 0/3 | Not started | - |
