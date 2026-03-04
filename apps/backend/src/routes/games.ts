@@ -22,6 +22,7 @@ import {
 import { db } from '../db/index.js';
 import { gameSessions } from '../db/schema.js';
 import { eq, and, isNull, desc } from 'drizzle-orm';
+import { io } from '../socket/index.js';
 
 export const gamesRouter: IRouter = Router();
 
@@ -89,6 +90,7 @@ gamesRouter.post('/roulette/bet', requireAuth, async (req, res) => {
       'roulette',
     );
 
+    io.to(`user:${userId}`).emit('balance:update', { balance: newBalance });
     res.json({ winningPocket, profit, newBalance });
   } catch (err: unknown) {
     const code = (err as { code?: string }).code;
@@ -135,6 +137,7 @@ gamesRouter.post('/plinko/bet', requireAuth, async (req, res) => {
     // profit passed to settleBet = floor(betAmount * multiplier) which is the gross payout.
     const grossPayout = Math.floor(betAmount * multiplier);
     const { newBalance } = await settleBet(userId, grossPayout, betAmount, `bucket_${bucket}`, 'plinko');
+    io.to(`user:${userId}`).emit('balance:update', { balance: newBalance });
     // net profit shown to player = gross payout - stake (stake was already deducted)
     res.json({ bucket, multiplier, profit: grossPayout - betAmount, newBalance });
   } catch (err: unknown) {
@@ -273,7 +276,8 @@ gamesRouter.post('/mines/tile', requireAuth, async (req, res) => {
         .set({ state: JSON.stringify(state), completedAt: new Date() })
         .where(eq(gameSessions.id, sessionId));
 
-      await settleBet(userId, 0, session.betAmount, 'exploded', 'mines');
+      const { newBalance } = await settleBet(userId, 0, session.betAmount, 'exploded', 'mines');
+      io.to(`user:${userId}`).emit('balance:update', { balance: newBalance });
 
       res.json({ hit: true, mineGrid: state.grid });
       return;
@@ -362,6 +366,7 @@ gamesRouter.post('/mines/cashout', requireAuth, async (req, res) => {
       'mines',
     );
 
+    io.to(`user:${userId}`).emit('balance:update', { balance: newBalance });
     res.json({ payout, newBalance, mineGrid: state.grid });
   } catch (err: unknown) {
     console.error('[games] mines cashout error:', err);
@@ -510,6 +515,7 @@ gamesRouter.post('/blackjack/deal', requireAuth, async (req, res) => {
 
       const { newBalance } = await settleBet(userId, profit, betAmount, outcome, 'blackjack');
 
+      io.to(`user:${userId}`).emit('balance:update', { balance: newBalance });
       res.json({ outcome, profit, newBalance, playerHand, dealerHand });
       return;
     }
@@ -609,6 +615,7 @@ gamesRouter.post('/blackjack/hit', requireAuth, async (req, res) => {
         'blackjack',
       );
 
+      io.to(`user:${userId}`).emit('balance:update', { balance: newBalance });
       res.json({
         card,
         playerHand: state.playerHand,
@@ -685,6 +692,7 @@ gamesRouter.post('/blackjack/stand', requireAuth, async (req, res) => {
 
     const { newBalance } = await settleBet(userId, profit, effectiveBet, outcome, 'blackjack');
 
+    io.to(`user:${userId}`).emit('balance:update', { balance: newBalance });
     res.json({
       dealerHand: state.dealerHand,
       dealerValue: calculateHandValue(state.dealerHand).value,
@@ -755,6 +763,7 @@ gamesRouter.post('/blackjack/double', requireAuth, async (req, res) => {
         'blackjack',
       );
 
+      io.to(`user:${userId}`).emit('balance:update', { balance: newBalance });
       res.json({
         card,
         playerHand: state.playerHand,
@@ -783,6 +792,7 @@ gamesRouter.post('/blackjack/double', requireAuth, async (req, res) => {
 
     const { newBalance } = await settleBet(userId, profit, effectiveBet, outcome, 'blackjack');
 
+    io.to(`user:${userId}`).emit('balance:update', { balance: newBalance });
     res.json({
       card,
       playerHand: state.playerHand,
@@ -879,6 +889,7 @@ gamesRouter.get('/blackjack/active-session', requireAuth, async (req, res) => {
 
         const { newBalance } = await settleBet(userId, profit, effectiveBet, outcome, 'blackjack');
 
+        io.to(`user:${userId}`).emit('balance:update', { balance: newBalance });
         res.json({
           session: {
             sessionId: session.id,
@@ -914,6 +925,7 @@ gamesRouter.get('/blackjack/active-session', requireAuth, async (req, res) => {
           'blackjack',
         );
 
+        io.to(`user:${userId}`).emit('balance:update', { balance: newBalance });
         res.json({
           session: {
             sessionId: session.id,
