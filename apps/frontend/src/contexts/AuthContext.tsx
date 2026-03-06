@@ -15,6 +15,7 @@ import { socket } from '../socket';
 
 interface AuthState {
   accessToken: string | null;
+  username: string | null;
   isLoading: boolean; // true while checking for existing session on mount
   sessionExpired: boolean; // true only when a live session expired mid-use
 }
@@ -27,7 +28,7 @@ interface AuthContextValue extends AuthState {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<AuthState>({ accessToken: null, isLoading: true, sessionExpired: false });
+  const [state, setState] = useState<AuthState>({ accessToken: null, username: null, isLoading: true, sessionExpired: false });
   // Track previous accessToken to detect null→value transitions
   const prevTokenRef = useRef<string | null>(null);
 
@@ -37,15 +38,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .post<{ accessToken: string }>('/api/auth/refresh', {}, { withCredentials: true })
       .then((res) => {
         setAccessToken(res.data.accessToken);
-        setState({ accessToken: res.data.accessToken, isLoading: false, sessionExpired: false });
+        setState({ accessToken: res.data.accessToken, username: null, isLoading: false, sessionExpired: false });
         // Fetch profile to initialize balance
-        return apiClient.get<{ balance: number }>('/auth/me');
+        return apiClient.get<{ balance: number; username: string }>('/auth/me');
       })
       .then((meRes) => {
         useBalanceStore.getState().setBalance(meRes.data.balance);
+        setState(prev => ({ ...prev, username: meRes.data.username as string }));
       })
       .catch(() => {
-        setState({ accessToken: null, isLoading: false, sessionExpired: false });
+        setState({ accessToken: null, username: null, isLoading: false, sessionExpired: false });
       });
   }, []);
 
@@ -54,9 +56,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (state.accessToken !== null && prevTokenRef.current === null) {
       // Token just became available — fetch profile for balance
       apiClient
-        .get<{ balance: number }>('/auth/me')
+        .get<{ balance: number; username: string }>('/auth/me')
         .then((res) => {
           useBalanceStore.getState().setBalance(res.data.balance);
+          setState(prev => ({ ...prev, username: res.data.username as string }));
         })
         .catch(() => {
           // Non-fatal — balance will show as null until next refresh
@@ -69,7 +72,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const handleExpiry = () => {
       setAccessToken(null);
-      setState({ accessToken: null, isLoading: false, sessionExpired: true });
+      setState({ accessToken: null, username: null, isLoading: false, sessionExpired: true });
       useBalanceStore.getState().clearBalance();
     };
     window.addEventListener('auth:session-expired', handleExpiry);
@@ -98,7 +101,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = useCallback((token: string) => {
     setAccessToken(token);
-    setState({ accessToken: token, isLoading: false, sessionExpired: false });
+    setState({ accessToken: token, username: null, isLoading: false, sessionExpired: false });
   }, []);
 
   const signOut = useCallback(async () => {
@@ -108,7 +111,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Ignore errors — clear local state regardless
     }
     setAccessToken(null);
-    setState({ accessToken: null, isLoading: false, sessionExpired: false });
+    setState({ accessToken: null, username: null, isLoading: false, sessionExpired: false });
     useBalanceStore.getState().clearBalance();
   }, []);
 
