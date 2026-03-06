@@ -1,5 +1,5 @@
 import { db } from '../db/index.js';
-import { users, gameLogs, adminLogs } from '../db/schema.js';
+import { users, gameLogs, adminLogs, refreshTokens } from '../db/schema.js';
 import { eq, desc, ilike, sql, sum, count } from 'drizzle-orm';
 
 // ─── Audit log helper ─────────────────────────────────────────────────────────
@@ -71,6 +71,7 @@ export async function getPlayerHistory(userId: number) {
 
 // ─── Ban user (ADMIN-04) ──────────────────────────────────────────────────────
 export async function banUser(targetUserId: number): Promise<void> {
+  // Set isBanned=true and increment tokenVersion atomically
   await db
     .update(users)
     .set({
@@ -78,6 +79,12 @@ export async function banUser(targetUserId: number): Promise<void> {
       tokenVersion: sql`${users.tokenVersion} + 1`,
     })
     .where(eq(users.id, targetUserId));
+
+  // Delete all refresh token rows so the banned user cannot obtain a new access token.
+  // refreshToken() in authService.ts only queries refresh_tokens — if the row is gone it
+  // returns null, which causes the auth route to send 401, forcing re-login.
+  // Re-login is then rejected by the isBanned check in login(). (ADMIN-04 gap closure)
+  await db.delete(refreshTokens).where(eq(refreshTokens.userId, targetUserId));
 }
 
 // ─── Unban user ───────────────────────────────────────────────────────────────
