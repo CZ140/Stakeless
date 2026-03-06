@@ -171,11 +171,11 @@ Plans:
   1. Visiting /profile/:username shows the user's username, current balance, leaderboard rank, total wagered, total profit, and total games played
   2. The profile page displays a balance over time chart drawn from game log history
   3. The profile page displays a wagered per day chart drawn from game log history
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 07-01: GET /api/profile/:id endpoint (with ownership check), stats aggregation queries against game_logs
-- [ ] 07-02: Profile React page with stats display, Recharts balance-over-time chart, wagered-per-day chart
+- [ ] 07-01-PLAN.md — Public GET /api/profile/:username endpoint (public, no auth); stats aggregation + rank window function + chart data queries; username added to /api/auth/me response
+- [ ] 07-02-PLAN.md — ProfilePage (Recharts LineChart + BarChart, tabbed, stat cards); AuthContext username field; Header Profile nav link; Leaderboard username links; App.tsx public route
 
 ### Phase 8: Admin & Anti-Cheat
 **Goal**: The operator can monitor and moderate the platform — admins can inspect players, ban accounts (with immediate session invalidation), and the platform actively rejects automated and cheating requests
