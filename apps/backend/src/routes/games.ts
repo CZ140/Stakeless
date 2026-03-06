@@ -2,6 +2,8 @@ import { Router, type IRouter } from 'express';
 import { randomInt } from 'node:crypto';
 import { z } from 'zod';
 import { requireAuth } from '../middleware/requireAuth.js';
+import { gameLimiter } from '../middleware/rateLimiter.js';
+import { clickInterval } from '../middleware/clickInterval.js';
 import { deductBet, settleBet } from '../services/walletService.js';
 import { resolveRouletteBets } from '../services/rouletteService.js';
 import { resolvePlinko } from '../services/plinkoService.js';
@@ -48,7 +50,7 @@ const betZoneSchema = z.union([
 
 const rouletteBetSchema = z.object({
   bets: z
-    .array(z.object({ zone: betZoneSchema, amount: z.number().int().min(1) }))
+    .array(z.object({ zone: betZoneSchema, amount: z.number().int().min(1).max(1_000_000) }))
     .min(1, 'At least one bet required')
     .max(50, 'Too many simultaneous bets'),
 });
@@ -59,7 +61,7 @@ const rouletteBetSchema = z.object({
 // Returns 400 on invalid bet shape/zone
 // Returns 402 on INSUFFICIENT_FUNDS
 // Returns 500 on unexpected error
-gamesRouter.post('/roulette/bet', requireAuth, async (req, res) => {
+gamesRouter.post('/roulette/bet', gameLimiter, clickInterval, requireAuth, async (req, res) => {
   const parsed = rouletteBetSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Invalid bets' });
@@ -110,7 +112,7 @@ gamesRouter.post('/roulette/bet', requireAuth, async (req, res) => {
 // ─── Plinko ───────────────────────────────────────────────────────────────────
 
 const plinkoBetSchema = z.object({
-  betAmount: z.number().int().min(1),
+  betAmount: z.number().int().min(1).max(1_000_000),
   rows: z.number().int().min(8).max(16),
   riskLevel: z.enum(['low', 'medium', 'high', 'expert']),
 });
@@ -121,7 +123,7 @@ const plinkoBetSchema = z.object({
 // Returns 400 on invalid input
 // Returns 402 on INSUFFICIENT_FUNDS
 // Returns 500 on unexpected error
-gamesRouter.post('/plinko/bet', requireAuth, async (req, res) => {
+gamesRouter.post('/plinko/bet', gameLimiter, clickInterval, requireAuth, async (req, res) => {
   const parsed = plinkoBetSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Invalid request' });
@@ -152,7 +154,7 @@ gamesRouter.post('/plinko/bet', requireAuth, async (req, res) => {
 // ─── Mines routes ─────────────────────────────────────────────────────────────
 
 const minesStartSchema = z.object({
-  betAmount: z.number().int().min(1),
+  betAmount: z.number().int().min(1).max(1_000_000),
   mineCount: z.number().int().min(1).max(24),
 });
 
@@ -172,7 +174,7 @@ const minesCashoutSchema = z.object({
 // Returns 200 { sessionId }
 // Returns 402 on INSUFFICIENT_FUNDS
 // Returns 400/500 on error
-gamesRouter.post('/mines/start', requireAuth, async (req, res) => {
+gamesRouter.post('/mines/start', gameLimiter, clickInterval, requireAuth, async (req, res) => {
   const parsed = minesStartSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Invalid request' });
@@ -226,7 +228,7 @@ gamesRouter.post('/mines/start', requireAuth, async (req, res) => {
 // Returns 200 { hit: true, mineGrid } on mine hit (round over, bet lost)
 // Returns 200 { hit: false, gem: true, currentMultiplier, tilesRevealed } on safe tile
 // Returns 400 on validation/state errors, 404 if session not found
-gamesRouter.post('/mines/tile', requireAuth, async (req, res) => {
+gamesRouter.post('/mines/tile', gameLimiter, clickInterval, requireAuth, async (req, res) => {
   const parsed = minesTileSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Invalid request' });
@@ -310,7 +312,7 @@ gamesRouter.post('/mines/tile', requireAuth, async (req, res) => {
 // Returns 200 { payout, newBalance, mineGrid }
 // Returns 400 if no tiles revealed or round already ended
 // Returns 404 if session not found
-gamesRouter.post('/mines/cashout', requireAuth, async (req, res) => {
+gamesRouter.post('/mines/cashout', gameLimiter, clickInterval, requireAuth, async (req, res) => {
   const parsed = minesCashoutSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Invalid request' });
@@ -424,7 +426,7 @@ gamesRouter.get('/mines/active-session', requireAuth, async (req, res) => {
 // ─── Blackjack routes ─────────────────────────────────────────────────────────
 
 const blackjackDealSchema = z.object({
-  betAmount: z.number().int().min(1),
+  betAmount: z.number().int().min(1).max(1_000_000),
 });
 
 const blackjackSessionSchema = z.object({
@@ -451,7 +453,7 @@ async function loadBlackjackSession(sessionId: number, userId: number) {
 // Returns { sessionId, playerHand, dealerUpCard, playerValue } for normal play
 // Returns { outcome, profit, newBalance, playerHand, dealerHand } on immediate natural blackjack
 // Returns 402 on INSUFFICIENT_FUNDS, 400 on invalid input, 500 on error
-gamesRouter.post('/blackjack/deal', requireAuth, async (req, res) => {
+gamesRouter.post('/blackjack/deal', gameLimiter, clickInterval, requireAuth, async (req, res) => {
   const parsed = blackjackDealSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Invalid request' });
@@ -566,7 +568,7 @@ gamesRouter.post('/blackjack/deal', requireAuth, async (req, res) => {
 // Returns { card, playerHand, playerValue, busted: false } on safe hit
 // Returns { card, playerHand, playerValue, busted: true, outcome, newBalance } on bust
 // Returns 400 if not player's turn or session invalid, 404 if session not found
-gamesRouter.post('/blackjack/hit', requireAuth, async (req, res) => {
+gamesRouter.post('/blackjack/hit', gameLimiter, clickInterval, requireAuth, async (req, res) => {
   const parsed = blackjackSessionSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Invalid request' });
@@ -649,7 +651,7 @@ gamesRouter.post('/blackjack/hit', requireAuth, async (req, res) => {
 // Pipeline: load session → dealer plays → determine outcome → settle
 // Returns { dealerHand, dealerValue, outcome, newBalance }
 // Returns 400 if not player's turn or session invalid, 404 if session not found
-gamesRouter.post('/blackjack/stand', requireAuth, async (req, res) => {
+gamesRouter.post('/blackjack/stand', gameLimiter, clickInterval, requireAuth, async (req, res) => {
   const parsed = blackjackSessionSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Invalid request' });
@@ -709,7 +711,7 @@ gamesRouter.post('/blackjack/stand', requireAuth, async (req, res) => {
 // Pipeline: load session → deduct additional bet → deal one card → dealer plays → settle
 // Returns { card, playerHand, dealerHand, outcome, newBalance }
 // Returns 402 on INSUFFICIENT_FUNDS, 400 if not player's turn, 404 if session not found
-gamesRouter.post('/blackjack/double', requireAuth, async (req, res) => {
+gamesRouter.post('/blackjack/double', gameLimiter, clickInterval, requireAuth, async (req, res) => {
   const parsed = blackjackSessionSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Invalid request' });
