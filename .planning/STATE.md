@@ -1,11 +1,11 @@
 ---
 gsd_state_version: 1.0
 milestone: v1.0
-milestone_name: milestone
-status: verifying
-stopped_at: "Completed 08-05: 429 error message display gap closure (all game pages surface server error from data?.error)"
-last_updated: "2026-03-06T17:28:14.041Z"
-last_activity: "2026-03-06 — Completed 08-03: Admin panel UI with AdminRoute guard, AdminPage dashboard (stats, search, history inspector, ban/unban), /admin route wired in App.tsx"
+milestone_name: MVP
+status: complete
+stopped_at: "v1.0 MVP milestone archived — ready for /gsd:new-milestone to start v2.0"
+last_updated: "2026-03-06T00:00:00.000Z"
+last_activity: "2026-03-06 — v1.0 MVP milestone completed and archived"
 progress:
   total_phases: 11
   completed_phases: 11
@@ -18,10 +18,10 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-02-27)
+See: .planning/PROJECT.md (updated 2026-03-06 after v1.0 milestone)
 
 **Core value:** Players can jump in daily, claim their bonus, play fair-odds casino games with virtual coins, and compete on leaderboards — no real-money risk.
-**Current focus:** Phase 6 — User Experience Polish (leaderboards, avatars, recent bets history)
+**Current focus:** Planning next milestone — run `/gsd:new-milestone` to define v2.0
 
 ## Current Position
 
