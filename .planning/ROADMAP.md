@@ -188,12 +188,14 @@ Plans:
   4. An admin can ban a player; the banned user's active sessions are immediately invalidated (they cannot make another bet or page load without re-login, which is also rejected)
   5. Every admin action is recorded in an audit log with AdminID, Action, TargetUserID, and Timestamp
   6. Automated bot requests (inhuman click intervals) and bets outside valid ranges are rejected server-side before any balance change occurs
-**Plans**: 3 plans
+**Plans**: 5 plans
 
 Plans:
 - [ ] 08-01-PLAN.md — gameLimiter (30 req/min/IP) + clickInterval (100ms) on all game POST routes; explicit .max(1_000_000) Zod bounds on betAmount schemas (ANTI-01, ANTI-02, ANTI-03)
 - [ ] 08-02-PLAN.md — requireAdmin middleware (DB role check), adminService, admin router with 5 endpoints (/stats, /players, /players/:id/history, /players/:id/ban, /players/:id/unban), registered in app.ts (ADMIN-01..05)
 - [ ] 08-03-PLAN.md — AdminRoute guard, AdminPage (stats cards, player search, game history inspector, ban/unban controls), /admin route in App.tsx (ADMIN-01..04)
+- [ ] 08-04-PLAN.md — Gap closure: delete refresh_tokens in banUser() for immediate session invalidation (ADMIN-04)
+- [ ] 08-05-PLAN.md — Gap closure: fix game page catch blocks to surface server 429/error messages instead of generic fallback (ANTI-01)
 
 ## Progress
 
@@ -212,4 +214,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8
 | 5.2. Blackjack Double Down & Header Fix | 0/1 | Not started | - |
 | 6. Leaderboards & Real-Time | 2/2 | Complete   | 2026-03-04 |
 | 7. Player Profile | 2/2 | Complete   | 2026-03-06 |
-| 8. Admin & Anti-Cheat | 4/4 | Complete   | 2026-03-06 |
+| 8. Admin & Anti-Cheat | 4/5 | In progress | - |
