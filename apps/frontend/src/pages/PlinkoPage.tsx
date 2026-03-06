@@ -379,11 +379,11 @@ export function PlinkoPage() {
         setGamePhase('result');
       });
     } catch (err: unknown) {
-      const axiosErr = err as { response?: { status?: number } };
+      const axiosErr = err as { response?: { data?: { error?: string }; status?: number } };
       if (axiosErr.response?.status === 402) {
         setError('Insufficient funds.');
       } else {
-        setError('Something went wrong. Please try again.');
+        setError(axiosErr.response?.data?.error ?? 'Something went wrong. Please try again.');
       }
       setBallPosition(null);
       setGamePhase('betting');

@@ -323,11 +323,11 @@ export function BlackjackPage() {
         setNewPlayerCardIndex(1);
       }
     } catch (err: unknown) {
-      const axiosErr = err as { response?: { status?: number } };
+      const axiosErr = err as { response?: { data?: { error?: string }; status?: number } };
       if (axiosErr.response?.status === 402) {
         setError('Insufficient funds.');
       } else {
-        setError('Something went wrong. Please try again.');
+        setError(axiosErr.response?.data?.error ?? 'Something went wrong. Please try again.');
       }
     } finally {
       setIsLoading(false);
@@ -357,8 +357,9 @@ export function BlackjackPage() {
         useBalanceStore.getState().setBalance(bust.newBalance);
         playLoss();
       }
-    } catch {
-      setError('Something went wrong. Please try again.');
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { error?: string } } };
+      setError(axiosErr.response?.data?.error ?? 'Something went wrong. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -385,8 +386,9 @@ export function BlackjackPage() {
       } else {
         playLoss();
       }
-    } catch {
-      setError('Something went wrong. Please try again.');
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { error?: string } } };
+      setError(axiosErr.response?.data?.error ?? 'Something went wrong. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -422,11 +424,11 @@ export function BlackjackPage() {
       // Update player hand to reflect final server state
       void pHand; // already reflected via addPlayerCard
     } catch (err: unknown) {
-      const axiosErr = err as { response?: { status?: number } };
+      const axiosErr = err as { response?: { data?: { error?: string }; status?: number } };
       if (axiosErr.response?.status === 402) {
         setError('Insufficient funds for double down.');
       } else {
-        setError('Something went wrong. Please try again.');
+        setError(axiosErr.response?.data?.error ?? 'Something went wrong. Please try again.');
       }
     } finally {
       setIsLoading(false);

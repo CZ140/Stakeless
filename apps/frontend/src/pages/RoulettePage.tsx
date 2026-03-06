@@ -67,7 +67,7 @@ export function RoulettePage() {
       if (axiosErr.response?.status === 402) {
         setError('Insufficient funds to place this bet.');
       } else {
-        setError('Something went wrong. Please try again.');
+        setError(axiosErr.response?.data?.error ?? 'Something went wrong. Please try again.');
       }
       setGamePhase('betting');
     }
