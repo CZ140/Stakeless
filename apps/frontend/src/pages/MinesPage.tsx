@@ -294,11 +294,11 @@ export function MinesPage() {
       });
       startRound(res.data.sessionId);
     } catch (err: unknown) {
-      const axiosErr = err as { response?: { status?: number } };
+      const axiosErr = err as { response?: { data?: { error?: string }; status?: number } };
       if (axiosErr.response?.status === 402) {
         setError('Insufficient funds.');
       } else {
-        setError('Something went wrong. Please try again.');
+        setError(axiosErr.response?.data?.error ?? 'Something went wrong. Please try again.');
       }
     }
   }
@@ -323,8 +323,8 @@ export function MinesPage() {
         // Balance not updated: bet was already deducted on start, no payout on mine hit
       }
     } catch (err: unknown) {
-      const axiosErr = err as { response?: { status?: number } };
-      setError(axiosErr.response?.status === 400 ? 'Invalid tile selection.' : 'Something went wrong.');
+      const axiosErr = err as { response?: { data?: { error?: string }; status?: number } };
+      setError(axiosErr.response?.status === 400 ? 'Invalid tile selection.' : (axiosErr.response?.data?.error ?? 'Something went wrong.'));
     } finally {
       setIsLoading(false);
     }
@@ -340,8 +340,8 @@ export function MinesPage() {
       useBalanceStore.getState().setBalance(res.data.newBalance);
       playWin();
     } catch (err: unknown) {
-      const axiosErr = err as { response?: { status?: number } };
-      setError(axiosErr.response?.status === 400 ? 'Cannot cash out yet.' : 'Something went wrong.');
+      const axiosErr = err as { response?: { data?: { error?: string }; status?: number } };
+      setError(axiosErr.response?.status === 400 ? 'Cannot cash out yet.' : (axiosErr.response?.data?.error ?? 'Something went wrong.'));
     } finally {
       setIsLoading(false);
     }
