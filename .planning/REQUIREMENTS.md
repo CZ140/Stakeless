@@ -77,9 +77,9 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Player Profile
 
-- [ ] **PROF-01**: Each user has a profile page displaying: username, current balance, leaderboard rank, total wagered, total profit, and total games played
-- [ ] **PROF-02**: Profile page displays a balance over time chart
-- [ ] **PROF-03**: Profile page displays a wagered per day chart
+- [x] **PROF-01**: Each user has a profile page displaying: username, current balance, leaderboard rank, total wagered, total profit, and total games played
+- [x] **PROF-02**: Profile page displays a balance over time chart
+- [x] **PROF-03**: Profile page displays a wagered per day chart
 
 ### Admin Panel
 
@@ -196,9 +196,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | LDR-03 | Phase 6 | Complete |
 | LDR-04 | Phase 6 | Complete |
 | LDR-05 | Phase 6 | Complete |
-| PROF-01 | Phase 7 | Pending |
-| PROF-02 | Phase 7 | Pending |
-| PROF-03 | Phase 7 | Pending |
+| PROF-01 | Phase 7 | Complete |
+| PROF-02 | Phase 7 | Complete |
+| PROF-03 | Phase 7 | Complete |
 | ADMIN-01 | Phase 8 | Pending |
 | ADMIN-02 | Phase 8 | Pending |
 | ADMIN-03 | Phase 8 | Pending |

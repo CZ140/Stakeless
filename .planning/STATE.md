@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: verifying
-stopped_at: Phase 7 context gathered
-last_updated: "2026-03-06T02:19:40.958Z"
+stopped_at: Completed 07-01-PLAN.md
+last_updated: "2026-03-06T03:24:44.861Z"
 last_activity: "2026-03-04 — Completed 06-02: LeaderboardPage verified by user (three tabs, live updates, own-rank display, balance header updates, nav link)"
 progress:
   total_phases: 11
   completed_phases: 9
-  total_plans: 22
-  completed_plans: 22
+  total_plans: 24
+  completed_plans: 23
   percent: 100
 ---
 
@@ -76,6 +76,7 @@ Progress: [██████████] 100%
 | Phase 05.2-blackjack-double-header-fix P01 | 2 | 2 tasks | 2 files |
 | Phase 06-leaderboards-real-time P01 | 8 min | 2 tasks | 8 files |
 | Phase 06-leaderboards-real-time P02 | 4 min | 2 tasks | 8 files |
+| Phase 07-player-profile P01 | 1 | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -161,6 +162,9 @@ Recent decisions affecting current work:
 - [Phase 06-leaderboards-real-time P02]: Explicit Socket type annotation (: Socket) required on socket.ts export — pnpm dependency isolation causes TS2742 portability error without it
 - [Phase 06-leaderboards-real-time P02]: Conditional socket.disconnect() in useLeaderboard cleanup — only disconnects if no accessToken so it does not disrupt the AuthContext-owned lifecycle for authenticated users
 - [Phase 06-leaderboards-real-time P02]: apiClient used for GET /leaderboard even for guests — sends no Authorization header when accessToken is null; backend returns null ownRanks for unauthenticated requests gracefully
+- [Phase 07-player-profile]: Profile endpoint is fully public (no requireAuth) — guests can view any player profile
+- [Phase 07-player-profile]: Profile lookup by username column (not userId) — public URL uses /profile/:username
+- [Phase 07-player-profile]: balanceHistory.x serialized via .toISOString() — Drizzle returns Date objects, Recharts XAxis needs strings
 
 ### Pending Todos
 
@@ -176,6 +180,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-06T02:19:40.952Z
-Stopped at: Phase 7 context gathered
-Resume file: .planning/phases/07-player-profile/07-CONTEXT.md
+Last session: 2026-03-06T03:24:44.855Z
+Stopped at: Completed 07-01-PLAN.md
+Resume file: None
