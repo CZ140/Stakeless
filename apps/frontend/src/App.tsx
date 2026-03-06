@@ -11,7 +11,9 @@ import { MinesPage } from './pages/MinesPage';
 import { BlackjackPage } from './pages/BlackjackPage';
 import { LeaderboardPage } from './pages/LeaderboardPage';
 import { ProfilePage } from './pages/ProfilePage';
+import { AdminPage } from './pages/AdminPage';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { AdminRoute } from './components/AdminRoute';
 
 export default function App() {
   return (
@@ -71,6 +73,14 @@ export default function App() {
       />
       <Route path="/leaderboard" element={<LeaderboardPage />} />
       <Route path="/profile/:username" element={<ProfilePage />} />
+      <Route
+        path="/admin"
+        element={
+          <AdminRoute>
+            <AdminPage />
+          </AdminRoute>
+        }
+      />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
