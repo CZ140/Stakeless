@@ -214,4 +214,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8
 | 5.2. Blackjack Double Down & Header Fix | 0/1 | Not started | - |
 | 6. Leaderboards & Real-Time | 2/2 | Complete   | 2026-03-04 |
 | 7. Player Profile | 2/2 | Complete   | 2026-03-06 |
-| 8. Admin & Anti-Cheat | 4/5 | In progress | - |
+| 8. Admin & Anti-Cheat | 5/5 | Complete   | 2026-03-06 |

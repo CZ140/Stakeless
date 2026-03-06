@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: verifying
-stopped_at: "Completed 08-04: ADMIN-04 session invalidation gap closure (banUser deletes refresh_tokens)"
-last_updated: "2026-03-06T06:18:45.072Z"
+stopped_at: "Completed 08-05: 429 error message display gap closure (all game pages surface server error from data?.error)"
+last_updated: "2026-03-06T17:23:56.594Z"
 last_activity: "2026-03-06 — Completed 08-03: Admin panel UI with AdminRoute guard, AdminPage dashboard (stats, search, history inspector, ban/unban), /admin route wired in App.tsx"
 progress:
   total_phases: 11
   completed_phases: 11
-  total_plans: 28
-  completed_plans: 28
+  total_plans: 29
+  completed_plans: 29
   percent: 100
 ---
 
@@ -81,6 +81,7 @@ Progress: [██████████] 100%
 | Phase 08-admin-anti-cheat P02 | 2 | 2 tasks | 4 files |
 | Phase 08-admin-anti-cheat P01 | 1 | 2 tasks | 3 files |
 | Phase 08-admin-anti-cheat P04 | 1 | 1 tasks | 1 files |
+| Phase 08-admin-anti-cheat P05 | 2 | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -183,6 +184,7 @@ Recent decisions affecting current work:
 - [Phase 08-admin-anti-cheat P03]: Optimistic ban/unban update — searchResults array mapped in place on API success; no secondary fetch needed for admin panel
 - [Phase 08-admin-anti-cheat P03]: Role gate pattern uses useEffect([accessToken]) with adminChecked state flag to prevent flash of unauthorized content before probe resolves
 - [Phase 08-admin-anti-cheat]: Delete refresh_tokens rows in banUser() rather than modifying authService.ts — single-file fix closes ADMIN-04 session invalidation gap without touching the auth layer
+- [Phase 08-admin-anti-cheat]: Status-specific error messages (402, 400) preserved in game pages; data?.error only replaces generic else-branch fallback
 
 ### Pending Todos
 
@@ -198,6 +200,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-06T06:14:35.042Z
-Stopped at: Completed 08-04: ADMIN-04 session invalidation gap closure (banUser deletes refresh_tokens)
+Last session: 2026-03-06T17:23:56.587Z
+Stopped at: Completed 08-05: 429 error message display gap closure (all game pages surface server error from data?.error)
 Resume file: None
