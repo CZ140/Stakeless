@@ -11,6 +11,7 @@ import { ActivityFeed } from '../components/vault/ActivityFeed';
 const GAMES: GameCardData[] = [
   { id: 'roulette', name: 'Roulette', route: '/games/roulette', tag: 'Classic', description: 'European wheel · single zero' },
   { id: 'plinko', name: 'Plinko', route: '/games/plinko', tag: 'Fast', description: 'Drop the ball, ride the pegs' },
+  { id: 'dice', name: 'Dice', route: '/games/dice', tag: 'Fast', description: 'Pick your odds, roll the number' },
   { id: 'mines', name: 'Mines', route: '/games/mines', tag: 'Risk', description: 'Avoid the mines, cash out big' },
   { id: 'blackjack', name: 'Blackjack', route: '/games/blackjack', tag: 'Strategy', description: 'Beat the dealer to 21' },
 ];

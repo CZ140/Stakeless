@@ -7,6 +7,8 @@ import { clickInterval } from '../middleware/clickInterval.js';
 import { deductBet, settleBet, reconcileTier } from '../services/walletService.js';
 import { resolveRouletteBets } from '../services/rouletteService.js';
 import { resolvePlinko, rollPlinkoBucket } from '../services/plinkoService.js';
+import { rollDice, resolveDice } from '../services/diceService.js';
+import { diceWinChance, diceWinChanceValid } from '@gambling/shared';
 import {
   generateMineGrid,
   calculateMinesMultiplier,
@@ -177,6 +179,63 @@ gamesRouter.post('/plinko/bet', gameLimiter, clickInterval, requireAuth, async (
     if (code === 'INSUFFICIENT_FUNDS') { res.status(402).json({ error: 'Insufficient funds' }); return; }
     if (code === 'BET_TOO_SMALL') { res.status(400).json({ error: 'Bet amount too small' }); return; }
     console.error('[games] plinko bet error:', err);
+    res.status(500).json({ error: 'An unexpected error occurred' });
+  }
+});
+
+// ─── Dice ───────────────────────────────────────────────────────────────────
+
+const diceBetSchema = z.object({
+  betAmount: z.number().int().min(1).max(1_000_000),
+  // 0.01-step threshold the roll is compared against; bounds are validated below
+  // via the implied win chance (depends on direction).
+  target: z.number().min(0.01).max(99.99),
+  direction: z.enum(['under', 'over']),
+});
+
+// POST /api/games/dice/bet
+// Pipeline: validate → check win chance in range → deductBet → crypto roll →
+// resolveDice → settleBet → emit → tier reconcile. Instant-settle (no session).
+// Returns 200 { roll, target, direction, win, multiplier, winChance, profit, newBalance }
+// Returns 400 on invalid input / target out of range, 402 on INSUFFICIENT_FUNDS.
+gamesRouter.post('/dice/bet', gameLimiter, clickInterval, requireAuth, async (req, res) => {
+  const parsed = diceBetSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Invalid request' });
+    return;
+  }
+  const userId = req.user!.id;
+  const { betAmount, target, direction } = parsed.data;
+
+  // Reject targets whose win chance is outside the playable band BEFORE moving money.
+  const winChance = diceWinChance(target, direction);
+  if (!diceWinChanceValid(winChance)) {
+    res.status(400).json({ error: 'Target out of range' });
+    return;
+  }
+
+  try {
+    await deductBet(userId, betAmount, 'dice');
+    const roll = rollDice();
+    const { win, multiplier } = resolveDice(roll, target, direction);
+    // settleBet receives the gross payout (stake + winnings); 0 on a loss.
+    const grossPayout = win ? Math.floor(betAmount * multiplier) : 0;
+    const { newBalance } = await settleBet(
+      userId,
+      grossPayout,
+      betAmount,
+      `${direction}@${target}=${roll.toFixed(2)}`,
+      'dice',
+    );
+    io?.to(`user:${userId}`).emit('balance:update', { balance: newBalance });
+    await applyTierUp(userId);
+    // net profit shown to player = gross payout − stake (stake was already deducted)
+    res.json({ roll, target, direction, win, multiplier, winChance, profit: grossPayout - betAmount, newBalance });
+  } catch (err: unknown) {
+    const code = (err as { code?: string }).code;
+    if (code === 'INSUFFICIENT_FUNDS') { res.status(402).json({ error: 'Insufficient funds' }); return; }
+    if (code === 'BET_TOO_SMALL') { res.status(400).json({ error: 'Bet amount too small' }); return; }
+    console.error('[games] dice bet error:', err);
     res.status(500).json({ error: 'An unexpected error occurred' });
   }
 });

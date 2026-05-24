@@ -6,6 +6,7 @@ import {
   DashboardIcon,
   RouletteIcon,
   PlinkoIcon,
+  DiceIcon,
   MinesIcon,
   BlackjackIcon,
   LeaderboardIcon,
@@ -25,6 +26,7 @@ const games: NavEntry[] = [
   { to: '/dashboard', label: 'Dashboard', Icon: DashboardIcon },
   { to: '/games/roulette', label: 'Roulette', Icon: RouletteIcon },
   { to: '/games/plinko', label: 'Plinko', Icon: PlinkoIcon },
+  { to: '/games/dice', label: 'Dice', Icon: DiceIcon },
   { to: '/games/mines', label: 'Mines', Icon: MinesIcon },
   { to: '/games/blackjack', label: 'Blackjack', Icon: BlackjackIcon },
 ];

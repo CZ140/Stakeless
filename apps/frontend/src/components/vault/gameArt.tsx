@@ -60,9 +60,30 @@ const BlackjackArt = () => (
   </svg>
 );
 
+const DiceArt = () => (
+  <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+    {/* back die — showing 2 */}
+    <g transform="rotate(10 42 24)">
+      <rect x="30" y="12" width="24" height="24" rx="5" fill="#241a0c" stroke="#D4A857" strokeWidth="1.5" />
+      <circle cx="37" cy="19" r="2.2" fill="#F5D68A" />
+      <circle cx="47" cy="29" r="2.2" fill="#F5D68A" />
+    </g>
+    {/* front die — showing 5 */}
+    <g transform="rotate(-8 23 39)">
+      <rect x="10" y="26" width="26" height="26" rx="5" fill="#1a1208" stroke="#D4A857" strokeWidth="1.5" />
+      <circle cx="17" cy="33" r="2.4" fill="#F5D68A" />
+      <circle cx="29" cy="33" r="2.4" fill="#F5D68A" />
+      <circle cx="23" cy="39" r="2.4" fill="#F5D68A" />
+      <circle cx="17" cy="45" r="2.4" fill="#F5D68A" />
+      <circle cx="29" cy="45" r="2.4" fill="#F5D68A" />
+    </g>
+  </svg>
+);
+
 export const gameArt: Record<string, () => ReactElement> = {
   roulette: RouletteArt,
   plinko: PlinkoArt,
   mines: MinesArt,
   blackjack: BlackjackArt,
+  dice: DiceArt,
 };

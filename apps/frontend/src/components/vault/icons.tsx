@@ -38,6 +38,17 @@ export const RouletteIcon = ({ size = 18 }: IconProps) => (
   </svg>
 );
 
+export const DiceIcon = ({ size = 18 }: IconProps) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" {...stroke}>
+    <rect x="4" y="4" width="16" height="16" rx="4" />
+    <circle cx="9" cy="9" r="1.2" fill="currentColor" stroke="none" />
+    <circle cx="15" cy="9" r="1.2" fill="currentColor" stroke="none" />
+    <circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none" />
+    <circle cx="9" cy="15" r="1.2" fill="currentColor" stroke="none" />
+    <circle cx="15" cy="15" r="1.2" fill="currentColor" stroke="none" />
+  </svg>
+);
+
 export const PlinkoIcon = ({ size = 18 }: IconProps) => (
   <svg width={size} height={size} viewBox="0 0 24 24" {...stroke}>
     <circle cx="12" cy="5" r="1" />
