@@ -6,19 +6,24 @@ import { gameLimiter } from '../middleware/rateLimiter.js';
 import { clickInterval } from '../middleware/clickInterval.js';
 import { deductBet, settleBet } from '../services/walletService.js';
 import { resolveRouletteBets } from '../services/rouletteService.js';
-import { resolvePlinko } from '../services/plinkoService.js';
+import { resolvePlinko, rollPlinkoBucket } from '../services/plinkoService.js';
 import {
   generateMineGrid,
   calculateMinesMultiplier,
   type MinesSessionState,
 } from '../services/minesService.js';
 import {
-  createDeck,
   calculateHandValue,
-  isBlackjack,
-  dealerPlay,
-  getOutcome,
-  computeProfit,
+  startGame,
+  playerHit,
+  playerStand,
+  playerDouble,
+  playerSplit,
+  canSplit,
+  canDouble,
+  settle,
+  totalProfit,
+  MAX_PREDEAL_HANDS,
   type BlackjackSessionState,
 } from '../services/blackjackService.js';
 import { db } from '../db/index.js';
@@ -133,7 +138,8 @@ gamesRouter.post('/plinko/bet', gameLimiter, clickInterval, requireAuth, async (
   const { betAmount, rows, riskLevel } = parsed.data;
   try {
     await deductBet(userId, betAmount, 'plinko');
-    const bucket = randomInt(0, rows + 1);
+    // Binomial roll — real Plinko odds (edges rare), not a uniform pick.
+    const bucket = rollPlinkoBucket(rows);
     const multiplier = resolvePlinko(rows, riskLevel, bucket);
     // settleBet receives gross payout (stake + winnings).
     // profit passed to settleBet = floor(betAmount * multiplier) which is the gross payout.
@@ -423,36 +429,85 @@ gamesRouter.get('/mines/active-session', requireAuth, async (req, res) => {
   }
 });
 
-// ─── Blackjack routes ─────────────────────────────────────────────────────────
+// ─── Blackjack routes (multi-hand + split) ──────────────────────────────────────
 
 const blackjackDealSchema = z.object({
-  betAmount: z.number().int().min(1).max(1_000_000),
+  bets: z
+    .array(z.number().int().min(1).max(1_000_000))
+    .min(1, 'At least one hand required')
+    .max(MAX_PREDEAL_HANDS, `At most ${MAX_PREDEAL_HANDS} hands`),
 });
 
-const blackjackSessionSchema = z.object({
+const blackjackActionSchema = z.object({
   sessionId: z.number().int(),
+  action: z.enum(['hit', 'stand', 'double', 'split']),
 });
 
-// Helper: load and validate a blackjack session
-async function loadBlackjackSession(sessionId: number, userId: number) {
-  const rows = await db
-    .select()
-    .from(gameSessions)
-    .where(
-      and(
-        eq(gameSessions.id, sessionId),
-        eq(gameSessions.userId, userId),
-        isNull(gameSessions.completedAt),
-      ),
+// Build the client-facing view of a session. Player hands are fully visible; the
+// dealer hole card stays hidden until the round is settled.
+function serializeBlackjack(
+  state: BlackjackSessionState,
+  sessionId: number,
+  newBalance?: number,
+) {
+  const settled = state.phase === 'settled';
+  return {
+    sessionId,
+    phase: state.phase,
+    activeHandIndex: state.activeHandIndex,
+    hands: state.hands.map((h) => ({
+      cards: h.cards,
+      bet: h.bet,
+      value: calculateHandValue(h.cards).value,
+      status: h.status,
+      isDoubled: h.isDoubled,
+      splitAce: h.splitAce,
+      outcome: h.outcome,
+      profit: h.profit,
+    })),
+    dealer: {
+      upCard: state.dealerHand[0] ?? null,
+      hand: settled ? state.dealerHand : null,
+      value: settled ? calculateHandValue(state.dealerHand).value : null,
+    },
+    canSplit: canSplit(state),
+    canDouble: canDouble(state),
+    ...(newBalance !== undefined ? { newBalance } : {}),
+  };
+}
+
+// Settle every hand to the wallet (one settleBet per hand), persist the session
+// as completed, and emit a single balance update. Returns the final balance.
+async function settleBlackjack(
+  userId: number,
+  sessionId: number,
+  state: BlackjackSessionState,
+): Promise<number> {
+  settle(state);
+  let newBalance = 0;
+  for (const hand of state.hands) {
+    const effectiveBet = hand.bet * (hand.isDoubled ? 2 : 1);
+    const result = await settleBet(
+      userId,
+      hand.profit ?? 0,
+      effectiveBet,
+      hand.outcome ?? 'dealer_win',
+      'blackjack',
     );
-  return rows[0] ?? null;
+    newBalance = result.newBalance;
+  }
+  await db
+    .update(gameSessions)
+    .set({ state: JSON.stringify(state), completedAt: new Date() })
+    .where(eq(gameSessions.id, sessionId));
+  io.to(`user:${userId}`).emit('balance:update', { balance: newBalance });
+  return newBalance;
 }
 
 // POST /api/games/blackjack/deal
-// Pipeline: deductBet → deal 4 cards → check natural blackjack → store session
-// Returns { sessionId, playerHand, dealerUpCard, playerValue } for normal play
-// Returns { outcome, profit, newBalance, playerHand, dealerHand } on immediate natural blackjack
-// Returns 402 on INSUFFICIENT_FUNDS, 400 on invalid input, 500 on error
+// Body: { bets: number[] } — one entry per pre-deal hand (1..MAX_PREDEAL_HANDS).
+// Deducts the total stake, deals all hands, and either returns the player_turn
+// view or, if every hand is a natural, settles immediately.
 gamesRouter.post('/blackjack/deal', gameLimiter, clickInterval, requireAuth, async (req, res) => {
   const parsed = blackjackDealSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -461,367 +516,113 @@ gamesRouter.post('/blackjack/deal', gameLimiter, clickInterval, requireAuth, asy
   }
 
   const userId = req.user!.id;
-  const { betAmount } = parsed.data;
+  const { bets } = parsed.data;
+  const total = bets.reduce((sum, b) => sum + b, 0);
 
   try {
-    await deductBet(userId, betAmount, 'blackjack');
+    await deductBet(userId, total, 'blackjack');
 
-    const deck = createDeck();
-    // Deal alternating: player[0], dealer[0] (up), player[1], dealer[1] (hole/face-down)
-    const playerHand = [deck[0]!, deck[2]!];
-    const dealerHand = [deck[1]!, deck[3]!];
-    const remainingDeck = deck.slice(4);
-
-    // Check player natural blackjack
-    if (isBlackjack(playerHand)) {
-      // Reveal dealer hand and check if dealer also has blackjack
-      const dealerIsBlackjack = isBlackjack(dealerHand);
-
-      let state: BlackjackSessionState;
-      let profit: number;
-      let outcome: string;
-
-      if (dealerIsBlackjack) {
-        // Both have blackjack → push
-        outcome = 'push';
-        profit = computeProfit('push', betAmount);
-        state = {
-          deck: remainingDeck,
-          playerHand,
-          dealerHand,
-          phase: 'settled',
-          outcome: 'push',
-          isDoubled: false,
-        };
-      } else {
-        // Only player has blackjack → 3:2 payout
-        outcome = 'player_blackjack';
-        profit = computeProfit('player_blackjack', betAmount);
-        state = {
-          deck: remainingDeck,
-          playerHand,
-          dealerHand,
-          phase: 'settled',
-          outcome: 'player_blackjack',
-          isDoubled: false,
-        };
-      }
-
-      await db.insert(gameSessions).values({
-        userId,
-        gameType: 'blackjack',
-        state: JSON.stringify(state),
-        betAmount,
-        completedAt: new Date(),
-      });
-
-      const { newBalance } = await settleBet(userId, profit, betAmount, outcome, 'blackjack');
-
-      io.to(`user:${userId}`).emit('balance:update', { balance: newBalance });
-      res.json({ outcome, profit, newBalance, playerHand, dealerHand });
-      return;
-    }
-
-    // Normal deal — game continues with player turn
-    const state: BlackjackSessionState = {
-      deck: remainingDeck,
-      playerHand,
-      dealerHand,
-      phase: 'player_turn',
-      outcome: null,
-      isDoubled: false,
-    };
+    const state = startGame(bets);
 
     const [session] = await db
       .insert(gameSessions)
-      .values({
-        userId,
-        gameType: 'blackjack',
-        state: JSON.stringify(state),
-        betAmount,
-      })
+      .values({ userId, gameType: 'blackjack', state: JSON.stringify(state), betAmount: total })
       .returning({ id: gameSessions.id });
 
-    res.json({
-      sessionId: session!.id,
-      playerHand,
-      dealerUpCard: dealerHand[0]!,
-      playerValue: calculateHandValue(playerHand).value,
-    });
+    if (state.phase === 'dealer_turn') {
+      // Every hand was a natural (or otherwise needs no player action) — settle now.
+      const newBalance = await settleBlackjack(userId, session!.id, state);
+      res.json(serializeBlackjack(state, session!.id, newBalance));
+      return;
+    }
+
+    res.json(serializeBlackjack(state, session!.id));
   } catch (err: unknown) {
     const code = (err as { code?: string }).code;
-    if (code === 'INSUFFICIENT_FUNDS') {
-      res.status(402).json({ error: 'Insufficient funds' });
-      return;
-    }
-    if (code === 'BET_TOO_SMALL') {
-      res.status(400).json({ error: 'Bet amount too small' });
-      return;
-    }
+    if (code === 'INSUFFICIENT_FUNDS') { res.status(402).json({ error: 'Insufficient funds' }); return; }
+    if (code === 'BET_TOO_SMALL') { res.status(400).json({ error: 'Bet amount too small' }); return; }
     console.error('[games] blackjack deal error:', err);
     res.status(500).json({ error: 'An unexpected error occurred' });
   }
 });
 
-// POST /api/games/blackjack/hit
-// Pipeline: load session → draw card → check bust → update session or settle
-// Returns { card, playerHand, playerValue, busted: false } on safe hit
-// Returns { card, playerHand, playerValue, busted: true, outcome, newBalance } on bust
-// Returns 400 if not player's turn or session invalid, 404 if session not found
-gamesRouter.post('/blackjack/hit', gameLimiter, clickInterval, requireAuth, async (req, res) => {
-  const parsed = blackjackSessionSchema.safeParse(req.body);
+// POST /api/games/blackjack/action
+// Body: { sessionId, action: 'hit'|'stand'|'double'|'split' }. Applies the action
+// to the active hand; double/split deduct the extra stake. Settles when the
+// player turn ends.
+gamesRouter.post('/blackjack/action', gameLimiter, clickInterval, requireAuth, async (req, res) => {
+  const parsed = blackjackActionSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Invalid request' });
     return;
   }
 
   const userId = req.user!.id;
-  const { sessionId } = parsed.data;
+  const { sessionId, action } = parsed.data;
 
   try {
-    const session = await loadBlackjackSession(sessionId, userId);
+    const rows = await db
+      .select()
+      .from(gameSessions)
+      .where(and(eq(gameSessions.id, sessionId), eq(gameSessions.userId, userId), isNull(gameSessions.completedAt)));
+    const session = rows[0];
     if (!session) {
       res.status(404).json({ error: 'Session not found' });
       return;
     }
 
-    const state = JSON.parse(session.state) as BlackjackSessionState;
-
+    let state = JSON.parse(session.state) as BlackjackSessionState;
     if (state.phase !== 'player_turn') {
       res.status(400).json({ error: 'Not player turn' });
       return;
     }
 
-    // Draw one card from the deck
-    const card = state.deck.shift()!;
-    state.playerHand.push(card);
+    const activeBet = state.hands[state.activeHandIndex]?.bet ?? 0;
 
-    const { value } = calculateHandValue(state.playerHand);
+    if (action === 'hit') {
+      state = playerHit(state);
+    } else if (action === 'stand') {
+      state = playerStand(state);
+    } else if (action === 'double') {
+      if (!canDouble(state)) {
+        res.status(400).json({ error: 'Cannot double this hand' });
+        return;
+      }
+      await deductBet(userId, activeBet, 'blackjack');
+      state = playerDouble(state);
+    } else {
+      // split
+      if (!canSplit(state)) {
+        res.status(400).json({ error: 'Cannot split this hand' });
+        return;
+      }
+      await deductBet(userId, activeBet, 'blackjack');
+      state = playerSplit(state);
+    }
 
-    if (value > 21) {
-      // Player busts — settle immediately
-      state.phase = 'settled';
-      state.outcome = 'player_bust';
-
-      await db
-        .update(gameSessions)
-        .set({ state: JSON.stringify(state), completedAt: new Date() })
-        .where(eq(gameSessions.id, sessionId));
-
-      const profit = computeProfit('player_bust', session.betAmount);
-      const { newBalance } = await settleBet(
-        userId,
-        profit,
-        session.betAmount,
-        'player_bust',
-        'blackjack',
-      );
-
-      io.to(`user:${userId}`).emit('balance:update', { balance: newBalance });
-      res.json({
-        card,
-        playerHand: state.playerHand,
-        playerValue: value,
-        busted: true,
-        outcome: 'player_bust',
-        newBalance,
-      });
+    if (state.phase === 'dealer_turn') {
+      const newBalance = await settleBlackjack(userId, sessionId, state);
+      res.json(serializeBlackjack(state, sessionId, newBalance));
       return;
     }
 
-    // Safe hit — update session state
     await db
       .update(gameSessions)
       .set({ state: JSON.stringify(state), updatedAt: new Date() })
       .where(eq(gameSessions.id, sessionId));
 
-    res.json({
-      card,
-      playerHand: state.playerHand,
-      playerValue: value,
-      busted: false,
-    });
-  } catch (err: unknown) {
-    console.error('[games] blackjack hit error:', err);
-    res.status(500).json({ error: 'An unexpected error occurred' });
-  }
-});
-
-// POST /api/games/blackjack/stand
-// Pipeline: load session → dealer plays → determine outcome → settle
-// Returns { dealerHand, dealerValue, outcome, newBalance }
-// Returns 400 if not player's turn or session invalid, 404 if session not found
-gamesRouter.post('/blackjack/stand', gameLimiter, clickInterval, requireAuth, async (req, res) => {
-  const parsed = blackjackSessionSchema.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Invalid request' });
-    return;
-  }
-
-  const userId = req.user!.id;
-  const { sessionId } = parsed.data;
-
-  try {
-    const session = await loadBlackjackSession(sessionId, userId);
-    if (!session) {
-      res.status(404).json({ error: 'Session not found' });
-      return;
-    }
-
-    let state = JSON.parse(session.state) as BlackjackSessionState;
-
-    if (state.phase !== 'player_turn') {
-      res.status(400).json({ error: 'Not player turn' });
-      return;
-    }
-
-    state.phase = 'dealer_turn';
-
-    // Dealer plays to completion (stands on hard 17, hits on soft 17)
-    state = dealerPlay(state);
-
-    const outcome = getOutcome(state.playerHand, state.dealerHand);
-    const effectiveBet = session.betAmount * (state.isDoubled ? 2 : 1);
-    const profit = computeProfit(outcome, effectiveBet);
-
-    state.phase = 'settled';
-    state.outcome = outcome;
-
-    await db
-      .update(gameSessions)
-      .set({ state: JSON.stringify(state), completedAt: new Date() })
-      .where(eq(gameSessions.id, sessionId));
-
-    const { newBalance } = await settleBet(userId, profit, effectiveBet, outcome, 'blackjack');
-
-    io.to(`user:${userId}`).emit('balance:update', { balance: newBalance });
-    res.json({
-      dealerHand: state.dealerHand,
-      dealerValue: calculateHandValue(state.dealerHand).value,
-      outcome,
-      newBalance,
-    });
-  } catch (err: unknown) {
-    console.error('[games] blackjack stand error:', err);
-    res.status(500).json({ error: 'An unexpected error occurred' });
-  }
-});
-
-// POST /api/games/blackjack/double
-// Pipeline: load session → deduct additional bet → deal one card → dealer plays → settle
-// Returns { card, playerHand, dealerHand, outcome, newBalance }
-// Returns 402 on INSUFFICIENT_FUNDS, 400 if not player's turn, 404 if session not found
-gamesRouter.post('/blackjack/double', gameLimiter, clickInterval, requireAuth, async (req, res) => {
-  const parsed = blackjackSessionSchema.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Invalid request' });
-    return;
-  }
-
-  const userId = req.user!.id;
-  const { sessionId } = parsed.data;
-
-  try {
-    const session = await loadBlackjackSession(sessionId, userId);
-    if (!session) {
-      res.status(404).json({ error: 'Session not found' });
-      return;
-    }
-
-    let state = JSON.parse(session.state) as BlackjackSessionState;
-
-    if (state.phase !== 'player_turn') {
-      res.status(400).json({ error: 'Not player turn' });
-      return;
-    }
-
-    // Deduct additional bet to double the stake
-    await deductBet(userId, session.betAmount, 'blackjack');
-
-    // Deal exactly one card to player
-    const card = state.deck.shift()!;
-    state.playerHand.push(card);
-    state.isDoubled = true;
-
-    const { value } = calculateHandValue(state.playerHand);
-    const effectiveBet = session.betAmount * 2;
-
-    if (value > 21) {
-      // Player busts on double — settle immediately
-      state.phase = 'settled';
-      state.outcome = 'player_bust';
-
-      await db
-        .update(gameSessions)
-        .set({ state: JSON.stringify(state), completedAt: new Date() })
-        .where(eq(gameSessions.id, sessionId));
-
-      const profit = computeProfit('player_bust', effectiveBet);
-      const { newBalance } = await settleBet(
-        userId,
-        profit,
-        effectiveBet,
-        'player_bust',
-        'blackjack',
-      );
-
-      io.to(`user:${userId}`).emit('balance:update', { balance: newBalance });
-      res.json({
-        card,
-        playerHand: state.playerHand,
-        dealerHand: state.dealerHand,
-        dealerValue: calculateHandValue(state.dealerHand).value,
-        outcome: 'player_bust',
-        newBalance,
-      });
-      return;
-    }
-
-    // Player stands automatically after double — dealer plays
-    state.phase = 'dealer_turn';
-    state = dealerPlay(state);
-
-    const outcome = getOutcome(state.playerHand, state.dealerHand);
-    const profit = computeProfit(outcome, effectiveBet);
-
-    state.phase = 'settled';
-    state.outcome = outcome;
-
-    await db
-      .update(gameSessions)
-      .set({ state: JSON.stringify(state), completedAt: new Date() })
-      .where(eq(gameSessions.id, sessionId));
-
-    const { newBalance } = await settleBet(userId, profit, effectiveBet, outcome, 'blackjack');
-
-    io.to(`user:${userId}`).emit('balance:update', { balance: newBalance });
-    res.json({
-      card,
-      playerHand: state.playerHand,
-      dealerHand: state.dealerHand,
-      dealerValue: calculateHandValue(state.dealerHand).value,
-      outcome,
-      newBalance,
-    });
+    res.json(serializeBlackjack(state, sessionId));
   } catch (err: unknown) {
     const code = (err as { code?: string }).code;
-    if (code === 'INSUFFICIENT_FUNDS') {
-      res.status(402).json({ error: 'Insufficient funds' });
-      return;
-    }
-    console.error('[games] blackjack double error:', err);
+    if (code === 'INSUFFICIENT_FUNDS') { res.status(402).json({ error: 'Insufficient funds' }); return; }
+    console.error('[games] blackjack action error:', err);
     res.status(500).json({ error: 'An unexpected error occurred' });
   }
 });
 
 // GET /api/games/blackjack/active-session
-// Returns the current active Blackjack session for the authenticated user.
-// If a session is in-progress and the client is reconnecting, applies basic strategy
-// auto-complete (disconnect handling): hit on hard <=16, stand on hard 17+, hit on soft <=17.
-// Dealer hand hole card is NOT revealed during player_turn phase.
-// Returns 200 { session: { sessionId, playerHand, dealerUpCard, playerValue, phase, betAmount } }
-//   or { session: { sessionId, playerHand, dealerHand, playerValue, dealerValue, outcome, newBalance, phase, betAmount } } if auto-completed
-// Returns 200 { session: null } if no active session
+// Returns the player open hand so a refresh can resume play. The dealer hole
+// card stays hidden during the player turn.
 gamesRouter.get('/blackjack/active-session', requireAuth, async (req, res) => {
   const userId = req.user!.id;
 
@@ -829,13 +630,7 @@ gamesRouter.get('/blackjack/active-session', requireAuth, async (req, res) => {
     const rows = await db
       .select()
       .from(gameSessions)
-      .where(
-        and(
-          eq(gameSessions.userId, userId),
-          eq(gameSessions.gameType, 'blackjack'),
-          isNull(gameSessions.completedAt),
-        ),
-      )
+      .where(and(eq(gameSessions.userId, userId), eq(gameSessions.gameType, 'blackjack'), isNull(gameSessions.completedAt)))
       .orderBy(desc(gameSessions.createdAt))
       .limit(1);
 
@@ -845,120 +640,12 @@ gamesRouter.get('/blackjack/active-session', requireAuth, async (req, res) => {
       return;
     }
 
-    let state = JSON.parse(session.state) as BlackjackSessionState;
-
-    // Disconnect auto-complete: apply basic strategy if session is in player_turn
-    // Basic strategy: hit on hard <=16, stand on hard 17+, hit on soft <=17
-    if (state.phase === 'player_turn') {
-      let autoCompleted = false;
-
-      while (state.phase === 'player_turn') {
-        const { value, isSoft } = calculateHandValue(state.playerHand);
-        const shouldHit = value < 17 || (isSoft && value === 17);
-
-        if (shouldHit && state.deck.length > 0) {
-          const card = state.deck.shift()!;
-          state.playerHand.push(card);
-          autoCompleted = true;
-
-          const { value: newValue } = calculateHandValue(state.playerHand);
-          if (newValue > 21) {
-            // Player busted via basic strategy
-            state.phase = 'settled';
-            state.outcome = 'player_bust';
-            break;
-          }
-        } else {
-          // Stand
-          state.phase = 'dealer_turn';
-          break;
-        }
-      }
-
-      if (state.phase === 'dealer_turn') {
-        state = dealerPlay(state);
-        const outcome = getOutcome(state.playerHand, state.dealerHand);
-        const effectiveBet = session.betAmount * (state.isDoubled ? 2 : 1);
-        const profit = computeProfit(outcome, effectiveBet);
-        state.phase = 'settled';
-        state.outcome = outcome;
-        autoCompleted = true;
-
-        await db
-          .update(gameSessions)
-          .set({ state: JSON.stringify(state), completedAt: new Date() })
-          .where(eq(gameSessions.id, session.id));
-
-        const { newBalance } = await settleBet(userId, profit, effectiveBet, outcome, 'blackjack');
-
-        io.to(`user:${userId}`).emit('balance:update', { balance: newBalance });
-        res.json({
-          session: {
-            sessionId: session.id,
-            playerHand: state.playerHand,
-            dealerHand: state.dealerHand,
-            playerValue: calculateHandValue(state.playerHand).value,
-            dealerValue: calculateHandValue(state.dealerHand).value,
-            outcome,
-            newBalance,
-            phase: state.phase,
-            betAmount: session.betAmount,
-            autoCompleted,
-          },
-        });
-        return;
-      }
-
-      if (state.outcome === 'player_bust') {
-        // Player busted during auto-complete
-        const effectiveBet = session.betAmount * (state.isDoubled ? 2 : 1);
-        const profit = computeProfit('player_bust', effectiveBet);
-
-        await db
-          .update(gameSessions)
-          .set({ state: JSON.stringify(state), completedAt: new Date() })
-          .where(eq(gameSessions.id, session.id));
-
-        const { newBalance } = await settleBet(
-          userId,
-          profit,
-          effectiveBet,
-          'player_bust',
-          'blackjack',
-        );
-
-        io.to(`user:${userId}`).emit('balance:update', { balance: newBalance });
-        res.json({
-          session: {
-            sessionId: session.id,
-            playerHand: state.playerHand,
-            dealerHand: state.dealerHand,
-            playerValue: calculateHandValue(state.playerHand).value,
-            dealerValue: calculateHandValue(state.dealerHand).value,
-            outcome: 'player_bust',
-            newBalance,
-            phase: state.phase,
-            betAmount: session.betAmount,
-            autoCompleted,
-          },
-        });
-        return;
-      }
-    }
-
-    // Return safe in-progress session state (dealer hole card hidden)
-    res.json({
-      session: {
-        sessionId: session.id,
-        playerHand: state.playerHand,
-        dealerUpCard: state.dealerHand[0]!,
-        playerValue: calculateHandValue(state.playerHand).value,
-        phase: state.phase,
-        betAmount: session.betAmount,
-      },
-    });
+    const state = JSON.parse(session.state) as BlackjackSessionState;
+    res.json({ session: serializeBlackjack(state, session.id) });
   } catch (err: unknown) {
     console.error('[games] blackjack active-session error:', err);
     res.status(500).json({ error: 'An unexpected error occurred' });
   }
 });
+
+void totalProfit; // exported for tests/diagnostics

@@ -1,3 +1,5 @@
+import { randomInt } from 'node:crypto';
+
 export type RiskLevel = 'low' | 'medium' | 'high' | 'expert';
 
 // Stake.com-referenced Plinko multiplier tables.
@@ -67,6 +69,27 @@ export const PLINKO_MULTIPLIERS: Record<RiskLevel, Record<number, number[]>> = {
     16: [5000, 500, 100, 25, 10, 3, 0.5, 0.2, 0.2, 0.2, 0.5, 3, 10, 25, 100, 500, 5000],
   },
 };
+
+/**
+ * Rolls a landing bucket the way a real Plinko ball lands: at each of the `rows`
+ * pegs the ball goes left or right with equal probability, so the bucket index
+ * is the count of right-bounces — a Binomial(rows, 0.5) distribution.
+ *
+ * This is the crux of fair Plinko odds. A uniform pick (randomInt(0, rows+1))
+ * would give every bucket the same chance, making the huge edge multipliers
+ * (e.g. expert/16 pays 5000× at the edges) wildly likely — ~1/17 each instead
+ * of the intended ~1/65536 — which is both "too easy" and hugely +EV. The
+ * multiplier tables are calibrated for this binomial distribution.
+ *
+ * @param rows - Number of peg rows (8–16); bucket is 0..rows.
+ */
+export function rollPlinkoBucket(rows: number): number {
+  let bucket = 0;
+  for (let i = 0; i < rows; i++) {
+    bucket += randomInt(0, 2); // 0 (left) or 1 (right)
+  }
+  return bucket;
+}
 
 /**
  * Returns the multiplier for the given Plinko configuration.

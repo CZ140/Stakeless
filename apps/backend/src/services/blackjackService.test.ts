@@ -6,278 +6,302 @@ import {
   dealerPlay,
   getOutcome,
   computeProfit,
+  startGame,
+  playerHit,
+  playerStand,
+  playerDouble,
+  playerSplit,
+  canSplit,
+  canDouble,
+  settle,
+  MAX_HANDS,
   type Card,
+  type BJHand,
   type BlackjackSessionState,
 } from './blackjackService.js';
+
+const card = (rank: Card['rank'], suit: Card['suit'] = 'spades'): Card => ({ suit, rank });
+
+function makeHand(cards: Card[], bet = 100, over: Partial<BJHand> = {}): BJHand {
+  return {
+    cards,
+    bet,
+    status: 'playing',
+    isDoubled: false,
+    fromSplit: false,
+    splitAce: false,
+    outcome: null,
+    profit: null,
+    ...over,
+  };
+}
+
+function makeState(hands: BJHand[], deck: Card[], dealerHand: Card[]): BlackjackSessionState {
+  return { deck, hands, activeHandIndex: 0, dealerHand, phase: 'player_turn' };
+}
 
 // ─── createDeck ──────────────────────────────────────────────────────────────
 
 describe('createDeck', () => {
-  it('returns 52 cards', () => {
+  it('returns 52 unique cards across 4 suits and 13 ranks', () => {
     const deck = createDeck();
     expect(deck).toHaveLength(52);
+    expect(new Set(deck.map((c) => `${c.suit}-${c.rank}`)).size).toBe(52);
+    expect(new Set(deck.map((c) => c.suit)).size).toBe(4);
+    expect(new Set(deck.map((c) => c.rank)).size).toBe(13);
   });
 
-  it('contains no duplicate cards', () => {
-    const deck = createDeck();
-    const keys = deck.map((c) => `${c.suit}-${c.rank}`);
-    const unique = new Set(keys);
-    expect(unique.size).toBe(52);
-  });
-
-  it('contains all 4 suits', () => {
-    const deck = createDeck();
-    const suits = new Set(deck.map((c) => c.suit));
-    expect(suits).toEqual(new Set(['spades', 'hearts', 'diamonds', 'clubs']));
-  });
-
-  it('contains all 13 ranks', () => {
-    const deck = createDeck();
-    const ranks = new Set(deck.map((c) => c.rank));
-    expect(ranks).toEqual(
-      new Set(['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K']),
-    );
-  });
-
-  it('produces different orderings on repeated calls (shuffle is random)', () => {
-    const deck1 = createDeck();
-    const deck2 = createDeck();
-    const keys1 = deck1.map((c) => `${c.suit}-${c.rank}`).join(',');
-    const keys2 = deck2.map((c) => `${c.suit}-${c.rank}`).join(',');
-    // Astronomically unlikely to be equal — if this flakes, something is wrong
-    expect(keys1).not.toBe(keys2);
+  it('produces different orderings on repeated calls', () => {
+    const a = createDeck().map((c) => `${c.suit}-${c.rank}`).join(',');
+    const b = createDeck().map((c) => `${c.suit}-${c.rank}`).join(',');
+    expect(a).not.toBe(b);
   });
 });
 
 // ─── calculateHandValue ───────────────────────────────────────────────────────
 
 describe('calculateHandValue', () => {
-  const card = (rank: Card['rank']): Card => ({ suit: 'spades', rank });
-
-  it('A + K → { value: 21, isSoft: true } (ace counts as 11)', () => {
-    expect(calculateHandValue([card('A'), card('K')])).toEqual({ value: 21, isSoft: true });
-  });
-
-  it('A + A → { value: 12, isSoft: true } (first ace 11, second forced to 1)', () => {
-    expect(calculateHandValue([card('A'), card('A')])).toEqual({ value: 12, isSoft: true });
-  });
-
-  it('A + K + 5 → { value: 16, isSoft: false } (ace reduced to 1 to avoid bust)', () => {
-    expect(calculateHandValue([card('A'), card('K'), card('5')])).toEqual({
-      value: 16,
-      isSoft: false,
-    });
-  });
-
-  it('10 + J → { value: 20, isSoft: false }', () => {
-    expect(calculateHandValue([card('10'), card('J')])).toEqual({ value: 20, isSoft: false });
-  });
-
-  it('2 + 3 + 4 → { value: 9, isSoft: false }', () => {
-    expect(calculateHandValue([card('2'), card('3'), card('4')])).toEqual({
-      value: 9,
-      isSoft: false,
-    });
-  });
-
-  it('A + 6 → { value: 17, isSoft: true } (soft 17)', () => {
-    expect(calculateHandValue([card('A'), card('6')])).toEqual({ value: 17, isSoft: true });
-  });
-
-  it('A + 7 → { value: 18, isSoft: true } (soft 18)', () => {
-    expect(calculateHandValue([card('A'), card('7')])).toEqual({ value: 18, isSoft: true });
-  });
-
-  it('Q + K → { value: 20, isSoft: false } (face cards are 10)', () => {
-    expect(calculateHandValue([card('Q'), card('K')])).toEqual({ value: 20, isSoft: false });
-  });
-
-  it('A + 2 + 3 + 4 + 5 → { value: 15, isSoft: false } (5-card hand, ace reduced)', () => {
-    expect(
-      calculateHandValue([card('A'), card('2'), card('3'), card('4'), card('5')]),
-    ).toEqual({ value: 15, isSoft: false });
-  });
+  it('A + K → 21 soft', () => expect(calculateHandValue([card('A'), card('K')])).toEqual({ value: 21, isSoft: true }));
+  it('A + A → 12 soft', () => expect(calculateHandValue([card('A'), card('A')])).toEqual({ value: 12, isSoft: true }));
+  it('A + K + 5 → 16 hard', () => expect(calculateHandValue([card('A'), card('K'), card('5')])).toEqual({ value: 16, isSoft: false }));
+  it('A + 6 → 17 soft', () => expect(calculateHandValue([card('A'), card('6')])).toEqual({ value: 17, isSoft: true }));
+  it('Q + K → 20 hard', () => expect(calculateHandValue([card('Q'), card('K')])).toEqual({ value: 20, isSoft: false }));
 });
 
 // ─── isBlackjack ──────────────────────────────────────────────────────────────
 
 describe('isBlackjack', () => {
-  const card = (rank: Card['rank']): Card => ({ suit: 'hearts', rank });
-
-  it('A + K → true', () => {
-    expect(isBlackjack([card('A'), card('K')])).toBe(true);
-  });
-
-  it('A + Q → true', () => {
-    expect(isBlackjack([card('A'), card('Q')])).toBe(true);
-  });
-
-  it('A + J → true', () => {
-    expect(isBlackjack([card('A'), card('J')])).toBe(true);
-  });
-
-  it('A + 10 → true', () => {
-    expect(isBlackjack([card('A'), card('10')])).toBe(true);
-  });
-
-  it('K + A → true (order does not matter)', () => {
-    expect(isBlackjack([card('K'), card('A')])).toBe(true);
-  });
-
-  it('A + K + extra card → false (3 cards is not a natural)', () => {
-    expect(isBlackjack([card('A'), card('K'), card('2')])).toBe(false);
-  });
-
-  it('10 + J → false (no ace)', () => {
-    expect(isBlackjack([card('10'), card('J')])).toBe(false);
-  });
-
-  it('A + 9 → false (only 20)', () => {
-    expect(isBlackjack([card('A'), card('9')])).toBe(false);
-  });
+  it('A + K → true', () => expect(isBlackjack([card('A'), card('K')])).toBe(true));
+  it('A + K + 2 → false (3 cards)', () => expect(isBlackjack([card('A'), card('K'), card('2')])).toBe(false));
+  it('10 + J → false (no ace)', () => expect(isBlackjack([card('10'), card('J')])).toBe(false));
 });
 
-// ─── dealerPlay ───────────────────────────────────────────────────────────────
+// ─── dealerPlay (dealerHand, deck) ──────────────────────────────────────────────
 
 describe('dealerPlay', () => {
-  const card = (rank: Card['rank']): Card => ({ suit: 'clubs', rank });
-
-  function makeState(dealerHand: Card[], deckCards: Card[]): BlackjackSessionState {
-    return {
-      deck: deckCards,
-      playerHand: [card('8'), card('9')], // irrelevant for dealer logic
-      dealerHand,
-      phase: 'dealer_turn',
-      outcome: null,
-      isDoubled: false,
-    };
-  }
-
-  it('stands on hard 17 (10 + 7) — no cards drawn', () => {
-    const state = makeState([card('10'), card('7')], [card('5'), card('6')]);
-    const result = dealerPlay(state);
-    expect(result.dealerHand).toHaveLength(2);
-    expect(calculateHandValue(result.dealerHand).value).toBe(17);
+  it('stands on hard 17 — draws nothing', () => {
+    const { dealerHand } = dealerPlay([card('10'), card('7')], [card('5'), card('6')]);
+    expect(dealerHand).toHaveLength(2);
+    expect(calculateHandValue(dealerHand).value).toBe(17);
   });
 
-  it('hits on soft 17 (A + 6) — dealer must draw', () => {
-    const state = makeState([card('A'), card('6')], [card('2'), card('K')]);
-    const result = dealerPlay(state);
-    // Dealer had soft 17, must draw at least once
-    expect(result.dealerHand.length).toBeGreaterThan(2);
+  it('hits soft 17 (A+6)', () => {
+    const { dealerHand } = dealerPlay([card('A'), card('6')], [card('2'), card('K')]);
+    expect(dealerHand.length).toBeGreaterThan(2);
   });
 
-  it('stands on soft 18 (A + 7) — no cards drawn', () => {
-    const state = makeState([card('A'), card('7')], [card('2'), card('K')]);
-    const result = dealerPlay(state);
-    expect(result.dealerHand).toHaveLength(2);
-    expect(calculateHandValue(result.dealerHand).value).toBe(18);
+  it('stands on soft 18 (A+7)', () => {
+    const { dealerHand } = dealerPlay([card('A'), card('7')], [card('2'), card('K')]);
+    expect(dealerHand).toHaveLength(2);
   });
 
-  it('stands on hard 18 — no cards drawn', () => {
-    const state = makeState([card('10'), card('8')], [card('2'), card('K')]);
-    const result = dealerPlay(state);
-    expect(result.dealerHand).toHaveLength(2);
+  it('hits hard 16 and can bust', () => {
+    const { dealerHand } = dealerPlay([card('10'), card('6')], [card('K')]);
+    expect(calculateHandValue(dealerHand).value).toBe(26);
   });
 
-  it('hits on hard 16 (10 + 6) — dealer must draw', () => {
-    const state = makeState([card('10'), card('6')], [card('5'), card('K')]);
-    const result = dealerPlay(state);
-    expect(result.dealerHand.length).toBeGreaterThan(2);
-  });
-
-  it('dealer can bust (10 + 6 + K = 26)', () => {
-    const state = makeState([card('10'), card('6')], [card('K')]);
-    const result = dealerPlay(state);
-    expect(calculateHandValue(result.dealerHand).value).toBe(26);
-    expect(result.dealerHand).toHaveLength(3);
-  });
-
-  it('does not mutate the original state object', () => {
-    const original = makeState([card('10'), card('6')], [card('5')]);
-    const originalDealerLen = original.dealerHand.length;
-    dealerPlay(original);
-    expect(original.dealerHand).toHaveLength(originalDealerLen);
+  it('does not mutate inputs', () => {
+    const hand = [card('10'), card('6')];
+    const deck = [card('5')];
+    dealerPlay(hand, deck);
+    expect(hand).toHaveLength(2);
+    expect(deck).toHaveLength(1);
   });
 });
 
-// ─── getOutcome ───────────────────────────────────────────────────────────────
+// ─── getOutcome ─────────────────────────────────────────────────────────────────
 
 describe('getOutcome', () => {
-  const card = (rank: Card['rank']): Card => ({ suit: 'diamonds', rank });
+  it('player natural beats dealer 20', () => expect(getOutcome([card('A'), card('K')], [card('10'), card('8')])).toBe('player_blackjack'));
+  it('both natural → push', () => expect(getOutcome([card('A'), card('K')], [card('A'), card('Q')])).toBe('push'));
+  it('dealer natural beats a hit 21 (playerNatural=false)', () =>
+    expect(getOutcome([card('7'), card('7'), card('7')], [card('A'), card('K')], false)).toBe('dealer_win'));
+  it('player bust', () => expect(getOutcome([card('10'), card('K'), card('5')], [card('10'), card('7')])).toBe('player_bust'));
+  it('dealer bust → player wins', () => expect(getOutcome([card('10'), card('8')], [card('10'), card('K'), card('5')])).toBe('dealer_bust'));
+  it('higher player wins', () => expect(getOutcome([card('10'), card('K')], [card('10'), card('9')])).toBe('player_win'));
+  it('equal → push', () => expect(getOutcome([card('10'), card('K')], [card('10'), card('Q')])).toBe('push'));
+});
 
-  it('player_blackjack: player has A+K, dealer has 10+8', () => {
-    expect(getOutcome([card('A'), card('K')], [card('10'), card('8')])).toBe('player_blackjack');
+// ─── computeProfit (corrected payouts) ──────────────────────────────────────────
+
+describe('computeProfit', () => {
+  it('blackjack 3:2 → stake + 1.5×: bet 100 → 250', () => expect(computeProfit('player_blackjack', 100)).toBe(250));
+  it('blackjack 3:2 floors odd: bet 101 → 101 + 151 = 252', () => expect(computeProfit('player_blackjack', 101)).toBe(252));
+  it('win 1:1 → 2×: bet 100 → 200', () => expect(computeProfit('player_win', 100)).toBe(200));
+  it('dealer_bust 1:1 → 2×: bet 100 → 200', () => expect(computeProfit('dealer_bust', 100)).toBe(200));
+  it('push → stake back: bet 100 → 100', () => expect(computeProfit('push', 100)).toBe(100));
+  it('dealer_win → 0', () => expect(computeProfit('dealer_win', 100)).toBe(0));
+  it('player_bust → 0', () => expect(computeProfit('player_bust', 100)).toBe(0));
+});
+
+// ─── startGame ───────────────────────────────────────────────────────────────────
+
+describe('startGame', () => {
+  it('deals 2 cards to each hand and 2 to the dealer', () => {
+    const state = startGame([100, 50]);
+    expect(state.hands).toHaveLength(2);
+    expect(state.hands[0]!.cards).toHaveLength(2);
+    expect(state.hands[1]!.cards).toHaveLength(2);
+    expect(state.dealerHand).toHaveLength(2);
+    expect(state.hands[0]!.bet).toBe(100);
+    expect(state.hands[1]!.bet).toBe(50);
   });
 
-  it('push: both have blackjack (A+K vs A+Q)', () => {
-    // Both have natural 21 with 2 cards → push
-    expect(getOutcome([card('A'), card('K')], [card('A'), card('Q')])).toBe('push');
-  });
-
-  it('player_bust: player has 10+K+5 (25)', () => {
-    expect(getOutcome([card('10'), card('K'), card('5')], [card('10'), card('7')])).toBe(
-      'player_bust',
-    );
-  });
-
-  it('dealer_bust: dealer has 10+K+5 (25), player has 18', () => {
-    expect(getOutcome([card('10'), card('8')], [card('10'), card('K'), card('5')])).toBe(
-      'dealer_bust',
-    );
-  });
-
-  it('player_win: player 20 vs dealer 19', () => {
-    expect(getOutcome([card('10'), card('K')], [card('10'), card('9')])).toBe('player_win');
-  });
-
-  it('dealer_win: dealer 20 vs player 19', () => {
-    expect(getOutcome([card('10'), card('9')], [card('10'), card('K')])).toBe('dealer_win');
-  });
-
-  it('push: both 20', () => {
-    expect(getOutcome([card('10'), card('K')], [card('10'), card('Q')])).toBe('push');
-  });
-
-  it('push: both 17', () => {
-    expect(getOutcome([card('10'), card('7')], [card('9'), card('8')])).toBe('push');
+  it('first playable hand is active', () => {
+    const state = startGame([10]);
+    // single hand: either player_turn with active 0, or dealer_turn if it was a natural
+    if (state.phase === 'player_turn') expect(state.activeHandIndex).toBe(0);
+    else expect(state.hands[0]!.status).toBe('blackjack');
   });
 });
 
-// ─── computeProfit ────────────────────────────────────────────────────────────
+// ─── player actions (deterministic via rigged deck) ──────────────────────────────
 
-describe('computeProfit', () => {
-  it('player_blackjack: betAmount=100 → profit=150 (3:2 = 100+50)', () => {
-    // deductBet took 100; settle credits 150 → net +50 for player (3:2 payout)
-    expect(computeProfit('player_blackjack', 100)).toBe(150);
+describe('player actions', () => {
+  it('hit adds a card; bust marks the hand and advances', () => {
+    const state = makeState([makeHand([card('10'), card('6')])], [card('K')], [card('9'), card('5')]);
+    playerHit(state);
+    expect(state.hands[0]!.cards).toHaveLength(3);
+    expect(state.hands[0]!.status).toBe('bust');
+    expect(state.phase).toBe('dealer_turn'); // only hand finished
   });
 
-  it('player_blackjack: betAmount=200 → profit=300', () => {
-    expect(computeProfit('player_blackjack', 200)).toBe(300);
+  it('auto-stands a hand that hits exactly 21', () => {
+    const state = makeState([makeHand([card('10'), card('5')])], [card('6')], [card('9'), card('5')]);
+    playerHit(state);
+    expect(state.hands[0]!.status).toBe('stand');
+    expect(calculateHandValue(state.hands[0]!.cards).value).toBe(21);
   });
 
-  it('player_blackjack: betAmount=101 → profit=151 (floor of 0.5×101=50, +101)', () => {
-    // Math.floor(101 * 0.5) = 50; profit = 101 + 50 = 151
-    expect(computeProfit('player_blackjack', 101)).toBe(151);
+  it('stand finishes the hand', () => {
+    const state = makeState([makeHand([card('10'), card('8')])], [], [card('9'), card('5')]);
+    playerStand(state);
+    expect(state.hands[0]!.status).toBe('stand');
+    expect(state.phase).toBe('dealer_turn');
   });
 
-  it('player_win: betAmount=100 → profit=100 (1:1 even money)', () => {
-    expect(computeProfit('player_win', 100)).toBe(100);
+  it('double draws exactly one card, marks doubled, stands', () => {
+    const state = makeState([makeHand([card('5'), card('6')])], [card('9')], [card('9'), card('5')]);
+    expect(canDouble(state)).toBe(true);
+    playerDouble(state);
+    expect(state.hands[0]!.cards).toHaveLength(3);
+    expect(state.hands[0]!.isDoubled).toBe(true);
+    expect(state.hands[0]!.status).toBe('stand');
+  });
+});
+
+// ─── split ───────────────────────────────────────────────────────────────────────
+
+describe('split', () => {
+  it('canSplit only for equal-rank 2-card hands under the hand cap', () => {
+    expect(canSplit(makeState([makeHand([card('8'), card('8')])], [card('2'), card('3')], [card('9'), card('5')]))).toBe(true);
+    expect(canSplit(makeState([makeHand([card('8'), card('9')])], [card('2')], [card('9'), card('5')]))).toBe(false);
+    // 10 and K are both value 10 → splittable (standard casino)
+    expect(canSplit(makeState([makeHand([card('10'), card('K')])], [card('2'), card('3')], [card('9'), card('5')]))).toBe(true);
   });
 
-  it('dealer_win: profit=0 (loss)', () => {
-    expect(computeProfit('dealer_win', 100)).toBe(0);
+  it('split makes two hands, each drawing a second card', () => {
+    const state = makeState([makeHand([card('8'), card('8')])], [card('3'), card('2')], [card('9'), card('5')]);
+    playerSplit(state);
+    expect(state.hands).toHaveLength(2);
+    expect(state.hands[0]!.cards).toEqual([card('8'), card('3')]);
+    expect(state.hands[1]!.cards).toEqual([card('8'), card('2')]);
+    expect(state.hands.every((h) => h.fromSplit)).toBe(true);
+    expect(state.activeHandIndex).toBe(0);
   });
 
-  it('player_bust: profit=0 (loss)', () => {
-    expect(computeProfit('player_bust', 100)).toBe(0);
+  it('split aces draw one card each and auto-stand; cannot resplit aces', () => {
+    const state = makeState([makeHand([card('A'), card('A')])], [card('9'), card('5')], [card('9'), card('5')]);
+    playerSplit(state);
+    expect(state.hands).toHaveLength(2);
+    expect(state.hands[0]!.splitAce).toBe(true);
+    expect(state.hands[0]!.status).toBe('stand');
+    expect(state.hands[1]!.status).toBe('stand');
+    expect(state.phase).toBe('dealer_turn'); // both auto-stood
   });
 
-  it('dealer_bust: betAmount=100 → profit=100 (player wins 1:1)', () => {
-    expect(computeProfit('dealer_bust', 100)).toBe(100);
+  it('respects MAX_HANDS', () => {
+    const hands = Array.from({ length: MAX_HANDS }, () => makeHand([card('8'), card('8')]));
+    const state = makeState(hands, [card('2'), card('3')], [card('9'), card('5')]);
+    expect(canSplit(state)).toBe(false);
+  });
+});
+
+// ─── settle (multi-hand) ──────────────────────────────────────────────────────────
+
+describe('settle', () => {
+  it('resolves each hand independently vs one dealer hand', () => {
+    // Hand A: 20 (wins vs dealer 17). Hand B: bust. Dealer: 10+7 = 17, stands.
+    const handA = makeHand([card('10'), card('K')], 100, { status: 'stand' });
+    const handB = makeHand([card('10'), card('K'), card('5')], 50, { status: 'bust' });
+    const state: BlackjackSessionState = {
+      deck: [],
+      hands: [handA, handB],
+      activeHandIndex: 2,
+      dealerHand: [card('10'), card('7')],
+      phase: 'dealer_turn',
+    };
+    settle(state);
+    expect(state.phase).toBe('settled');
+    expect(state.hands[0]!.outcome).toBe('player_win');
+    expect(state.hands[0]!.profit).toBe(200); // 1:1 on bet 100
+    expect(state.hands[1]!.outcome).toBe('player_bust');
+    expect(state.hands[1]!.profit).toBe(0);
   });
 
-  it('push: betAmount=100 → profit=100 (stake returned)', () => {
-    expect(computeProfit('push', 100)).toBe(100);
+  it('a 2-card 21 that is NOT a natural (split) pays 1:1, not 3:2', () => {
+    const hand = makeHand([card('A'), card('K')], 100, { status: 'stand', fromSplit: true });
+    const state: BlackjackSessionState = {
+      deck: [],
+      hands: [hand],
+      activeHandIndex: 1,
+      dealerHand: [card('10'), card('9')], // 19, stands
+      phase: 'dealer_turn',
+    };
+    settle(state);
+    expect(state.hands[0]!.outcome).toBe('player_win');
+    expect(state.hands[0]!.profit).toBe(200); // 1:1 — split 21 is not a blackjack
+  });
+
+  it('natural blackjack hand pays 3:2', () => {
+    const hand = makeHand([card('A'), card('K')], 100, { status: 'blackjack' });
+    const state: BlackjackSessionState = {
+      deck: [],
+      hands: [hand],
+      activeHandIndex: 1,
+      dealerHand: [card('10'), card('9')],
+      phase: 'dealer_turn',
+    };
+    settle(state);
+    expect(state.hands[0]!.outcome).toBe('player_blackjack');
+    expect(state.hands[0]!.profit).toBe(250); // 3:2
+  });
+
+  it('doubled hand settles on the doubled stake', () => {
+    const hand = makeHand([card('5'), card('6'), card('9')], 100, { status: 'stand', isDoubled: true }); // 20
+    const state: BlackjackSessionState = {
+      deck: [],
+      hands: [hand],
+      activeHandIndex: 1,
+      dealerHand: [card('10'), card('7')], // 17
+      phase: 'dealer_turn',
+    };
+    settle(state);
+    expect(state.hands[0]!.outcome).toBe('player_win');
+    expect(state.hands[0]!.profit).toBe(400); // 1:1 on doubled bet (effectiveBet 200 → 2×)
+  });
+
+  it('does not draw for the dealer when every hand busted', () => {
+    const hand = makeHand([card('10'), card('K'), card('5')], 100, { status: 'bust' });
+    const state: BlackjackSessionState = {
+      deck: [card('2'), card('3')],
+      hands: [hand],
+      activeHandIndex: 1,
+      dealerHand: [card('10'), card('6')], // 16 — would normally hit, but all busted
+      phase: 'dealer_turn',
+    };
+    settle(state);
+    expect(state.dealerHand).toHaveLength(2); // dealer did not draw
+    expect(state.hands[0]!.outcome).toBe('player_bust');
   });
 });

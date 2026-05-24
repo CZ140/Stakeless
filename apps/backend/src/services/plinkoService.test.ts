@@ -1,5 +1,33 @@
 import { describe, it, expect } from 'vitest';
-import { resolvePlinko, PLINKO_MULTIPLIERS } from './plinkoService.js';
+import { resolvePlinko, PLINKO_MULTIPLIERS, rollPlinkoBucket } from './plinkoService.js';
+
+describe('rollPlinkoBucket (binomial distribution)', () => {
+  it('always returns an integer bucket in 0..rows', () => {
+    for (const rows of [8, 12, 16]) {
+      for (let i = 0; i < 2000; i++) {
+        const b = rollPlinkoBucket(rows);
+        expect(Number.isInteger(b)).toBe(true);
+        expect(b).toBeGreaterThanOrEqual(0);
+        expect(b).toBeLessThanOrEqual(rows);
+      }
+    }
+  });
+
+  it('center buckets are vastly more likely than the edges (not uniform)', () => {
+    const rows = 16;
+    const counts = new Array(rows + 1).fill(0);
+    const N = 100_000;
+    for (let i = 0; i < N; i++) counts[rollPlinkoBucket(rows)]++;
+    const center = counts[rows / 2]!; // bucket 8
+    const edge = counts[0]! + counts[rows]!; // both 5000× edges combined
+    // Binomial: P(center) ≈ 19.6%, P(both edges) ≈ 2·(1/65536) ≈ 0.003%.
+    // Center must dominate by orders of magnitude — a uniform pick would make
+    // these roughly equal (~1/17 each).
+    expect(center).toBeGreaterThan(edge * 100);
+    // Edge frequency must be far below the uniform 1/17 (~5.9%) per side.
+    expect(counts[0]! / N).toBeLessThan(0.005);
+  });
+});
 
 describe('PLINKO_MULTIPLIERS table', () => {
   const riskLevels = ['low', 'medium', 'high', 'expert'] as const;
