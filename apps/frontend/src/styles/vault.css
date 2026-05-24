@@ -1474,6 +1474,19 @@ body::before {
 .auth-foot-link { text-align: center; margin-top: 22px; color: var(--text-secondary); font-size: 13px; }
 .auth-foot-link a { color: var(--accent); font-weight: 600; cursor: pointer; }
 
+/* "or" divider between the email form and the Google sign-in button */
+.auth-divider {
+  display: flex; align-items: center; gap: 12px; margin: 22px 0 18px;
+  color: var(--text-secondary); font-family: var(--font-mono);
+  font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase;
+}
+.auth-divider::before, .auth-divider::after {
+  content: ''; flex: 1; height: 1px; background: var(--border);
+}
+/* GSI renders its own (light-themed) button into this slot; just centre it. */
+.google-signin { display: flex; justify-content: center; }
+.google-signin-btn { display: flex; justify-content: center; width: 100%; color-scheme: light; }
+
 .perks-strip {
   display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px;
   background: var(--border); border: 1px solid var(--border);

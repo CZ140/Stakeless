@@ -3,6 +3,7 @@ import { useNavigate, useLocation, Link } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { AuthLayout } from '../components/vault/AuthLayout';
+import { GoogleSignInButton } from '../components/GoogleSignInButton';
 
 export function LoginPage() {
   const { signIn } = useAuth();
@@ -82,6 +83,13 @@ export function LoginPage() {
             {loading ? <><span className="spinner" />Signing in…</> : 'Sign in'}
           </button>
         </form>
+
+        {import.meta.env.VITE_GOOGLE_CLIENT_ID && (
+          <>
+            <div className="auth-divider"><span>or</span></div>
+            <GoogleSignInButton text="signin_with" onError={setError} />
+          </>
+        )}
 
         <div className="auth-foot-link">
           New to Stakeless? <Link to="/register">Create an account →</Link>

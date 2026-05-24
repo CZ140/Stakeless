@@ -4,7 +4,22 @@ import { db } from '../db/index.js';
 import { users, emailVerificationTokens, refreshTokens } from '../db/schema.js';
 import { generateOpaqueToken, hashToken, signAccessToken } from './tokenService.js';
 import { sendVerificationEmail, sendPasswordResetEmail } from './emailService.js';
+import type { GoogleProfile } from './googleAuthService.js';
 import { env } from '../env.js';
+
+// Mint a fresh access + refresh token pair for a user and stamp lastLoginAt.
+// Shared by the password and Google sign-in paths.
+async function issueSession(userId: number): Promise<{ accessToken: string; rawRefreshToken: string }> {
+  const accessToken = await signAccessToken(userId);
+  const rawRefreshToken = generateOpaqueToken();
+  const tokenHash = hashToken(rawRefreshToken);
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+  await db.insert(refreshTokens).values({ userId, tokenHash, expiresAt });
+  await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, userId));
+
+  return { accessToken, rawRefreshToken };
+}
 
 // Derive a unique username from email prefix + random suffix.
 // Retries up to 5 times if collision — sufficient for a small platform.
@@ -106,7 +121,12 @@ export async function login(
     throw invalidErr;
   }
 
-  const passwordValid = await bcrypt.compare(password, user.passwordHash);
+  // Google-only accounts have no local password (passwordHash null). Compare
+  // against a placeholder so timing stays constant and the result is just false.
+  const passwordValid = await bcrypt.compare(
+    password,
+    user.passwordHash ?? '$2a$12$invalidhashplaceholderXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',
+  );
   if (!passwordValid) throw invalidErr;
 
   if (!user.isEmailVerified) {
@@ -131,6 +151,56 @@ export async function login(
     .where(eq(users.id, user.id));
 
   return { accessToken, rawRefreshToken };
+}
+
+// ─── loginWithGoogle ──────────────────────────────────────────────────────────
+// Resolve a verified Google profile to a local account and issue a session.
+// Three cases, in order: (1) returning Google user matched on the stable subject
+// id; (2) an existing email account with the same Google-verified email — link
+// the two so both sign-in methods share one account; (3) a brand-new social
+// signup with no local password. Google accounts skip our email-verification
+// step because Google has already confirmed the address.
+export async function loginWithGoogle(
+  profile: GoogleProfile,
+): Promise<{ accessToken: string; rawRefreshToken: string }> {
+  const bannedErr = Object.assign(new Error('Account banned'), { code: 'ACCOUNT_BANNED' });
+
+  // 1. Returning Google user.
+  const [byGoogle] = await db.select().from(users).where(eq(users.googleId, profile.googleId)).limit(1);
+  if (byGoogle) {
+    if (byGoogle.isBanned) throw bannedErr;
+    return issueSession(byGoogle.id);
+  }
+
+  // 2. Existing account with the same email — link Google onto it.
+  const [byEmail] = await db.select().from(users).where(eq(users.email, profile.email)).limit(1);
+  if (byEmail) {
+    // Only link if Google vouches for the address; otherwise an unverified Google
+    // email must not seize an existing local account.
+    if (!profile.emailVerified) {
+      throw Object.assign(new Error('Email already registered'), { code: 'EMAIL_NOT_VERIFIED_BY_GOOGLE' });
+    }
+    if (byEmail.isBanned) throw bannedErr;
+    await db.update(users)
+      .set({ googleId: profile.googleId, isEmailVerified: true })
+      .where(eq(users.id, byEmail.id));
+    return issueSession(byEmail.id);
+  }
+
+  // 3. Brand-new social signup — no local password.
+  const emailPrefix = profile.email.split('@')[0] ?? 'user';
+  const username = await deriveUsername(emailPrefix);
+  const [newUser] = await db.insert(users).values({
+    email: profile.email,
+    passwordHash: null,
+    googleId: profile.googleId,
+    username,
+    balance: 1000, // same 1,000-coin starting balance as email signup
+    isEmailVerified: true, // Google already verified the address
+  }).returning({ id: users.id });
+
+  if (!newUser) throw new Error('Failed to create user');
+  return issueSession(newUser.id);
 }
 
 export async function refreshToken(

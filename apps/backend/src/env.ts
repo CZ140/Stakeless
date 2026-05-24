@@ -17,6 +17,10 @@ const envSchema = z.object({
   SMTP_PASS: z.string().min(1, 'SMTP_PASS is required'),
   SMTP_FROM: z.string().email('SMTP_FROM must be a valid email'),
   FRONTEND_URL: z.string().url().default('http://localhost:5173'),
+  // Google OAuth client ID (the public client ID, not a secret). Optional so the
+  // app still boots without Google sign-in configured; when unset, POST
+  // /api/auth/google returns 503 and the frontend hides the button.
+  GOOGLE_CLIENT_ID: z.string().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);

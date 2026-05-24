@@ -2,7 +2,8 @@ import { Router, type IRouter } from 'express';
 import { z } from 'zod';
 import { validate } from '../middleware/validate.js';
 import { authLimiter } from '../middleware/rateLimiter.js';
-import { register, verifyEmail, login, refreshToken, getProfile, updateProfile, logout, forgotPassword, resetPassword } from '../services/authService.js';
+import { register, verifyEmail, login, loginWithGoogle, refreshToken, getProfile, updateProfile, logout, forgotPassword, resetPassword } from '../services/authService.js';
+import { verifyGoogleCredential } from '../services/googleAuthService.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { env } from '../env.js';
 
@@ -87,6 +88,51 @@ authRouter.post('/login', authLimiter, validate(loginSchema), async (req, res) =
       return;
     }
     console.error('[auth] login error:', err);
+    res.status(500).json({ error: 'An unexpected error occurred' });
+  }
+});
+
+const googleAuthSchema = z.object({
+  credential: z.string().min(1, 'Missing Google credential'),
+});
+
+// POST /api/auth/google
+// Body: { credential } — the ID token from Google Identity Services. We verify it
+// against Google's keys, find-or-create the account, then issue our own session
+// (identical access token + refresh cookie as a password login).
+authRouter.post('/google', authLimiter, validate(googleAuthSchema), async (req, res) => {
+  try {
+    const profile = await verifyGoogleCredential(req.body.credential as string);
+    const { accessToken, rawRefreshToken } = await loginWithGoogle(profile);
+
+    res.cookie('refreshToken', rawRefreshToken, {
+      httpOnly: true,
+      secure: env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      path: '/api/auth/refresh',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    res.json({ accessToken });
+  } catch (err: unknown) {
+    const code = (err as { code?: string }).code;
+    if (code === 'GOOGLE_NOT_CONFIGURED') {
+      res.status(503).json({ error: 'Google sign-in is not available right now' });
+      return;
+    }
+    if (code === 'INVALID_GOOGLE_TOKEN') {
+      res.status(401).json({ error: 'Google sign-in failed. Please try again.' });
+      return;
+    }
+    if (code === 'EMAIL_NOT_VERIFIED_BY_GOOGLE') {
+      res.status(403).json({ error: 'This email is already registered. Sign in with your password instead.' });
+      return;
+    }
+    if (code === 'ACCOUNT_BANNED') {
+      res.status(403).json({ error: 'Your account has been suspended' });
+      return;
+    }
+    console.error('[auth] google sign-in error:', err);
     res.status(500).json({ error: 'An unexpected error occurred' });
   }
 });

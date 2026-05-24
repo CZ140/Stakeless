@@ -12,7 +12,12 @@ import {
 export const users = pgTable('users', {
   id: serial('id').primaryKey(),
   email: varchar('email', { length: 255 }).notNull().unique(),
-  passwordHash: varchar('password_hash', { length: 255 }).notNull(),
+  // Null for accounts created via a social provider (e.g. Google) — they have no
+  // local password. A password can still be added later via the reset flow.
+  passwordHash: varchar('password_hash', { length: 255 }),
+  // Google subject id ('sub' claim). Set when a user signs in with Google, whether
+  // a fresh social signup or an existing email account being linked. Unique.
+  googleId: varchar('google_id', { length: 255 }).unique(),
   username: varchar('username', { length: 50 }).notNull().unique(),
   balance: bigint('balance', { mode: 'number' }).notNull().default(0),
   totalWagered: bigint('total_wagered', { mode: 'number' }).notNull().default(0),

@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
 import { AuthLayout } from '../components/vault/AuthLayout';
+import { GoogleSignInButton } from '../components/GoogleSignInButton';
 import { CoinIcon, ZapIcon } from '../components/vault/icons';
 
 function PerksStrip() {
@@ -114,6 +115,13 @@ export function RegisterPage() {
             {loading ? <><span className="spinner" />Creating account…</> : 'Create account · claim 1,000 V'}
           </button>
         </form>
+
+        {import.meta.env.VITE_GOOGLE_CLIENT_ID && (
+          <>
+            <div className="auth-divider"><span>or</span></div>
+            <GoogleSignInButton text="signup_with" onError={setServerError} />
+          </>
+        )}
 
         <div className="auth-foot-link">
           Already have an account? <Link to="/login">Sign in →</Link>
