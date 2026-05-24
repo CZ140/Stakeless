@@ -8,9 +8,15 @@ const WHEEL_SEQUENCE = [0,32,15,19,4,21,2,25,17,34,6,27,13,36,11,30,8,23,10,5,24
 const POCKET_ANGLE = 360 / 37;
 const RED_NUMBERS = new Set([1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36]);
 
+// Ball orbit radii (px from wheel centre). The ball rides the outer rim while
+// spinning, then eases inward to settle into the pocket as it comes to rest.
+const BALL_RIM_RADIUS = 168;
+const BALL_REST_RADIUS = 150;
+const SPIN_DURATION = 6;
+
 function getPocketColor(pocket: number): string {
-  if (pocket === 0) return '#16a34a';
-  return RED_NUMBERS.has(pocket) ? '#dc2626' : '#111827';
+  if (pocket === 0) return '#00E082';
+  return RED_NUMBERS.has(pocket) ? '#C8364B' : '#0a0f15';
 }
 
 // Build conic-gradient string from wheel sequence
@@ -31,7 +37,10 @@ interface RouletteWheelProps {
 
 export function RouletteWheel({ winningPocket, onSettled }: RouletteWheelProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const ballArmRef = useRef<HTMLDivElement>(null);
+  const ballRef = useRef<HTMLDivElement>(null);
   const currentRotationRef = useRef(0);
+  const ballRotationRef = useRef(0);
 
   useGSAP(() => {
     if (winningPocket === null || !containerRef.current) return;
@@ -49,16 +58,30 @@ export function RouletteWheel({ winningPocket, onSettled }: RouletteWheelProps) 
     const currentNorm = currentRotationRef.current % 360;
     const delta = (targetAngle - currentNorm + 360) % 360;
     const targetRotation = currentRotationRef.current + 5 * 360 + delta;
-    gsap.to(containerRef.current, {
-      rotation: targetRotation,
-      duration: 6,
-      ease: 'power3.out',
+
+    // The ball orbits counter-clockwise (opposite the wheel) and always settles at
+    // the top (12 o'clock) — exactly where the winning pocket comes to rest — so it
+    // visibly ends up sitting in the winning pocket. 6 full turns for drama.
+    const ballTarget = ballRotationRef.current - 6 * 360;
+
+    const tl = gsap.timeline({
       onComplete: () => {
-        // Store the full accumulated rotation — NOT modded — so next spin starts from here.
+        // Store the full accumulated rotations — NOT modded — so the next spin
+        // starts from here and keeps moving in the same direction.
         currentRotationRef.current = targetRotation;
+        ballRotationRef.current = ballTarget;
         onSettled();
       },
     });
+    tl.to(containerRef.current, { rotation: targetRotation, duration: SPIN_DURATION, ease: 'power3.out' }, 0);
+    tl.to(ballArmRef.current, { rotation: ballTarget, duration: SPIN_DURATION, ease: 'power3.out' }, 0);
+    // Ride the rim, then ease inward into the pocket during the final third of the spin.
+    tl.fromTo(
+      ballRef.current,
+      { y: -BALL_RIM_RADIUS },
+      { y: -BALL_REST_RADIUS, duration: SPIN_DURATION, ease: 'power2.in' },
+      0,
+    );
   }, { dependencies: [winningPocket] });
 
   return (
@@ -68,9 +91,10 @@ export function RouletteWheel({ winningPocket, onSettled }: RouletteWheelProps) 
         position: 'absolute', top: '-4px', left: '50%',
         transform: 'translateX(-50%)',
         width: 0, height: 0,
-        borderLeft: '8px solid transparent',
-        borderRight: '8px solid transparent',
-        borderTop: '16px solid #e0d7ff',
+        borderLeft: '9px solid transparent',
+        borderRight: '9px solid transparent',
+        borderTop: '16px solid #D4A857',
+        filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.5))',
         zIndex: 10,
       }} />
       {/* Wheel */}
@@ -79,7 +103,8 @@ export function RouletteWheel({ winningPocket, onSettled }: RouletteWheelProps) 
         borderRadius: '50%',
         background: buildConicGradient(),
         position: 'relative',
-        border: '4px solid #2d2d4e',
+        border: '4px solid #B58E3D',
+        boxShadow: 'inset 0 0 0 12px #161B23, inset 0 0 60px rgba(0,0,0,0.5), 0 30px 80px rgba(0,0,0,0.6)',
       }}>
         {/* Number labels */}
         {WHEEL_SEQUENCE.map((pocket, i) => {
@@ -113,11 +138,41 @@ export function RouletteWheel({ winningPocket, onSettled }: RouletteWheelProps) 
         <div style={{
           position: 'absolute', top: '50%', left: '50%',
           transform: 'translate(-50%, -50%)',
-          width: '60px', height: '60px',
+          width: '84px', height: '84px',
           borderRadius: '50%',
-          backgroundColor: '#0d0d1a',
-          border: '3px solid #2d2d4e',
+          background: 'linear-gradient(135deg, #2a3340, #0a0f15)',
+          border: '2px solid #B58E3D',
+          boxShadow: 'inset 0 2px 4px rgba(255,255,255,0.05), inset 0 -2px 4px rgba(0,0,0,0.4)',
         }} />
+      </div>
+
+      {/* Ball orbit arm — sits above the wheel, rotates independently to orbit the ball.
+          The ball rests at the top (12 o'clock) where the winning pocket settles. */}
+      <div
+        ref={ballArmRef}
+        style={{
+          position: 'absolute',
+          inset: 0,
+          pointerEvents: 'none',
+          zIndex: 5,
+        }}
+      >
+        <div
+          ref={ballRef}
+          style={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            width: '15px',
+            height: '15px',
+            marginTop: '-7.5px',
+            marginLeft: '-7.5px',
+            transform: `translateY(-${BALL_REST_RADIUS}px)`,
+            borderRadius: '50%',
+            background: 'radial-gradient(circle at 35% 30%, #ffffff, #c8ccd4 70%, #9aa0aa)',
+            boxShadow: '0 2px 6px rgba(0,0,0,0.6), inset 0 1px 1px rgba(255,255,255,0.8)',
+          }}
+        />
       </div>
     </div>
   );

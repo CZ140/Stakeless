@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
+import { AuthLayout } from '../components/vault/AuthLayout';
 
 export function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
@@ -22,36 +23,49 @@ export function ForgotPasswordPage() {
 
   if (submitted) {
     return (
-      <div style={{ maxWidth: 400, margin: '80px auto', padding: '0 16px' }}>
-        <h1>Check your email</h1>
-        <p>If this email is registered, you will receive a password reset link shortly.</p>
-        <p><Link to="/login">Back to sign in</Link></p>
-      </div>
+      <AuthLayout>
+        <div className="auth-card">
+          <div className="auth-eyebrow">RECOVERY · LINK SENT</div>
+          <h1>Check your email.</h1>
+          <p className="subtitle">
+            If <strong style={{ color: 'var(--text)' }}>{email}</strong> is registered, a password reset link is on its
+            way. The link expires in a short while — use it soon.
+          </p>
+          <div className="auth-foot-link">
+            <Link to="/login">Back to sign in →</Link>
+          </div>
+        </div>
+      </AuthLayout>
     );
   }
 
   return (
-    <div style={{ maxWidth: 400, margin: '80px auto', padding: '0 16px' }}>
-      <h1>Reset password</h1>
-      <p>Enter your email address and we'll send you a reset link.</p>
-      <form onSubmit={handleSubmit}>
-        <div>
-          <label htmlFor="email">Email</label>
-          <input
-            id="email"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            autoComplete="email"
-            style={{ display: 'block', width: '100%', marginBottom: 8 }}
-          />
+    <AuthLayout>
+      <div className="auth-card">
+        <div className="auth-eyebrow">RECOVERY · RESET YOUR PASSWORD</div>
+        <h1>Forgot it? Fine.</h1>
+        <p className="subtitle">Enter your email and we&apos;ll send a recovery link. No password expires here.</p>
+
+        <form onSubmit={handleSubmit}>
+          <div className="field">
+            <div className="field-row"><label className="label" htmlFor="email">Email</label></div>
+            <input
+              id="email" className="input" type="email" value={email}
+              onChange={(e) => setEmail(e.target.value)} required autoComplete="email"
+            />
+          </div>
+
+          <div style={{ height: 8 }} />
+
+          <button type="submit" className="btn btn-primary submit" disabled={loading}>
+            {loading ? <><span className="spinner" />Sending link…</> : 'Send recovery link'}
+          </button>
+        </form>
+
+        <div className="auth-foot-link">
+          Remembered it? <Link to="/login">Back to sign in →</Link>
         </div>
-        <button type="submit" disabled={loading} style={{ width: '100%' }}>
-          {loading ? 'Sending...' : 'Send reset link'}
-        </button>
-      </form>
-      <p><Link to="/login">Back to sign in</Link></p>
-    </div>
+      </div>
+    </AuthLayout>
   );
 }

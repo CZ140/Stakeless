@@ -4,60 +4,114 @@ export type Suit = 'spades' | 'hearts' | 'diamonds' | 'clubs';
 export type Rank = 'A' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | '10' | 'J' | 'Q' | 'K';
 export interface Card { suit: Suit; rank: Rank; }
 
-export type BJGamePhase = 'betting' | 'player_turn' | 'dealer_turn' | 'settled';
-export type BJOutcome = 'player_blackjack' | 'player_bust' | 'dealer_bust' | 'player_win' | 'dealer_win' | 'push' | null;
+export type BJGamePhase = 'betting' | 'player_turn' | 'settled';
+export type HandStatus = 'playing' | 'stand' | 'bust' | 'blackjack';
+export type BJOutcome =
+  | 'player_blackjack' | 'player_bust' | 'dealer_bust'
+  | 'player_win' | 'dealer_win' | 'push' | null;
+
+export interface BJHandView {
+  cards: Card[];
+  bet: number;
+  value: number;
+  status: HandStatus;
+  isDoubled: boolean;
+  splitAce: boolean;
+  outcome: BJOutcome;
+  profit: number | null;
+}
+
+export interface DealerView {
+  upCard: Card | null;
+  hand: Card[] | null; // full hand once settled
+  value: number | null;
+}
+
+// The session view returned by the backend (deal / action / active-session).
+export interface BJSessionView {
+  sessionId: number;
+  phase: 'player_turn' | 'dealer_turn' | 'settled';
+  activeHandIndex: number;
+  hands: BJHandView[];
+  dealer: DealerView;
+  canSplit: boolean;
+  canDouble: boolean;
+  newBalance?: number;
+}
+
+const MAX_PREDEAL_HANDS = 3;
 
 interface BlackjackState {
+  // Betting config
   betAmount: number;
-  gamePhase: BJGamePhase;
+  handCount: number; // pre-deal hands, 1..MAX_PREDEAL_HANDS
+
+  // Live session
+  phase: BJGamePhase;
   sessionId: number | null;
-  playerHand: Card[];
-  dealerUpCard: Card | null;      // visible dealer card
-  dealerHand: Card[] | null;      // full dealer hand revealed after dealer turn
-  playerValue: number;
-  dealerValue: number | null;
-  outcome: BJOutcome;
+  hands: BJHandView[];
+  activeHandIndex: number;
+  dealer: DealerView;
+  canSplit: boolean;
+  canDouble: boolean;
+
   isMuted: boolean;
+
   // Actions
   setBetAmount: (n: number) => void;
-  halfBet: () => void;
-  doubleBet: () => void;
-  dealHand: (sessionId: number, playerHand: Card[], dealerUpCard: Card, playerValue: number) => void;
-  settleImmediate: (outcome: BJOutcome, newBalance: number, playerHand: Card[], dealerHand: Card[]) => void;
-  addPlayerCard: (card: Card, playerValue: number) => void;
-  revealDealerHand: (dealerHand: Card[], dealerValue: number, outcome: BJOutcome) => void;
-  resetToConfig: () => void;
+  incHands: () => void;
+  decHands: () => void;
+  applyView: (view: BJSessionView) => void;
+  reset: () => void;
   toggleMute: () => void;
 }
 
+const emptyDealer: DealerView = { upCard: null, hand: null, value: null };
+
 export const useBlackjackStore = create<BlackjackState>()((set) => ({
   betAmount: Number(localStorage.getItem('lastBet_blackjack')) || 10,
-  gamePhase: 'betting',
+  handCount: 1,
+
+  phase: 'betting',
   sessionId: null,
-  playerHand: [],
-  dealerUpCard: null,
-  dealerHand: null,
-  playerValue: 0,
-  dealerValue: null,
-  outcome: null,
+  hands: [],
+  activeHandIndex: 0,
+  dealer: emptyDealer,
+  canSplit: false,
+  canDouble: false,
+
   isMuted: localStorage.getItem('isMuted_blackjack') === 'true',
 
-  setBetAmount: (n) => set({ betAmount: Math.max(1, n) }),
-  halfBet: () => set((s) => ({ betAmount: Math.max(1, Math.floor(s.betAmount / 2)) })),
-  doubleBet: () => set((s) => ({ betAmount: s.betAmount * 2 })),
-  dealHand: (sessionId, playerHand, dealerUpCard, playerValue) =>
-    set({ gamePhase: 'player_turn', sessionId, playerHand, dealerUpCard, dealerHand: null, playerValue, dealerValue: null, outcome: null }),
-  settleImmediate: (outcome, _newBalance, playerHand, dealerHand) =>
-    set({ gamePhase: 'settled', outcome, playerHand, dealerHand, playerValue: 21 }),  // blackjack always 21
-  addPlayerCard: (card, playerValue) =>
-    set((s) => ({ playerHand: [...s.playerHand, card], playerValue })),
-  revealDealerHand: (dealerHand, dealerValue, outcome) =>
-    set({ gamePhase: 'settled', dealerHand, dealerValue, outcome }),
-  resetToConfig: () =>
-    set({ gamePhase: 'betting', sessionId: null, playerHand: [], dealerUpCard: null, dealerHand: null, playerValue: 0, dealerValue: null, outcome: null }),
-  toggleMute: () => set((s) => {
-    const next = !s.isMuted;
-    localStorage.setItem('isMuted_blackjack', String(next));
-    return { isMuted: next };
-  }),
+  setBetAmount: (n) => set({ betAmount: Math.max(1, Math.floor(n)) }),
+  incHands: () => set((s) => ({ handCount: Math.min(MAX_PREDEAL_HANDS, s.handCount + 1) })),
+  decHands: () => set((s) => ({ handCount: Math.max(1, s.handCount - 1) })),
+
+  applyView: (view) =>
+    set({
+      phase: view.phase === 'settled' ? 'settled' : 'player_turn',
+      sessionId: view.sessionId,
+      hands: view.hands,
+      activeHandIndex: view.activeHandIndex,
+      dealer: view.dealer,
+      canSplit: view.canSplit,
+      canDouble: view.canDouble,
+    }),
+
+  reset: () =>
+    set({
+      phase: 'betting',
+      sessionId: null,
+      hands: [],
+      activeHandIndex: 0,
+      dealer: emptyDealer,
+      canSplit: false,
+      canDouble: false,
+    }),
+
+  toggleMute: () =>
+    set((s) => {
+      const next = !s.isMuted;
+      localStorage.setItem('isMuted_blackjack', String(next));
+      return { isMuted: next };
+    }),
 }));

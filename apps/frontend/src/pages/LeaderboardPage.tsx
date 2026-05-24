@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Header } from '../components/Header';
+import { AppShell } from '../components/vault/AppShell';
+import { TrophyIcon } from '../components/vault/icons';
 import { useLeaderboard } from '../hooks/useLeaderboard';
 import { useLeaderboardStore } from '../stores/leaderboardStore';
 import { useAuth } from '../contexts/AuthContext';
@@ -10,9 +11,27 @@ type TabKey = 'balance' | 'wagered' | 'profit';
 
 const TAB_CONFIG: { key: TabKey; label: string; valueLabel: string }[] = [
   { key: 'balance', label: 'Balance', valueLabel: 'Balance' },
-  { key: 'wagered', label: 'Total Wagered', valueLabel: 'Total Wagered' },
-  { key: 'profit', label: 'Profit', valueLabel: 'Total Profit' },
+  { key: 'wagered', label: 'Wagered', valueLabel: 'Total Wagered' },
+  { key: 'profit', label: 'Profit', valueLabel: 'Profit' },
 ];
+
+const PODIUM_KIND = ['gold', 'silver', 'bronze'] as const;
+const PODIUM_POS = ['#1 · GOLD', '#2 · SILVER', '#3 · BRONZE'] as const;
+
+function initial(name: string): string {
+  return name.charAt(0).toUpperCase() || '?';
+}
+
+// Profit can be negative; balance/wagered are always positive. Render sign +
+// sign-based colour class only for the profit tab.
+function signClass(tab: TabKey, value: number): string {
+  if (tab !== 'profit') return '';
+  return value >= 0 ? 'delta-up' : 'delta-down';
+}
+function formatValue(tab: TabKey, value: number): string {
+  const sign = tab === 'profit' && value > 0 ? '+' : '';
+  return sign + value.toLocaleString();
+}
 
 export function LeaderboardPage() {
   const { accessToken } = useAuth();
@@ -51,7 +70,6 @@ export function LeaderboardPage() {
       .finally(() => setIsLoading(false));
   }, [setSnapshot, setOwnRanks]);
 
-  // Determine the active rows and own-rank for the current tab
   const tabConfig = TAB_CONFIG.find((t) => t.key === activeTab)!;
   const rows =
     activeTab === 'balance'
@@ -69,181 +87,127 @@ export function LeaderboardPage() {
           : ownRanks.profit
       : null;
 
-  // Is the logged-in user already in the top 25?
   const ownInTopList =
     ownRankEntry !== null &&
     rows !== undefined &&
-    rows.some((_, idx) => idx + 1 === ownRankEntry?.rank);
+    rows.some((_, idx) => idx + 1 === ownRankEntry.rank);
+
+  const top3 = rows?.slice(0, 3) ?? [];
+  const rest = rows?.slice(3) ?? [];
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#0f0f1a', color: '#ffffff' }}>
-      <Header />
-      <main style={{ maxWidth: '800px', margin: '0 auto', padding: '32px 24px' }}>
-        <h1 style={{ fontSize: '1.75rem', fontWeight: 700, marginBottom: '24px', color: '#e0d7ff' }}>
-          Leaderboard
-        </h1>
-
-        {/* Tab row */}
-        <div style={{ display: 'flex', gap: '8px', marginBottom: '24px' }}>
+    <AppShell>
+      <div className="lb-head">
+        <div className="lb-title">
+          <TrophyIcon color="var(--gold)" size={32} />
+          <div>
+            <div className="crumb"><span>HOME</span><span className="crumb-sep">/</span><span>LEADERBOARD</span></div>
+            <h1 className="h-title">Leaderboard</h1>
+          </div>
+          <span className="live-badge">live</span>
+        </div>
+        <div className="tabs">
           {TAB_CONFIG.map((tab) => (
             <button
               key={tab.key}
+              type="button"
               onClick={() => setActiveTab(tab.key)}
-              style={{
-                padding: '8px 20px',
-                borderRadius: '6px',
-                border: 'none',
-                cursor: 'pointer',
-                fontWeight: activeTab === tab.key ? 700 : 400,
-                backgroundColor: activeTab === tab.key ? '#7c3aed' : '#1e1e3a',
-                color: activeTab === tab.key ? '#ffffff' : '#a0a0c0',
-                fontSize: '0.9rem',
-                transition: 'background-color 0.15s',
-              }}
+              className={activeTab === tab.key ? 'active' : ''}
             >
               {tab.label}
             </button>
           ))}
         </div>
+      </div>
 
-        {/* Table */}
-        <div
-          style={{
-            backgroundColor: '#1a1a2e',
-            borderRadius: '8px',
-            overflow: 'hidden',
-            border: '1px solid rgba(255,255,255,0.08)',
-          }}
-        >
-          {/* Table header */}
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: '60px 1fr 160px',
-              padding: '12px 16px',
-              backgroundColor: 'rgba(255,255,255,0.05)',
-              fontSize: '0.75rem',
-              fontWeight: 600,
-              color: '#a0a0c0',
-              textTransform: 'uppercase',
-              letterSpacing: '0.05em',
-            }}
-          >
-            <span>Rank</span>
-            <span>Username</span>
-            <span style={{ textAlign: 'right' }}>{tabConfig.valueLabel}</span>
-          </div>
-
-          {/* Table rows */}
-          {isLoading ? (
-            // Skeleton rows
-            Array.from({ length: 10 }).map((_, idx) => (
-              <div
-                key={idx}
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '60px 1fr 160px',
-                  padding: '12px 16px',
-                  borderTop: '1px solid rgba(255,255,255,0.05)',
-                  gap: '12px',
-                }}
-              >
-                <div style={{ height: '16px', backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: '4px', width: '24px' }} />
-                <div style={{ height: '16px', backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: '4px', maxWidth: '120px' }} />
-                <div style={{ height: '16px', backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: '4px', marginLeft: 'auto', width: '80px' }} />
-              </div>
-            ))
-          ) : !rows || rows.length === 0 ? (
-            <div style={{ padding: '32px 16px', textAlign: 'center', color: '#606080' }}>
-              No data yet — play some games to appear on the leaderboard!
-            </div>
-          ) : (
-            rows.map((row, idx) => {
-              const rank = idx + 1;
-              const isOwnRow = ownRankEntry !== null && rank === ownRankEntry.rank;
-              return (
-                <div
-                  key={row.id}
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: '60px 1fr 160px',
-                    padding: '12px 16px',
-                    borderTop: '1px solid rgba(255,255,255,0.05)',
-                    // Own-rank highlight inside top 25: accent left border + subtle background tint
-                    ...(isOwnRow
-                      ? {
-                          borderLeft: '3px solid #7c3aed',
-                          backgroundColor: 'rgba(124,58,237,0.10)',
-                          paddingLeft: '13px', // compensate for border
-                        }
-                      : {}),
-                  }}
-                >
-                  <span style={{ color: rank <= 3 ? '#fbbf24' : '#a0a0c0', fontWeight: rank <= 3 ? 700 : 400 }}>
-                    #{rank}
-                  </span>
-                  <span style={{ fontWeight: isOwnRow ? 600 : 400 }}>
-                    <Link
-                      to={`/profile/${row.username}`}
-                      style={{ color: 'inherit', textDecoration: 'none' }}
-                    >
-                      {row.username}
-                    </Link>
-                    {isOwnRow && (
-                      <span style={{ marginLeft: '8px', fontSize: '0.75rem', color: '#7c3aed', fontWeight: 600 }}>
-                        You
-                      </span>
-                    )}
-                  </span>
-                  <span style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                    {row.value.toLocaleString()}
-                  </span>
+      {/* Podium — top 3 of the active metric */}
+      {!isLoading && top3.length > 0 && (
+        <div className="podium">
+          {top3.map((p, i) => {
+            const kind = PODIUM_KIND[i]!;
+            const rank = i + 1;
+            const isYou = ownRankEntry !== null && rank === ownRankEntry.rank;
+            return (
+              <div key={p.id} className={`podium-card ${kind}${isYou ? ' you' : ''}`}>
+                <div className="pos">{PODIUM_POS[i]}</div>
+                <div className="ava">{initial(p.username)}</div>
+                <div className="pname">
+                  <Link to={`/profile/${p.username}`}>{p.username}</Link>
+                  {isYou && <span className="you-tag">YOU</span>}
                 </div>
-              );
-            })
-          )}
-
-          {/* Own-rank pinned row — shown only when logged in and outside top 25 */}
-          {!isLoading && ownRankEntry !== null && !ownInTopList && (
-            <>
-              {/* Visual divider */}
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  padding: '8px 16px',
-                  gap: '8px',
-                  color: '#606080',
-                  fontSize: '0.75rem',
-                }}
-              >
-                <div style={{ flex: 1, height: '1px', backgroundColor: 'rgba(255,255,255,0.1)' }} />
-                <span>your rank</span>
-                <div style={{ flex: 1, height: '1px', backgroundColor: 'rgba(255,255,255,0.1)' }} />
+                <div className={`amt ${signClass(activeTab, p.value)}`}>
+                  {formatValue(activeTab, p.value)}<small>V</small>
+                </div>
               </div>
-              {/* Pinned own-rank row */}
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '60px 1fr 160px',
-                  padding: '12px 16px',
-                  borderLeft: '3px solid #7c3aed',
-                  backgroundColor: 'rgba(124,58,237,0.10)',
-                  paddingLeft: '13px',
-                }}
-              >
-                <span style={{ color: '#a0a0c0' }}>#{ownRankEntry.rank}</span>
-                <span style={{ fontWeight: 600 }}>
-                  You
-                </span>
-                <span style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                  {ownRankEntry.value.toLocaleString()}
-                </span>
-              </div>
-            </>
-          )}
+            );
+          })}
         </div>
-      </main>
-    </div>
+      )}
+
+      {/* Full table */}
+      <div className="lb-table">
+        <div className="lb-row lb-head-row">
+          <div>Rank</div>
+          <div>Player</div>
+          <div style={{ textAlign: 'right' }}>{tabConfig.valueLabel}</div>
+        </div>
+
+        {isLoading ? (
+          Array.from({ length: 8 }).map((_, idx) => (
+            <div key={idx} className="lb-row">
+              <div className="lb-skeleton" style={{ width: 28 }} />
+              <div className="lb-skeleton" style={{ maxWidth: 160 }} />
+              <div className="lb-skeleton" style={{ width: 90, marginLeft: 'auto' }} />
+            </div>
+          ))
+        ) : !rows || rows.length === 0 ? (
+          <div className="lb-empty">No data yet — play some games to climb the leaderboard.</div>
+        ) : (
+          rest.map((p, idx) => {
+            const rank = idx + 4; // table starts after the podium top 3
+            const isYou = ownRankEntry !== null && rank === ownRankEntry.rank;
+            return (
+              <div key={p.id} className={'lb-row' + (isYou ? ' you' : '')}>
+                <div className={'rk' + (rank <= 3 ? ' top' : '')}>{rank}</div>
+                <div className="player">
+                  <span className="ava-sm">{initial(p.username)}</span>
+                  <div>
+                    <Link to={`/profile/${p.username}`}>{p.username}</Link>
+                    {isYou && <span className="you-tag">YOU</span>}
+                  </div>
+                </div>
+                <div className={`num-cell ${signClass(activeTab, p.value)}`}>
+                  {formatValue(activeTab, p.value)}
+                </div>
+              </div>
+            );
+          })
+        )}
+
+        {/* Own-rank pinned row — only when logged in and outside the visible list */}
+        {!isLoading && ownRankEntry !== null && !ownInTopList && (
+          <>
+            <div className="lb-divider">
+              <span className="line" />
+              <span>your rank</span>
+              <span className="line" />
+            </div>
+            <div className="lb-row you">
+              <div className="rk">{ownRankEntry.rank}</div>
+              <div className="player">
+                <span className="ava-sm">{initial('You')}</span>
+                <div>
+                  <span style={{ fontWeight: 600 }}>You</span>
+                  <span className="you-tag">YOU</span>
+                </div>
+              </div>
+              <div className={`num-cell ${signClass(activeTab, ownRankEntry.value)}`}>
+                {formatValue(activeTab, ownRankEntry.value)}
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    </AppShell>
   );
 }

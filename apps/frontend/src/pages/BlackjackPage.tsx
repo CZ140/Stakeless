@@ -1,257 +1,92 @@
 import { useEffect, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Header } from '../components/Header';
-import { BlackjackCard } from '../components/BlackjackCard';
-import { useBlackjackStore, type BJOutcome, type Card } from '../stores/blackjackStore';
+import { motion } from 'framer-motion';
+import { AppShell } from '../components/vault/AppShell';
+import {
+  useBlackjackStore,
+  type Card,
+  type BJOutcome,
+  type BJHandView,
+  type BJSessionView,
+} from '../stores/blackjackStore';
 import { useBalanceStore } from '../stores/balanceStore';
 import { useGameSounds } from '../hooks/useGameSounds';
 import { apiClient } from '../api/client';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+const SUIT_SYMBOLS: Record<string, string> = { hearts: '♥', diamonds: '♦', spades: '♠', clubs: '♣' };
+const RED_SUITS = new Set(['hearts', 'diamonds']);
+const CHIP_VALUES = [10, 50, 100, 500];
 
-interface DealNormalResponse {
-  sessionId: number;
-  playerHand: Card[];
-  dealerUpCard: Card;
-  playerValue: number;
-}
+// ─── Cards ──────────────────────────────────────────────────────────────────────
 
-interface DealImmediateResponse {
-  outcome: BJOutcome;
-  profit: number;
-  newBalance: number;
-  playerHand: Card[];
-  dealerHand: Card[];
-}
-
-interface HitSafeResponse {
-  card: Card;
-  playerHand: Card[];
-  playerValue: number;
-  busted: false;
-}
-
-interface HitBustResponse {
-  card: Card;
-  playerHand: Card[];
-  playerValue: number;
-  busted: true;
-  outcome: 'player_bust';
-  newBalance: number;
-}
-
-interface StandResponse {
-  dealerHand: Card[];
-  dealerValue: number;
-  outcome: string;
-  newBalance: number;
-}
-
-interface DoubleResponse {
-  card: Card;
-  playerHand: Card[];
-  dealerHand: Card[];
-  outcome: string;
-  newBalance: number;
-  dealerValue: number;
-}
-
-interface ActiveSessionResponse {
-  session: null | {
-    sessionId: number;
-    playerHand: Card[];
-    dealerUpCard: Card;
-    dealerHand?: Card[];
-    playerValue: number;
-    phase: string;
-    outcome?: BJOutcome;
-    newBalance?: number;
-  };
-}
-
-// ─── How To Play Modal ────────────────────────────────────────────────────────
-
-function BlackjackHowToPlay({ open, onClose }: { open: boolean; onClose: () => void }) {
+function CardFace({ card }: { card: Card | 'facedown' }) {
+  if (card === 'facedown') return <div className="playing-card back" />;
+  const symbol = SUIT_SYMBOLS[card.suit] ?? card.suit;
+  const red = RED_SUITS.has(card.suit);
   return (
-    <AnimatePresence>
-      {open && (
-        <>
-          <motion.div
-            key="bj-htplay-backdrop"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-            style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 200 }}
-          />
-          <div style={{ position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 201, pointerEvents: 'none' }}>
-            <motion.div
-              key="bj-htplay-modal"
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              transition={{ duration: 0.2 }}
-              style={{ backgroundColor: '#1a1a2e', borderRadius: '16px', padding: '32px', maxWidth: '520px', width: '90vw', maxHeight: '80vh', overflowY: 'auto', pointerEvents: 'auto' }}
-            >
-              <h2 style={{ color: '#e0d7ff', marginTop: 0, marginBottom: '12px' }}>How to Play Blackjack</h2>
-              <p style={{ color: '#718096', fontSize: '0.9rem', marginBottom: '16px' }}>
-                Beat the dealer by getting closer to 21 without going over.
-                Face cards (J, Q, K) are worth 10. Aces are worth 11 or 1.
-              </p>
-              <h3 style={{ color: '#e0d7ff', fontSize: '1rem', marginBottom: '8px' }}>Payouts</h3>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', marginBottom: '16px' }}>
-                <thead>
-                  <tr style={{ borderBottom: '1px solid #2d2d4e' }}>
-                    <th style={{ color: '#e0d7ff', textAlign: 'left', paddingBottom: '6px' }}>Result</th>
-                    <th style={{ color: '#e0d7ff', textAlign: 'right', paddingBottom: '6px' }}>Payout</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {[
-                    { result: 'Natural Blackjack (A + 10-value on deal)', payout: '3:2' },
-                    { result: 'Player wins', payout: '1:1' },
-                    { result: 'Push (tie)', payout: 'Bet returned' },
-                    { result: 'Player busts or dealer wins', payout: 'Bet lost' },
-                  ].map(({ result, payout }) => (
-                    <tr key={result} style={{ borderBottom: '1px solid #1a1a2e' }}>
-                      <td style={{ color: '#e0d7ff', padding: '7px 0', fontSize: '0.85rem' }}>{result}</td>
-                      <td style={{ color: '#a78bfa', textAlign: 'right', padding: '7px 0', fontWeight: 700 }}>{payout}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <h3 style={{ color: '#e0d7ff', fontSize: '1rem', marginBottom: '8px' }}>Rules</h3>
-              <ul style={{ color: '#718096', fontSize: '0.85rem', paddingLeft: '18px', marginBottom: '16px' }}>
-                <li>Dealer stands on hard 17, hits on soft 17 (Ace + 6)</li>
-                <li>Double Down: double your bet, receive exactly one more card</li>
-                <li>No split or insurance in v1.0</li>
-                <li>One deck, reshuffled each hand</li>
-              </ul>
-              <button
-                onClick={onClose}
-                style={{ padding: '10px 24px', backgroundColor: '#7c3aed', color: '#ffffff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '0.9rem', fontWeight: 600 }}
-              >
-                Got It
-              </button>
-            </motion.div>
-          </div>
-        </>
-      )}
-    </AnimatePresence>
-  );
-}
-
-// ─── Outcome Banner ───────────────────────────────────────────────────────────
-
-function getOutcomeDisplay(outcome: BJOutcome): { text: string; color: string } {
-  switch (outcome) {
-    case 'player_blackjack': return { text: 'Blackjack! 3:2 Payout', color: '#f59e0b' };
-    case 'player_win':       return { text: 'You Win!',              color: '#22c55e' };
-    case 'dealer_bust':      return { text: 'Dealer Busts — You Win!', color: '#22c55e' };
-    case 'push':             return { text: 'Push — Bet Returned',   color: '#3b82f6' };
-    case 'player_bust':      return { text: 'Bust! Bet Lost',        color: '#ef4444' };
-    case 'dealer_win':       return { text: 'Dealer Wins',           color: '#ef4444' };
-    default:                 return { text: '',                       color: '#ffffff' };
-  }
-}
-
-// ─── Style helpers ────────────────────────────────────────────────────────────
-
-function actionBtnStyle(disabled: boolean, color = '#7c3aed'): React.CSSProperties {
-  return {
-    flex: 1,
-    padding: '12px 8px',
-    backgroundColor: disabled ? '#4a4a6e' : color,
-    color: '#ffffff',
-    border: 'none',
-    borderRadius: '10px',
-    cursor: disabled ? 'not-allowed' : 'pointer',
-    fontSize: '0.95rem',
-    fontWeight: 700,
-    opacity: disabled ? 0.6 : 1,
-    transition: 'background-color 0.15s',
-  };
-}
-
-function chipBtnStyle(active: boolean, disabled: boolean): React.CSSProperties {
-  return {
-    padding: '5px 10px',
-    backgroundColor: active ? '#7c3aed' : '#0d0d1a',
-    color: active ? '#ffffff' : '#e0d7ff',
-    border: `1px solid ${active ? '#7c3aed' : '#2d2d4e'}`,
-    borderRadius: '6px',
-    cursor: disabled ? 'not-allowed' : 'pointer',
-    fontSize: '0.8rem',
-    fontWeight: active ? 700 : 400,
-    opacity: disabled ? 0.5 : 1,
-  };
-}
-
-function halfDoubleBtnStyle(disabled: boolean): React.CSSProperties {
-  return {
-    flex: 1,
-    padding: '6px 14px',
-    backgroundColor: '#0d0d1a',
-    color: '#e0d7ff',
-    border: '1px solid #2d2d4e',
-    borderRadius: '6px',
-    cursor: disabled ? 'not-allowed' : 'pointer',
-    fontSize: '0.9rem',
-    opacity: disabled ? 0.5 : 1,
-  };
-}
-
-// ─── Hand display ─────────────────────────────────────────────────────────────
-
-function HandArea({
-  label,
-  valueLabel,
-  cards,
-  showFacedown,
-  newCardIndex,
-}: {
-  label: string;
-  valueLabel: string;
-  cards: Card[];
-  showFacedown?: boolean;   // render an extra face-down card after the real cards
-  newCardIndex?: number;    // index of the most-recently-added card (to animate)
-}) {
-  return (
-    <div style={{ marginBottom: '16px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-        <span style={{ color: '#718096', fontSize: '0.85rem', fontWeight: 600 }}>{label}</span>
-        <span
-          style={{
-            backgroundColor: '#2d2d4e',
-            color: '#e0d7ff',
-            borderRadius: '999px',
-            padding: '2px 10px',
-            fontSize: '0.8rem',
-            fontWeight: 700,
-          }}
-        >
-          {valueLabel}
-        </span>
+    <div className={`playing-card ${red ? 'red' : 'black'}`}>
+      <div className="corner tl">
+        <div className="rank">{card.rank}</div>
+        <div className="suit-sm">{symbol}</div>
       </div>
-      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-        {cards.map((card, i) => (
-          <BlackjackCard
-            key={i}
-            card={card}
-            animateIn={i === newCardIndex}
-          />
-        ))}
-        {showFacedown && (
-          <BlackjackCard card="facedown" animateIn={cards.length === 0} />
-        )}
+      <div className="center-suit">{symbol}</div>
+      <div className="corner tr">
+        <div className="rank">{card.rank}</div>
+        <div className="suit-sm">{symbol}</div>
       </div>
     </div>
   );
 }
 
-// ─── Main Page ────────────────────────────────────────────────────────────────
+// A card that slides+flips in when it first appears.
+function DealtCard({ card, flip = false }: { card: Card | 'facedown'; flip?: boolean }) {
+  return (
+    <motion.div
+      initial={flip ? { rotateY: 90, opacity: 0 } : { opacity: 0, y: -28, x: 18, rotate: -7 }}
+      animate={{ rotateY: 0, opacity: 1, y: 0, x: 0, rotate: 0 }}
+      transition={{ duration: 0.32, ease: 'easeOut' }}
+      style={{ transformStyle: 'preserve-3d' }}
+    >
+      <CardFace card={card} />
+    </motion.div>
+  );
+}
 
-const CHIP_VALUES = [10, 50, 100, 500];
+function outcomeBadge(outcome: BJOutcome): { text: string; cls: string } | null {
+  switch (outcome) {
+    case 'player_blackjack': return { text: 'Blackjack 3:2', cls: 'win' };
+    case 'player_win': return { text: 'Win', cls: 'win' };
+    case 'dealer_bust': return { text: 'Dealer bust', cls: 'win' };
+    case 'push': return { text: 'Push', cls: 'push' };
+    case 'player_bust': return { text: 'Bust', cls: 'loss' };
+    case 'dealer_win': return { text: 'Lose', cls: 'loss' };
+    default: return null;
+  }
+}
+
+function handNet(h: BJHandView): number {
+  const effectiveBet = h.bet * (h.isDoubled ? 2 : 1);
+  return (h.profit ?? 0) - effectiveBet;
+}
+
+// A single player hand (cards + footer with value / bet / outcome).
+function PlayerHand({ hand, index, active, settled }: { hand: BJHandView; index: number; active: boolean; settled: boolean }) {
+  const badge = settled ? outcomeBadge(hand.outcome) : null;
+  const valClass = hand.status === 'bust' ? 'bust' : hand.status === 'blackjack' ? 'bj' : '';
+  return (
+    <div className={`bj-hand${active ? ' active' : ''}${settled ? ' done' : ''}`}>
+      <div className="cards-row">
+        {hand.cards.map((c, i) => (
+          <DealtCard key={`${index}-${i}-${c.suit}-${c.rank}`} card={c} />
+        ))}
+      </div>
+      <div className="bj-hand-foot">
+        <span className={`bj-val ${valClass}`}>{hand.value}</span>
+        <span>{hand.bet}{hand.isDoubled ? '×2' : ''} V</span>
+      </div>
+      {badge ? <span className={`bj-outcome ${badge.cls}`}>{badge.text}</span> : null}
+    </div>
+  );
+}
 
 export function BlackjackPage() {
   const store = useBlackjackStore();
@@ -260,446 +95,287 @@ export function BlackjackPage() {
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showHowTo, setShowHowTo] = useState(false);
-  // Track the index of newly added player card to animate it
-  const [newPlayerCardIndex, setNewPlayerCardIndex] = useState<number | undefined>(undefined);
 
-  // Session restore on mount
+  const { betAmount, handCount, phase, sessionId, hands, activeHandIndex, dealer, canSplit, canDouble } = store;
+  const isBetting = phase === 'betting';
+  const isPlayerTurn = phase === 'player_turn';
+  const isSettled = phase === 'settled';
+
+  // Resume an open hand on mount.
   useEffect(() => {
-    apiClient.get<ActiveSessionResponse>('/games/blackjack/active-session').then((res) => {
-      const { session } = res.data;
-      if (!session) return;
-      if (session.phase === 'settled' && session.outcome) {
-        // Disconnected — server auto-completed hand — show result
-        store.settleImmediate(session.outcome, session.newBalance ?? 0, session.playerHand, session.dealerHand ?? []);
-        if (session.newBalance !== undefined) useBalanceStore.getState().setBalance(session.newBalance);
-      } else if (session.phase === 'player_turn') {
-        store.dealHand(session.sessionId, session.playerHand, session.dealerUpCard, session.playerValue);
-      }
-    }).catch(() => {});
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    apiClient
+      .get<{ session: BJSessionView | null }>('/games/blackjack/active-session')
+      .then((res) => {
+        if (res.data.session) store.applyView(res.data.session);
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const { betAmount, gamePhase, sessionId, playerHand, dealerUpCard, dealerHand, playerValue, dealerValue, outcome } = store;
+  function playSettleSound(view: BJSessionView) {
+    if (view.phase !== 'settled') return;
+    const net = view.hands.reduce((s, h) => s + handNet(h), 0);
+    if (net > 0) playWin();
+    else if (net < 0) playLoss();
+  }
 
-  const isBetting = gamePhase === 'betting';
-  const isPlayerTurn = gamePhase === 'player_turn';
-  const isSettled = gamePhase === 'settled';
-  const controlsDisabled = isLoading || !isPlayerTurn;
+  function applySettled(view: BJSessionView) {
+    store.applyView(view);
+    if (view.newBalance !== undefined) useBalanceStore.getState().setBalance(view.newBalance);
+    playSettleSound(view);
+  }
 
-  // ─── handleDeal ─────────────────────────────────────────────────────────────
   async function handleDeal() {
     if (isLoading) return;
     setError(null);
-    setNewPlayerCardIndex(undefined);
     localStorage.setItem('lastBet_blackjack', String(betAmount));
     setIsLoading(true);
-
     try {
-      const res = await apiClient.post<DealNormalResponse | DealImmediateResponse>(
-        '/games/blackjack/deal',
-        { betAmount },
-      );
-
-      const data = res.data as DealNormalResponse & DealImmediateResponse;
-
-      if (data.outcome) {
-        // Immediate result (natural blackjack or both blackjack)
-        const immediate = data as DealImmediateResponse;
-        store.settleImmediate(immediate.outcome, immediate.newBalance, immediate.playerHand, immediate.dealerHand);
-        useBalanceStore.getState().setBalance(immediate.newBalance);
-        if (immediate.outcome === 'push') {
-          playWin();
-        } else if (immediate.outcome === 'player_blackjack') {
-          playWin();
-        } else {
-          playLoss();
-        }
-      } else {
-        // Normal deal
-        const normal = data as DealNormalResponse;
-        store.dealHand(normal.sessionId, normal.playerHand, normal.dealerUpCard, normal.playerValue);
-        // Animate both player cards on deal (last one = index 1)
-        setNewPlayerCardIndex(1);
-      }
+      const bets = Array.from({ length: handCount }, () => betAmount);
+      const res = await apiClient.post<BJSessionView>('/games/blackjack/deal', { bets });
+      if (res.data.phase === 'settled') applySettled(res.data);
+      else store.applyView(res.data);
     } catch (err: unknown) {
       const axiosErr = err as { response?: { data?: { error?: string }; status?: number } };
-      if (axiosErr.response?.status === 402) {
-        setError('Insufficient funds.');
-      } else {
-        setError(axiosErr.response?.data?.error ?? 'Something went wrong. Please try again.');
-      }
+      if (axiosErr.response?.status === 402) setError('Insufficient funds for that total bet.');
+      else setError(axiosErr.response?.data?.error ?? 'Something went wrong. Please try again.');
     } finally {
       setIsLoading(false);
     }
   }
 
-  // ─── handleHit ──────────────────────────────────────────────────────────────
-  async function handleHit() {
-    if (controlsDisabled || sessionId === null) return;
+  async function act(action: 'hit' | 'stand' | 'double' | 'split') {
+    if (isLoading || sessionId === null || !isPlayerTurn) return;
     setIsLoading(true);
     setError(null);
-
     try {
-      const res = await apiClient.post<HitSafeResponse | HitBustResponse>(
-        '/games/blackjack/hit',
-        { sessionId },
-      );
-
-      const data = res.data;
-      const newIndex = playerHand.length; // index of the card about to be added
-      store.addPlayerCard(data.card, data.playerValue);
-      setNewPlayerCardIndex(newIndex);
-
-      if (data.busted) {
-        const bust = data as HitBustResponse;
-        store.revealDealerHand([], 0, 'player_bust');
-        useBalanceStore.getState().setBalance(bust.newBalance);
-        playLoss();
-      }
-    } catch (err: unknown) {
-      const axiosErr = err as { response?: { data?: { error?: string } } };
-      setError(axiosErr.response?.data?.error ?? 'Something went wrong. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
-  // ─── handleStand ────────────────────────────────────────────────────────────
-  async function handleStand() {
-    if (controlsDisabled || sessionId === null) return;
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const res = await apiClient.post<StandResponse>('/games/blackjack/stand', { sessionId });
-      const { dealerHand: dHand, dealerValue: dValue, outcome: result, newBalance } = res.data;
-
-      // Brief pause for drama before revealing
-      await new Promise((resolve) => setTimeout(resolve, 300));
-
-      store.revealDealerHand(dHand, dValue, result as BJOutcome);
-      useBalanceStore.getState().setBalance(newBalance);
-
-      if (result === 'player_win' || result === 'dealer_bust' || result === 'push' || result === 'player_blackjack') {
-        playWin();
-      } else {
-        playLoss();
-      }
-    } catch (err: unknown) {
-      const axiosErr = err as { response?: { data?: { error?: string } } };
-      setError(axiosErr.response?.data?.error ?? 'Something went wrong. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
-  // ─── handleDouble ───────────────────────────────────────────────────────────
-  async function handleDouble() {
-    if (controlsDisabled || sessionId === null) return;
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const res = await apiClient.post<DoubleResponse>('/games/blackjack/double', { sessionId });
-      const { card, playerHand: pHand, dealerHand: dHand, outcome: result, newBalance, dealerValue: dValue } = res.data;
-
-      // Add the one extra player card with animation
-      const newIndex = playerHand.length;
-      store.addPlayerCard(card, 0); // playerValue will be overridden by revealDealerHand
-      setNewPlayerCardIndex(newIndex);
-
-      // Pause to show player card before dealer reveal
-      await new Promise((resolve) => setTimeout(resolve, 500));
-
-      store.revealDealerHand(dHand, dValue, result as BJOutcome);
-      useBalanceStore.getState().setBalance(newBalance);
-
-      if (result === 'player_win' || result === 'dealer_bust' || result === 'push' || result === 'player_blackjack') {
-        playWin();
-      } else {
-        playLoss();
-      }
-
-      // Update player hand to reflect final server state
-      void pHand; // already reflected via addPlayerCard
+      const res = await apiClient.post<BJSessionView>('/games/blackjack/action', { sessionId, action });
+      if (res.data.phase === 'settled') applySettled(res.data);
+      else store.applyView(res.data);
     } catch (err: unknown) {
       const axiosErr = err as { response?: { data?: { error?: string }; status?: number } };
-      if (axiosErr.response?.status === 402) {
-        setError('Insufficient funds for double down.');
-      } else {
-        setError(axiosErr.response?.data?.error ?? 'Something went wrong. Please try again.');
-      }
+      if (axiosErr.response?.status === 402) setError('Insufficient funds for that action.');
+      else setError(axiosErr.response?.data?.error ?? 'Something went wrong. Please try again.');
     } finally {
       setIsLoading(false);
     }
   }
 
-  // ─── Render ──────────────────────────────────────────────────────────────────
+  // Dealer cards to render per phase.
+  const dealerCards: (Card | 'facedown')[] = isBetting
+    ? ['facedown', 'facedown']
+    : isSettled && dealer.hand
+      ? dealer.hand
+      : dealer.upCard
+        ? [dealer.upCard, 'facedown']
+        : ['facedown', 'facedown'];
+  const dealerTotal = isSettled && dealer.value !== null ? String(dealer.value) : isBetting ? '—' : '?';
 
-  const outcomeDisplay = outcome ? getOutcomeDisplay(outcome) : null;
+  const activeBet = hands[activeHandIndex]?.bet ?? betAmount;
+  const totalStake = betAmount * handCount;
+  const netTotal = isSettled ? hands.reduce((s, h) => s + handNet(h), 0) : 0;
+  const netClass = netTotal > 0 ? 'win' : netTotal < 0 ? 'loss' : 'flat';
 
-  // Decide what to show for dealer during player turn vs settled
-  const dealerCards: Card[] = isSettled && dealerHand
-    ? dealerHand
-    : dealerUpCard
-      ? [dealerUpCard]
-      : [];
+  // Betting-phase placeholder hands.
+  const placeholders = Array.from({ length: handCount }, (_, i) => i);
 
-  const dealerValueLabel = isSettled && dealerValue !== null
-    ? String(dealerValue)
-    : '?';
+  const quickBet = (n: number) => store.setBetAmount(Math.max(1, Math.floor(n)));
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#0d0d1a', color: '#ffffff' }}>
-      <Header />
-      <main style={{ maxWidth: '900px', margin: '0 auto', padding: '24px' }}>
+    <AppShell>
+      <div className="crumb">
+        <span>HOME</span><span className="crumb-sep">/</span><span>GAMES</span>
+        <span className="crumb-sep">/</span><span style={{ color: 'var(--text-secondary)' }}>BLACKJACK</span>
+      </div>
+      <div className="game-page-head">
+        <h1 className="h-title">Blackjack</h1>
+        <div className="game-meta-spec">
+          <span>SINGLE DECK</span><span className="dot">·</span><span>BJ PAYS 3:2</span><span className="dot">·</span><span>DEALER STANDS 17</span>
+          <button className="icon-btn" onClick={store.toggleMute} title={store.isMuted ? 'Unmute' : 'Mute'} style={{ fontSize: 14 }}>{store.isMuted ? '🔇' : '🔊'}</button>
+        </div>
+      </div>
 
-        {/* Page header */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
-          <h1 style={{ margin: 0, color: '#e0d7ff', fontSize: '1.75rem' }}>Blackjack</h1>
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-            <button
-              onClick={store.toggleMute}
-              title={store.isMuted ? 'Unmute' : 'Mute'}
-              style={{
-                padding: '8px 12px',
-                backgroundColor: '#1a1a2e',
-                color: '#e0d7ff',
-                border: '1px solid #2d2d4e',
-                borderRadius: '8px',
-                cursor: 'pointer',
-                fontSize: '1rem',
-              }}
-            >
-              {store.isMuted ? '🔇' : '🔊'}
-            </button>
-            <button
-              onClick={() => setShowHowTo(true)}
-              style={{
-                padding: '8px 16px',
-                backgroundColor: '#1a1a2e',
-                color: '#e0d7ff',
-                border: '1px solid #2d2d4e',
-                borderRadius: '8px',
-                cursor: 'pointer',
-                fontSize: '0.85rem',
-              }}
-            >
-              ?
-            </button>
+      {error && <div className="notice loss" style={{ marginBottom: 16, textAlign: 'left' }}>{error}</div>}
+
+      <div className="game-layout">
+        <div className="game-stage" style={{ padding: 14 }}>
+          <div className="felt">
+            <div className="felt-label">VCASINO · BLACKJACK</div>
+
+            {/* Dealer */}
+            <div className="hand-row">
+              <div className="hand-label">
+                <span>DEALER</span>
+                <span className="total">{dealerTotal}</span>
+              </div>
+              <div className="cards-row">
+                {dealerCards.map((c, i) => (
+                  <DealtCard key={`dealer-${phase}-${i}`} card={c} flip={isSettled && i === 1} />
+                ))}
+              </div>
+            </div>
+
+            {/* Settlement banner */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 32 }}>
+              {isSettled && (
+                <div
+                  style={{
+                    padding: '8px 22px', borderRadius: 8,
+                    fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: 13, letterSpacing: '0.12em',
+                    background: 'var(--bg-elevated)', border: '1px solid var(--border)',
+                  }}
+                >
+                  RESULT&nbsp;&nbsp;
+                  <span className={`bj-net ${netClass}`}>
+                    {netTotal > 0 ? '+' : netTotal < 0 ? '−' : ''}{Math.abs(netTotal).toLocaleString()} V
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Player hands */}
+            <div className="player-hands">
+              {isBetting
+                ? placeholders.map((i) => (
+                    <div className="bj-hand" key={`ph-${i}`}>
+                      <div className="cards-row">
+                        <CardFace card="facedown" />
+                        <CardFace card="facedown" />
+                      </div>
+                      <div className="bj-hand-foot">
+                        <span className="bj-val">—</span>
+                        <span>{betAmount} V</span>
+                      </div>
+                    </div>
+                  ))
+                : hands.map((h, i) => (
+                    <PlayerHand
+                      key={`hand-${i}`}
+                      hand={h}
+                      index={i}
+                      active={isPlayerTurn && i === activeHandIndex}
+                      settled={isSettled}
+                    />
+                  ))}
+            </div>
           </div>
         </div>
 
-        {error && (
-          <div style={{ color: '#ef4444', marginBottom: '16px', fontSize: '0.9rem' }}>{error}</div>
-        )}
-
-        {/* Card table area — only shown once a hand is in progress or settled */}
-        {(isPlayerTurn || isSettled) && (
-          <div
-            style={{
-              backgroundColor: '#1a3a1a',
-              borderRadius: '16px',
-              padding: '24px',
-              border: '2px solid #2d5a2d',
-              marginBottom: '24px',
-              boxShadow: '0 4px 24px rgba(0,0,0,0.5)',
-            }}
-          >
-            {/* Dealer area */}
-            <div style={{ marginBottom: '24px' }}>
-              <HandArea
-                label="Dealer"
-                valueLabel={dealerValueLabel}
-                cards={dealerCards}
-                showFacedown={isPlayerTurn}
-                newCardIndex={undefined}
-              />
-            </div>
-
-            <div style={{ borderTop: '1px solid #2d5a2d', marginBottom: '24px' }} />
-
-            {/* Player area */}
-            <HandArea
-              label="Player"
-              valueLabel={String(playerValue)}
-              cards={playerHand}
-              newCardIndex={newPlayerCardIndex}
-            />
+        {/* Bet / action panel */}
+        <div className="bet-panel">
+          <div className="tabs-2">
+            <button className="active" type="button">Manual</button>
+            <button type="button" disabled style={{ opacity: 0.4, cursor: 'not-allowed' }}>Auto</button>
           </div>
-        )}
+          <div className="body">
+            {isBetting && (
+              <>
+                <div>
+                  <label className="label">Bet per hand</label>
+                  <div className="amount-row">
+                    <input
+                      className="input"
+                      data-mono
+                      type="number"
+                      min={1}
+                      value={betAmount}
+                      onChange={(e) => store.setBetAmount(Math.max(1, Math.floor(+e.target.value || 0)))}
+                    />
+                    <span className="coin-suffix"><span className="dot" /> COINS</span>
+                  </div>
+                </div>
 
-        {/* Outcome banner */}
-        <AnimatePresence>
-          {isSettled && outcomeDisplay && (
-            <motion.div
-              key="bj-outcome"
-              initial={{ opacity: 0, y: -8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              style={{
-                textAlign: 'center',
-                fontSize: '1.5rem',
-                fontWeight: 700,
-                color: outcomeDisplay.color,
-                marginBottom: '20px',
-                padding: '16px',
-                backgroundColor: '#1a1a2e',
-                borderRadius: '12px',
-                border: `2px solid ${outcomeDisplay.color}`,
-                boxShadow: `0 0 20px ${outcomeDisplay.color}40`,
-              }}
-            >
-              {outcomeDisplay.text}
-            </motion.div>
-          )}
-        </AnimatePresence>
+                <div className="quick-bets">
+                  <button type="button" onClick={() => quickBet(betAmount / 2)}>½</button>
+                  <button type="button" onClick={() => quickBet(betAmount * 2)}>2×</button>
+                  <button type="button" onClick={() => quickBet(1)}>MIN</button>
+                  <button type="button" onClick={() => quickBet(balance ?? betAmount)}>MAX</button>
+                </div>
 
-        {/* Action buttons — Hit, Stand, Double Down — visible during player turn */}
-        {isPlayerTurn && (
-          <div style={{ display: 'flex', gap: '12px', marginBottom: '24px' }}>
-            <button
-              onClick={() => void handleHit()}
-              disabled={controlsDisabled}
-              style={actionBtnStyle(controlsDisabled, '#16a34a')}
-            >
-              Hit
-            </button>
-            <button
-              onClick={() => void handleStand()}
-              disabled={controlsDisabled}
-              style={actionBtnStyle(controlsDisabled, '#7c3aed')}
-            >
-              Stand
-            </button>
-            <button
-              onClick={() => void handleDouble()}
-              disabled={controlsDisabled}
-              style={actionBtnStyle(controlsDisabled, '#b45309')}
-            >
-              2x {betAmount * 2}
-            </button>
-          </div>
-        )}
+                <div className="quick-bets">
+                  {CHIP_VALUES.map((v) => (
+                    <button key={v} type="button" className={betAmount === v ? 'active' : ''} onClick={() => store.setBetAmount(v)} style={betAmount === v ? { borderColor: 'var(--accent)', color: 'var(--accent)' } : undefined}>
+                      {v}
+                    </button>
+                  ))}
+                </div>
 
-        {/* Play Again button — settled phase */}
-        {isSettled && (
-          <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-            <button
-              onClick={store.resetToConfig}
-              style={{
-                padding: '12px 36px',
-                backgroundColor: '#7c3aed',
-                color: '#ffffff',
-                border: 'none',
-                borderRadius: '10px',
-                cursor: 'pointer',
-                fontSize: '1rem',
-                fontWeight: 700,
-              }}
-            >
-              Play Again
-            </button>
-          </div>
-        )}
+                <div>
+                  <label className="label">Hands</label>
+                  <div className="hand-stepper">
+                    <button type="button" onClick={store.decHands} disabled={handCount <= 1} aria-label="Fewer hands">−</button>
+                    <span className="count">{handCount}</span>
+                    <button type="button" onClick={store.incHands} disabled={handCount >= 3} aria-label="More hands">+</button>
+                    <span style={{ marginLeft: 'auto', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontSize: 11 }}>
+                      TOTAL {totalStake.toLocaleString()} V
+                    </span>
+                  </div>
+                </div>
 
-        {/* Betting panel — shown during betting phase */}
-        {isBetting && (
-          <div style={{ backgroundColor: '#1a1a2e', borderRadius: '12px', padding: '24px', border: '1px solid #2d2d4e' }}>
-            <label style={{ color: '#718096', fontSize: '0.8rem', fontWeight: 600, display: 'block', marginBottom: '10px' }}>
-              BET AMOUNT
-            </label>
-
-            {/* Numeric input */}
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '10px' }}>
-              <button
-                onClick={() => store.setBetAmount(betAmount - 1)}
-                style={halfDoubleBtnStyle(false)}
-              >
-                -
-              </button>
-              <input
-                type="number"
-                value={betAmount}
-                min={1}
-                onChange={(e) => store.setBetAmount(Number(e.target.value))}
-                style={{
-                  flex: 1,
-                  textAlign: 'center',
-                  backgroundColor: '#0d0d1a',
-                  color: '#e0d7ff',
-                  border: '1px solid #2d2d4e',
-                  borderRadius: '6px',
-                  padding: '8px',
-                  fontSize: '1.1rem',
-                  fontWeight: 600,
-                }}
-              />
-              <button
-                onClick={() => store.setBetAmount(betAmount + 1)}
-                style={halfDoubleBtnStyle(false)}
-              >
-                +
-              </button>
-            </div>
-
-            {/* Chip quick-select */}
-            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '10px' }}>
-              {CHIP_VALUES.map((v) => (
-                <button
-                  key={v}
-                  onClick={() => store.setBetAmount(v)}
-                  style={chipBtnStyle(betAmount === v, false)}
-                >
-                  {v}
+                <button className="btn btn-primary place-bet" disabled={isLoading} onClick={() => void handleDeal()} type="button">
+                  {isLoading ? 'Dealing…' : `Deal · ${totalStake.toLocaleString()} V`}
                 </button>
-              ))}
-              <button
-                onClick={() => { if (balance !== null) store.setBetAmount(balance); }}
-                disabled={balance === null}
-                style={chipBtnStyle(false, balance === null)}
-              >
-                Max
-              </button>
-            </div>
+              </>
+            )}
 
-            {/* Half / Double */}
-            <div style={{ display: 'flex', gap: '8px', marginBottom: '20px' }}>
-              <button onClick={store.halfBet} style={halfDoubleBtnStyle(false)}>
-                1/2
-              </button>
-              <button onClick={store.doubleBet} style={halfDoubleBtnStyle(false)}>
-                2x
-              </button>
-            </div>
+            {isPlayerTurn && (
+              <>
+                <div className="bet-summary">
+                  <div className="row">
+                    <span>Hand</span>
+                    <span className="mono">{activeHandIndex + 1} of {hands.length}</span>
+                  </div>
+                  <div className="row">
+                    <span>Hand value</span>
+                    <span className="mono">{hands[activeHandIndex]?.value ?? '—'}</span>
+                  </div>
+                  <div className="row">
+                    <span>Bet</span>
+                    <span className="mono">{activeBet} V</span>
+                  </div>
+                </div>
 
-            {/* Deal button */}
-            <button
-              onClick={() => void handleDeal()}
-              disabled={isLoading}
-              style={{
-                width: '100%',
-                padding: '14px',
-                backgroundColor: isLoading ? '#4a4a6e' : '#7c3aed',
-                color: '#ffffff',
-                border: 'none',
-                borderRadius: '12px',
-                cursor: isLoading ? 'not-allowed' : 'pointer',
-                fontSize: '1.1rem',
-                fontWeight: 700,
-                letterSpacing: '0.05em',
-                transition: 'background-color 0.15s',
-              }}
-            >
-              {isLoading ? 'Dealing...' : 'Deal'}
-            </button>
+                <div className="card-inset" style={{ padding: 12 }}>
+                  <div className="section-title" style={{ marginBottom: 10 }}>Actions</div>
+                  <div className="action-row">
+                    <button className="btn btn-ghost" disabled={isLoading} onClick={() => void act('hit')}>Hit</button>
+                    <button className="btn btn-ghost" disabled={isLoading} onClick={() => void act('stand')}>Stand</button>
+                    <button className="btn btn-ghost" disabled={isLoading || !canDouble} onClick={() => void act('double')}>
+                      Double · {activeBet}
+                    </button>
+                    <button className="btn btn-ghost" disabled={isLoading || !canSplit} onClick={() => void act('split')}>Split</button>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {isSettled && (
+              <>
+                <div className="bet-summary">
+                  {hands.map((h, i) => {
+                    const net = handNet(h);
+                    const cls = net > 0 ? 'win' : net < 0 ? 'loss' : 'flat';
+                    return (
+                      <div className="row" key={i}>
+                        <span>Hand {i + 1}{h.isDoubled ? ' (2×)' : ''}</span>
+                        <span className={`mono bj-net ${cls}`}>{net > 0 ? '+' : net < 0 ? '−' : ''}{Math.abs(net).toLocaleString()} V</span>
+                      </div>
+                    );
+                  })}
+                  <div className="row" style={{ borderTop: '1px solid var(--border)', paddingTop: 8, marginTop: 4 }}>
+                    <span>Net</span>
+                    <span className={`mono bj-net ${netClass}`}>{netTotal > 0 ? '+' : netTotal < 0 ? '−' : ''}{Math.abs(netTotal).toLocaleString()} V</span>
+                  </div>
+                </div>
+                <button className="btn btn-primary place-bet" onClick={store.reset} type="button">
+                  Play again
+                </button>
+              </>
+            )}
           </div>
-        )}
-      </main>
-
-      <BlackjackHowToPlay open={showHowTo} onClose={() => setShowHowTo(false)} />
-    </div>
+        </div>
+      </div>
+    </AppShell>
   );
 }
 

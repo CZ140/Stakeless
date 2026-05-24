@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
+import { AuthLayout } from '../components/vault/AuthLayout';
 
 export function LoginPage() {
   const { signIn } = useAuth();
@@ -13,6 +14,7 @@ export function LoginPage() {
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [remember, setRemember] = useState(true);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -37,42 +39,54 @@ export function LoginPage() {
   }
 
   return (
-    <div style={{ maxWidth: 400, margin: '80px auto', padding: '0 16px' }}>
-      <h1>Sign In</h1>
-      {sessionExpired && <p style={{ color: 'orange' }}>Your session expired — please log in again.</p>}
-      {justVerified && <p style={{ color: 'green' }}>Email verified! You can now log in.</p>}
-      <form onSubmit={handleSubmit}>
-        <div>
-          <label htmlFor="email">Email</label>
-          <input
-            id="email"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            autoComplete="email"
-            style={{ display: 'block', width: '100%', marginBottom: 8 }}
-          />
+    <AuthLayout>
+      <div className="auth-card">
+        <div className="auth-eyebrow">SIGN IN · RETURNING PLAYER</div>
+        <h1>Welcome back.</h1>
+        <p className="subtitle">Sign in to play with virtual coins. No real money — just for fun.</p>
+
+        {justVerified && <div className="auth-note">Email verified — you can sign in now.</div>}
+        {sessionExpired && !error && <div className="auth-error">Your session expired — please sign in again.</div>}
+        {error && <div className="auth-error">{error}</div>}
+
+        <form onSubmit={handleSubmit}>
+          <div className="field">
+            <div className="field-row"><label className="label" htmlFor="email">Email</label></div>
+            <input
+              id="email" className="input" type="email" value={email}
+              onChange={(e) => setEmail(e.target.value)} required autoComplete="email"
+            />
+          </div>
+
+          <div className="field">
+            <div className="field-row">
+              <label className="label" htmlFor="password">Password</label>
+              <Link to="/forgot-password">Forgot?</Link>
+            </div>
+            <input
+              id="password" className="input" type="password" value={password}
+              onChange={(e) => setPassword(e.target.value)} required autoComplete="current-password"
+            />
+          </div>
+
+          <div className="check-row">
+            <label className="checkbox">
+              <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
+              <span className="box" />
+              Keep me signed in
+            </label>
+            <span className="micro">SECURE · 256-BIT</span>
+          </div>
+
+          <button type="submit" className="btn btn-primary submit" disabled={loading}>
+            {loading ? <><span className="spinner" />Signing in…</> : 'Sign in'}
+          </button>
+        </form>
+
+        <div className="auth-foot-link">
+          New to VCasino? <Link to="/register">Create an account →</Link>
         </div>
-        <div>
-          <label htmlFor="password">Password</label>
-          <input
-            id="password"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            autoComplete="current-password"
-            style={{ display: 'block', width: '100%', marginBottom: 8 }}
-          />
-        </div>
-        {error && <p style={{ color: 'red' }}>{error}</p>}
-        <button type="submit" disabled={loading} style={{ width: '100%' }}>
-          {loading ? 'Signing in...' : 'Sign In'}
-        </button>
-      </form>
-      <p><Link to="/forgot-password">Forgot password?</Link></p>
-      <p>Don't have an account? <Link to="/register">Sign up</Link></p>
-    </div>
+      </div>
+    </AuthLayout>
   );
 }

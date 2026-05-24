@@ -1,15 +1,13 @@
-import { useState } from 'react';
-import { Header } from '../components/Header';
+import { useEffect, useMemo, useState } from 'react';
+import { AppShell } from '../components/vault/AppShell';
 import { RouletteWheel } from '../components/RouletteWheel';
-import { RouletteTable } from '../components/RouletteTable';
-import { ChipRack } from '../components/ChipRack';
 import { ResultOverlay } from '../components/ResultOverlay';
 import { HowToPlayModal } from '../components/HowToPlayModal';
-import { RouletteHistory } from '../components/RouletteHistory';
-import { useRouletteStore } from '../stores/rouletteStore';
+import { useRouletteStore, getPocketColor, type BetZone, type PlacedChip } from '../stores/rouletteStore';
 import { useBalanceStore } from '../stores/balanceStore';
 import { useGameSounds } from '../hooks/useGameSounds';
 import { apiClient } from '../api/client';
+import { XIcon } from '../components/vault/icons';
 
 interface RouletteResponse {
   winningPocket: number;
@@ -17,25 +15,47 @@ interface RouletteResponse {
   newBalance: number;
 }
 
+const CHIP_AMOUNTS = [10, 50, 100, 500] as const;
+
+function zoneLabel(zone: string): string {
+  if (zone.startsWith('number_')) return zone.slice(7);
+  if (zone.startsWith('dozen_')) return ['1st 12', '2nd 12', '3rd 12'][+zone.slice(6) - 1] ?? zone;
+  if (zone.startsWith('col_')) return `Col ${zone.slice(4)}`;
+  return zone.charAt(0).toUpperCase() + zone.slice(1);
+}
+
 export function RoulettePage() {
-  const { placedChips, gamePhase, isMuted, setGamePhase, clearAll, addToHistory } = useRouletteStore();
+  const {
+    placedChips, selectedChip, setSelectedChip, placeChip,
+    undoLast, clearAll, halfBet, doubleBet, rebet,
+    gamePhase, isMuted, toggleMute, setGamePhase, addToHistory, history,
+  } = useRouletteStore();
+  const balance = useBalanceStore((s) => s.balance);
   const { playWin, playLoss } = useGameSounds(isMuted);
+
   const [winningPocket, setWinningPocket] = useState<number | null>(null);
-  const [lastResult, setLastResult] = useState<{ winningPocket: number; netAmount: number; bets: typeof placedChips } | null>(null);
+  const [lastResult, setLastResult] = useState<{ winningPocket: number; netAmount: number; bets: PlacedChip[] } | null>(null);
   const [showHowTo, setShowHowTo] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pendingBalance, setPendingBalance] = useState<number | null>(null);
 
-  // Suppress unused import warning - useBalanceStore used in getState().setBalance
-  void useBalanceStore;
-
   const totalBet = placedChips.reduce((sum, c) => sum + c.amount, 0);
   const isSpinning = gamePhase === 'spinning';
   const isResult = gamePhase === 'result';
+  const locked = isSpinning || isResult;
+
+  const chipsByZone = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const c of placedChips) map[c.zone] = (map[c.zone] ?? 0) + c.amount;
+    return map;
+  }, [placedChips]);
+
+  function place(zone: BetZone) {
+    if (locked) return;
+    placeChip(zone);
+  }
 
   async function handleSpin() {
-    // If result overlay is showing, dismiss it and return to betting phase first.
-    // User can then adjust bets and spin again.
     if (isResult) {
       handlePlayAgain();
       return;
@@ -43,41 +63,24 @@ export function RoulettePage() {
     if (totalBet === 0 || isSpinning) return;
     setError(null);
     setGamePhase('spinning');
-
     try {
-      const res = await apiClient.post<RouletteResponse>('/games/roulette/bet', {
-        bets: placedChips,
-      });
+      const res = await apiClient.post<RouletteResponse>('/games/roulette/bet', { bets: placedChips });
       const { winningPocket: pocket, profit, newBalance } = res.data;
-
-      // Save last bet for Rebet button BEFORE clearing chips
       localStorage.setItem('lastBet_roulette', JSON.stringify(placedChips));
-
-      // Calculate net amount: profit - totalBet
-      // (deductBet removed totalBet; profit is pure winnings added back)
       const netAmount = profit - totalBet;
-
       setWinningPocket(pocket);
       setLastResult({ winningPocket: pocket, netAmount, bets: [...placedChips] });
-      // gamePhase stays 'spinning' - RouletteWheel's onSettled transitions to 'result'
-      // Balance update deferred to onSettled to sync with animation end
       setPendingBalance(newBalance);
     } catch (err: unknown) {
       const axiosErr = err as { response?: { data?: { error?: string }; status?: number } };
-      if (axiosErr.response?.status === 402) {
-        setError('Insufficient funds to place this bet.');
-      } else {
-        setError(axiosErr.response?.data?.error ?? 'Something went wrong. Please try again.');
-      }
+      if (axiosErr.response?.status === 402) setError('Insufficient funds to place this bet.');
+      else setError(axiosErr.response?.data?.error ?? 'Something went wrong. Please try again.');
       setGamePhase('betting');
     }
   }
 
   function handleWheelSettled() {
-    // Animation complete - now show result and play sound
-    if (pendingBalance !== null) {
-      useBalanceStore.getState().setBalance(pendingBalance);
-    }
+    if (pendingBalance !== null) useBalanceStore.getState().setBalance(pendingBalance);
     const net = lastResult?.netAmount ?? 0;
     if (net > 0) playWin();
     else playLoss();
@@ -92,69 +95,233 @@ export function RoulettePage() {
     setGamePhase('betting');
   }
 
+  // Auto-clear the result and return to betting after a short pause (the player
+  // can also click the wheel or "Play again" to clear it immediately).
+  useEffect(() => {
+    if (gamePhase !== 'result') return;
+    const t = setTimeout(() => {
+      setWinningPocket(null);
+      setLastResult(null);
+      setGamePhase('betting');
+    }, 2600);
+    return () => clearTimeout(t);
+  }, [gamePhase, setGamePhase]);
+
+  function handleRebet() {
+    const raw = localStorage.getItem('lastBet_roulette');
+    if (!raw) return;
+    try {
+      rebet(JSON.parse(raw) as PlacedChip[]);
+    } catch {
+      /* ignore corrupt data */
+    }
+  }
+
+  const spinLabel = isSpinning ? 'Spinning…' : isResult ? 'Play again' : totalBet > 0 ? `Spin · ${totalBet} V` : 'Place a bet';
+
+  // 3 rows × 12 columns of numbers (European layout: top row 3,6,…,36).
+  const numberRows = [0, 1, 2].map((row) => Array.from({ length: 12 }, (_, col) => col * 3 + (3 - row)));
+  const columnZones: BetZone[] = ['col_3', 'col_2', 'col_1'];
+
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#0d0d1a', color: '#ffffff' }}>
-      <Header />
-      <main style={{ maxWidth: '1200px', margin: '0 auto', padding: '24px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
-          <h1 style={{ margin: 0, color: '#e0d7ff', fontSize: '1.75rem' }}>Roulette</h1>
-          <button
-            onClick={() => setShowHowTo(true)}
-            style={{
-              padding: '8px 16px',
-              backgroundColor: '#1a1a2e',
-              color: '#e0d7ff',
-              border: '1px solid #2d2d4e',
-              borderRadius: '8px',
-              cursor: 'pointer',
-              fontSize: '0.85rem',
-            }}
-          >
-            How to Play
+    <AppShell>
+      <div className="crumb">
+        <span>HOME</span><span className="crumb-sep">/</span><span>GAMES</span>
+        <span className="crumb-sep">/</span><span style={{ color: 'var(--text-secondary)' }}>ROULETTE</span>
+      </div>
+      <div className="game-page-head">
+        <h1 className="h-title">
+          Roulette <span style={{ color: 'var(--text-muted)', fontWeight: 400, fontSize: 14 }}>European · single zero</span>
+        </h1>
+        <div className="game-meta-spec">
+          <span>HOUSE EDGE 2.70%</span>
+          <span className="dot">·</span>
+          <span>MIN 1 · MAX 10,000</span>
+          <button className="btn btn-ghost" style={{ padding: '6px 14px', fontSize: 12 }} onClick={() => setShowHowTo(true)}>
+            How to play
           </button>
         </div>
+      </div>
 
-        {error && (
-          <div style={{ color: '#ef4444', marginBottom: '16px', fontSize: '0.9rem' }}>
-            {error}
-          </div>
-        )}
+      {error && (
+        <div className="notice loss" style={{ marginBottom: 16, textAlign: 'left' }}>{error}</div>
+      )}
 
-        <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
-          {/* Left: Wheel */}
-          <div style={{ position: 'relative', flex: '0 0 auto' }}>
-            <RouletteWheel
-              winningPocket={winningPocket}
-              onSettled={handleWheelSettled}
-            />
-            <ResultOverlay
-              visible={isResult}
-              winningPocket={lastResult?.winningPocket ?? null}
-              netAmount={lastResult?.netAmount ?? 0}
-              bets={lastResult?.bets ?? []}
-            />
-          </div>
-
-          {/* Center: Table + Controls */}
-          <div style={{ flex: 1, minWidth: '300px' }}>
-            <RouletteTable disabled={isSpinning || isResult} />
-            <div style={{ marginTop: '20px' }}>
-              <ChipRack
-                onSpin={() => void handleSpin()}
-                disabled={isSpinning || isResult}
-                spinDisabled={isSpinning}
-                showingResult={isResult}
-                totalBet={totalBet}
+      <div className="game-layout">
+        <div className="game-stage">
+          <div className="roulette-stage">
+            <div
+              style={{ position: 'relative', cursor: isResult ? 'pointer' : 'default' }}
+              onClick={isResult ? handlePlayAgain : undefined}
+              title={isResult ? 'Click to bet again' : undefined}
+            >
+              <RouletteWheel winningPocket={winningPocket} onSettled={handleWheelSettled} />
+              <ResultOverlay
+                visible={isResult}
+                winningPocket={lastResult?.winningPocket ?? null}
+                netAmount={lastResult?.netAmount ?? 0}
+                bets={lastResult?.bets ?? []}
               />
+            </div>
+
+            <div style={{ width: '100%' }}>
+              <div className="section-title" style={{ marginBottom: 10 }}>Inside bets</div>
+              <div className="bet-board">
+                <div className={'bet-cell zero' + (locked ? ' disabled' : '')} onClick={() => place('number_0')}>
+                  0{chipsByZone['number_0'] != null && <span className="stack">{chipsByZone['number_0']}</span>}
+                </div>
+                {numberRows.map((rowNums, row) => (
+                  <RowCells key={row} rowNums={rowNums} place={place} chipsByZone={chipsByZone} locked={locked} columnZone={columnZones[row] ?? 'col_1'} />
+                ))}
+              </div>
+
+              <div className="section-title" style={{ margin: '14px 0 10px' }}>Outside bets</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 4, marginBottom: 4 }}>
+                {(['dozen_1', 'dozen_2', 'dozen_3'] as BetZone[]).map((z) => (
+                  <div key={z} className={'bet-cell outside' + (locked ? ' disabled' : '')} onClick={() => place(z)}>
+                    {zoneLabel(z)}{chipsByZone[z] != null && <span className="stack">{chipsByZone[z]}</span>}
+                  </div>
+                ))}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 4 }}>
+                {(['red', 'even', 'odd', 'black'] as BetZone[]).map((z) => (
+                  <div
+                    key={z}
+                    className={'bet-cell ' + (z === 'red' ? 'red' : z === 'black' ? 'black' : 'outside') + (locked ? ' disabled' : '')}
+                    style={z === 'red' || z === 'black' ? { color: 'white', textTransform: 'uppercase', fontSize: 11 } : undefined}
+                    onClick={() => place(z)}
+                  >
+                    {zoneLabel(z)}{chipsByZone[z] != null && <span className="stack">{chipsByZone[z]}</span>}
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
 
-          {/* Right: History sidebar */}
-          <RouletteHistory />
+          <div className="history-strip">
+            <span className="label">last {Math.min(history.length, 15) || ''}</span>
+            {history.length === 0 && <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>No spins yet</span>}
+            {history.slice(0, 15).map((h, i) => (
+              <div key={i} className={`chip-pip ${h.color}`}>{h.pocket}</div>
+            ))}
+          </div>
         </div>
-      </main>
+
+        {/* Bet panel — chip-based */}
+        <div className="bet-panel">
+          <div className="tabs-2">
+            <button className="active" type="button">Manual</button>
+            <button type="button" disabled style={{ opacity: 0.4, cursor: 'not-allowed' }}>Auto</button>
+          </div>
+          <div className="body">
+            <div>
+              <label className="label">Chip value</label>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {CHIP_AMOUNTS.map((amt) => (
+                  <button
+                    key={amt}
+                    type="button"
+                    onClick={() => setSelectedChip(amt)}
+                    style={{
+                      width: 48, height: 48, borderRadius: '50%',
+                      fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: 12, cursor: 'pointer',
+                      background: selectedChip === amt ? 'var(--accent)' : 'var(--bg-elevated)',
+                      color: selectedChip === amt ? '#021a0e' : 'var(--text-secondary)',
+                      border: selectedChip === amt ? '2px solid #00f08c' : '1px solid var(--border)',
+                      boxShadow: selectedChip === amt ? '0 0 0 3px var(--accent-glow)' : 'none',
+                    }}
+                  >
+                    {amt}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setSelectedChip(Math.max(1, Math.floor(balance ?? 1)))}
+                  style={{
+                    width: 48, height: 48, borderRadius: '50%',
+                    fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: 11, cursor: 'pointer',
+                    background: 'var(--bg-elevated)', color: 'var(--text-secondary)', border: '1px solid var(--border)',
+                  }}
+                >
+                  MAX
+                </button>
+              </div>
+            </div>
+
+            <div className="quick-bets" style={{ gridTemplateColumns: 'repeat(5, 1fr)' }}>
+              <button type="button" disabled={locked} onClick={halfBet}>½</button>
+              <button type="button" disabled={locked} onClick={doubleBet}>2×</button>
+              <button type="button" disabled={locked} onClick={undoLast}>Undo</button>
+              <button type="button" disabled={locked} onClick={handleRebet}>Rebet</button>
+              <button type="button" onClick={toggleMute} title={isMuted ? 'Unmute' : 'Mute'}>{isMuted ? '🔇' : '🔊'}</button>
+            </div>
+
+            <div className="card-inset" style={{ padding: 12 }}>
+              <div className="section-title" style={{ marginBottom: 8 }}>Active bets</div>
+              {placedChips.length === 0 && (
+                <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>No bets yet — click a cell on the table.</div>
+              )}
+              {Object.entries(chipsByZone).slice(0, 5).map(([z, v]) => (
+                <div key={z} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '4px 0' }}>
+                  <span style={{ color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>{zoneLabel(z)}</span>
+                  <span className="num">{v}</span>
+                </div>
+              ))}
+              {placedChips.length > 0 && !locked && (
+                <button className="btn btn-ghost" onClick={clearAll} style={{ width: '100%', marginTop: 8, padding: 6, fontSize: 11 }}>
+                  <XIcon size={12} /> Clear all
+                </button>
+              )}
+            </div>
+
+            <div className="bet-summary">
+              <div className="row"><span>Total wager</span><span className="mono">{totalBet} V</span></div>
+              <div className="row"><span>Bets placed</span><span className="mono">{placedChips.length}</span></div>
+            </div>
+
+            <button
+              className="btn btn-primary place-bet"
+              disabled={isSpinning || (!isResult && totalBet === 0)}
+              onClick={() => void handleSpin()}
+              type="button"
+            >
+              {spinLabel}
+            </button>
+          </div>
+        </div>
+      </div>
 
       <HowToPlayModal open={showHowTo} onClose={() => setShowHowTo(false)} />
-    </div>
+    </AppShell>
   );
 }
+
+interface RowCellsProps {
+  rowNums: number[];
+  place: (z: BetZone) => void;
+  chipsByZone: Record<string, number>;
+  locked: boolean;
+  columnZone: BetZone;
+}
+
+function RowCells({ rowNums, place, chipsByZone, locked, columnZone }: RowCellsProps) {
+  return (
+    <>
+      {rowNums.map((n) => (
+        <div
+          key={n}
+          className={`bet-cell ${getPocketColor(n)}` + (locked ? ' disabled' : '')}
+          onClick={() => place(`number_${n}` as BetZone)}
+        >
+          {n}
+          {chipsByZone[`number_${n}`] != null && <span className="stack">{chipsByZone[`number_${n}`]}</span>}
+        </div>
+      ))}
+      <div className={'bet-cell outside' + (locked ? ' disabled' : '')} onClick={() => place(columnZone)}>
+        2:1{chipsByZone[columnZone] != null && <span className="stack">{chipsByZone[columnZone]}</span>}
+      </div>
+    </>
+  );
+}
+
+export default RoulettePage;

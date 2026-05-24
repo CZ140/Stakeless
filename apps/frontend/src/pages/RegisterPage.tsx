@@ -1,6 +1,35 @@
 import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
+import { AuthLayout } from '../components/vault/AuthLayout';
+import { CoinIcon, ZapIcon } from '../components/vault/icons';
+
+function PerksStrip() {
+  return (
+    <div className="perks-strip">
+      <div className="perk">
+        <div className="pico" style={{ background: 'var(--gold-soft)', color: 'var(--gold)' }}><CoinIcon size={14} /></div>
+        <div className="pval">1,000 V</div>
+        <div className="plab">Signup bonus</div>
+      </div>
+      <div className="perk">
+        <div className="pico" style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}><ZapIcon size={12} /></div>
+        <div className="pval">+100 / day</div>
+        <div className="plab">Daily bonus</div>
+      </div>
+      <div className="perk">
+        <div className="pico" style={{ background: 'rgba(91,141,239,0.18)', color: 'var(--blue)' }}>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="3" width="8" height="8" rx="1.5" /><rect x="13" y="3" width="8" height="8" rx="1.5" />
+            <rect x="3" y="13" width="8" height="8" rx="1.5" /><rect x="13" y="13" width="8" height="8" rx="1.5" />
+          </svg>
+        </div>
+        <div className="pval">4 games</div>
+        <div className="plab">Full library</div>
+      </div>
+    </div>
+  );
+}
 
 export function RegisterPage() {
   const [email, setEmail] = useState('');
@@ -34,51 +63,62 @@ export function RegisterPage() {
 
   if (success) {
     return (
-      <div style={{ maxWidth: 400, margin: '80px auto', padding: '0 16px' }}>
-        <h1>Check your email</h1>
-        <p>We sent a verification link to <strong>{email}</strong>. Click the link to activate your account.</p>
-        <p><Link to="/login">Back to sign in</Link></p>
-      </div>
+      <AuthLayout>
+        <div className="auth-card">
+          <div className="auth-eyebrow">CHECK YOUR EMAIL</div>
+          <h1>Almost there.</h1>
+          <p className="subtitle">
+            We sent a verification link to <strong style={{ color: 'var(--text)' }}>{email}</strong>. Click it to
+            activate your account and claim your 1,000 coins.
+          </p>
+          <div className="auth-foot-link">
+            <Link to="/login">Back to sign in →</Link>
+          </div>
+        </div>
+      </AuthLayout>
     );
   }
 
   return (
-    <div style={{ maxWidth: 400, margin: '80px auto', padding: '0 16px' }}>
-      <h1>Create account</h1>
-      <form onSubmit={handleSubmit}>
-        <div>
-          <label htmlFor="email">Email</label>
-          <input
-            id="email"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            autoComplete="email"
-            style={{ display: 'block', width: '100%', marginBottom: 4 }}
-          />
-          {fieldErrors['email'] && <p style={{ color: 'red', marginTop: 0 }}>{fieldErrors['email']}</p>}
+    <AuthLayout aside={<PerksStrip />}>
+      <div className="auth-card">
+        <div className="auth-eyebrow">CREATE ACCOUNT · CLAIM 1,000 V</div>
+        <h1>Join the table.</h1>
+        <p className="subtitle">Get 1,000 coins on signup. Daily bonuses, leaderboards, the full game library.</p>
+
+        {serverError && <div className="auth-error">{serverError}</div>}
+
+        <form onSubmit={handleSubmit}>
+          <div className="field">
+            <div className="field-row"><label className="label" htmlFor="email">Email</label></div>
+            <input
+              id="email" className="input" type="email" value={email}
+              onChange={(e) => setEmail(e.target.value)} required autoComplete="email"
+            />
+            {fieldErrors['email'] && <div style={{ color: 'var(--loss)', fontSize: 12, marginTop: 6 }}>{fieldErrors['email']}</div>}
+          </div>
+
+          <div className="field">
+            <div className="field-row"><label className="label" htmlFor="password">Password</label></div>
+            <input
+              id="password" className="input" type="password" value={password}
+              onChange={(e) => setPassword(e.target.value)} required autoComplete="new-password" minLength={8}
+              placeholder="at least 8 characters"
+            />
+            {fieldErrors['password'] && <div style={{ color: 'var(--loss)', fontSize: 12, marginTop: 6 }}>{fieldErrors['password']}</div>}
+          </div>
+
+          <div style={{ height: 8 }} />
+
+          <button type="submit" className="btn btn-primary submit" disabled={loading}>
+            {loading ? <><span className="spinner" />Creating account…</> : 'Create account · claim 1,000 V'}
+          </button>
+        </form>
+
+        <div className="auth-foot-link">
+          Already have an account? <Link to="/login">Sign in →</Link>
         </div>
-        <div>
-          <label htmlFor="password">Password</label>
-          <input
-            id="password"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            autoComplete="new-password"
-            minLength={8}
-            style={{ display: 'block', width: '100%', marginBottom: 4 }}
-          />
-          {fieldErrors['password'] && <p style={{ color: 'red', marginTop: 0 }}>{fieldErrors['password']}</p>}
-        </div>
-        {serverError && <p style={{ color: 'red' }}>{serverError}</p>}
-        <button type="submit" disabled={loading} style={{ width: '100%' }}>
-          {loading ? 'Creating account...' : 'Create account'}
-        </button>
-      </form>
-      <p>Already have an account? <Link to="/login">Sign in</Link></p>
-    </div>
+      </div>
+    </AuthLayout>
   );
 }

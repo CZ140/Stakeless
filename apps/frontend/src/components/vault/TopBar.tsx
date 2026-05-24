@@ -1,0 +1,38 @@
+import { Link } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
+import { BalanceChip } from './BalanceChip';
+import { SearchIcon, BellIcon, ChatIcon } from './icons';
+
+// Top bar for the app shell. The search field and bell/chat buttons are
+// styled affordances reserved for future features — deliberately carrying NO
+// fabricated counts or results (unlike the prototype's hard-coded "3" badge).
+export function TopBar() {
+  const { username } = useAuth();
+  const initial = (username ?? '?').charAt(0).toUpperCase();
+
+  return (
+    <header className="header">
+      <div className="search">
+        <SearchIcon size={14} />
+        <input placeholder="Search games, players, transactions…" aria-label="Search" />
+        <kbd>⌘ K</kbd>
+      </div>
+      <div className="header-right">
+        <button type="button" className="icon-btn" aria-label="Notifications">
+          <BellIcon size={16} />
+        </button>
+        <button type="button" className="icon-btn" aria-label="Chat">
+          <ChatIcon size={16} />
+        </button>
+        <BalanceChip />
+        <Link className="user-pill" to={username ? `/profile/${username}` : '/dashboard'}>
+          <span className="avatar">{initial}</span>
+          <span className="name">
+            {username ?? 'Guest'}
+            <small>PLAYER</small>
+          </span>
+        </Link>
+      </div>
+    </header>
+  );
+}

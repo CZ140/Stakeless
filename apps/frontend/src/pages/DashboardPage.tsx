@@ -1,25 +1,38 @@
 import { useState, useEffect } from 'react';
 import { apiClient } from '../api/client';
 import { useBalanceStore } from '../stores/balanceStore';
-import { Header } from '../components/Header';
-import { DailyBonusCard } from '../components/DailyBonusCard';
-import { GameCard } from '../components/GameCard';
+import { useAuth } from '../contexts/AuthContext';
+import { AppShell } from '../components/vault/AppShell';
+import { LiveTicker } from '../components/vault/LiveTicker';
+import { VaultDailyBonus } from '../components/vault/VaultDailyBonus';
+import { VaultGameCard, type GameCardData } from '../components/vault/VaultGameCard';
+import { ActivityFeed } from '../components/vault/ActivityFeed';
 
-const GAMES = [
-  { id: 'roulette',  name: 'Roulette',  icon: '🎡', description: 'European wheel, 37 pockets',    route: '/games/roulette',  available: true  },
-  { id: 'plinko',    name: 'Plinko',    icon: '⚫', description: 'Drop the ball, ride the pegs',  route: '/games/plinko',    available: true  },
-  { id: 'mines',     name: 'Mines',     icon: '💣', description: 'Avoid the mines, cash out big', route: '/games/mines',     available: true  },
-  { id: 'blackjack', name: 'Blackjack', icon: '🃏', description: 'Beat the dealer to 21',         route: '/games/blackjack', available: true  },
+const GAMES: GameCardData[] = [
+  { id: 'roulette', name: 'Roulette', route: '/games/roulette', tag: 'Classic', description: 'European wheel · single zero' },
+  { id: 'plinko', name: 'Plinko', route: '/games/plinko', tag: 'Fast', description: 'Drop the ball, ride the pegs' },
+  { id: 'mines', name: 'Mines', route: '/games/mines', tag: 'Risk', description: 'Avoid the mines, cash out big' },
+  { id: 'blackjack', name: 'Blackjack', route: '/games/blackjack', tag: 'Strategy', description: 'Beat the dealer to 21' },
 ];
 
 interface MeResponse {
   id: number;
   email: string;
+  username?: string;
   balance: number;
   dailyBonusTimestamp: string | null;
 }
 
+function timeOfDay(): string {
+  const h = new Date().getHours();
+  if (h < 5) return 'Late night';
+  if (h < 12) return 'Good morning';
+  if (h < 18) return 'Good afternoon';
+  return 'Good evening';
+}
+
 export function DashboardPage() {
+  const { username } = useAuth();
   const [profile, setProfile] = useState<MeResponse | null>(null);
 
   useEffect(() => {
@@ -30,48 +43,52 @@ export function DashboardPage() {
         useBalanceStore.getState().setBalance(res.data.balance);
       })
       .catch(() => {
-        // Non-fatal — balance already set by AuthContext on token acquisition
+        // Non-fatal — balance is already set by AuthContext on token acquisition.
       });
   }, []);
 
+  const name = username ?? profile?.username ?? profile?.email?.split('@')[0] ?? 'player';
+
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#0d0d1a', color: '#ffffff' }}>
-      <Header />
-      <main
-        style={{
-          maxWidth: '900px',
-          margin: '0 auto',
-          padding: '40px 24px',
-        }}
-      >
-        <h1 style={{ fontSize: '2rem', marginBottom: '8px', color: '#e0d7ff' }}>
-          Welcome back{profile?.email ? `, ${profile.email.split('@')[0]}` : ''}!
-        </h1>
-        <p style={{ color: '#718096', marginBottom: '40px' }}>
-          Ready to play? Claim your daily bonus to get started.
-        </p>
-
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'center',
-          }}
-        >
-          <DailyBonusCard
-            dailyBonusTimestamp={profile?.dailyBonusTimestamp ?? null}
-          />
-        </div>
-
-        <div style={{ marginTop: '48px' }}>
-          <h2 style={{ fontSize: '1.4rem', color: '#e0d7ff', marginBottom: '20px' }}>Games</h2>
-          <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
-            {GAMES.map((game) => (
-              <GameCard key={game.id} {...game} />
-            ))}
+    <AppShell>
+      <div className="welcome">
+        <div>
+          <div className="crumb">
+            <span>HOME</span>
+            <span className="crumb-sep">/</span>
+            <span style={{ color: 'var(--text-secondary)' }}>LOBBY</span>
           </div>
+          <h1 className="h-title">
+            {timeOfDay()}, <span style={{ color: 'var(--accent)' }}>{name}</span>
+          </h1>
+          <p className="h-subtitle">Ready to play? Claim your daily bonus, then pick a table below.</p>
         </div>
-      </main>
-    </div>
+      </div>
+
+      <LiveTicker />
+
+      <VaultDailyBonus dailyBonusTimestamp={profile?.dailyBonusTimestamp ?? null} />
+
+      <div className="section-head">
+        <h3>
+          Casino Games <span>· {GAMES.length} available</span>
+        </h3>
+      </div>
+      <div className="game-grid">
+        {GAMES.map((game) => (
+          <VaultGameCard key={game.id} game={game} />
+        ))}
+      </div>
+
+      <div className="section-head">
+        <h3>
+          Recent activity <span>· your latest bets</span>
+        </h3>
+      </div>
+      <div className="card" style={{ padding: '14px 22px' }}>
+        <ActivityFeed username={username ?? profile?.username ?? null} limit={8} />
+      </div>
+    </AppShell>
   );
 }
 

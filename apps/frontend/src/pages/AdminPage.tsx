@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
-import { Header } from '../components/Header';
+import { useEffect, useState, type ReactNode } from 'react';
+import { AppShell } from '../components/vault/AppShell';
+import { CoinIcon, ProfileIcon, ZapIcon, SearchIcon, gameIcons } from '../components/vault/icons';
 import { apiClient } from '../api/client';
 
 interface StatsResponse {
@@ -29,27 +30,39 @@ interface HistoryRound {
   createdAt: string;
 }
 
-function StatCard({ label, value }: { label: string; value: string | number }) {
+const GAME_LABEL: Record<string, string> = { roulette: 'Roulette', plinko: 'Plinko', mines: 'Mines', blackjack: 'Blackjack' };
+const GAME_COLOR: Record<string, string> = { roulette: 'var(--accent)', plinko: 'var(--blue)', mines: 'var(--loss)', blackjack: 'var(--purple)' };
+
+function initial(name: string): string {
+  return name.charAt(0).toUpperCase() || '?';
+}
+
+// Prettify raw outcome strings (e.g. "player_blackjack" → "Player blackjack",
+// "bucket_5" → "Bucket 5").
+function prettyOutcome(outcome: string): string {
+  const cleaned = outcome.replace(/_/g, ' ');
+  return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+}
+
+const ShieldIcon = ({ size = 30 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 3l8 3v5c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6z" />
+    <path d="M9 12l2 2 4-4" />
+  </svg>
+);
+
+function StatCard({ label, value, valSmall, sub, chipBg, chipFg, chip }: {
+  label: string; value: string; valSmall?: string; sub?: string;
+  chipBg: string; chipFg: string; chip: ReactNode;
+}) {
   return (
-    <div
-      style={{
-        backgroundColor: '#1a1a2e',
-        padding: '1.5rem',
-        borderRadius: '8px',
-        border: '1px solid #2a2a4a',
-      }}
-    >
-      <div style={{ color: '#a0a0c0', fontSize: '0.85rem' }}>{label}</div>
-      <div
-        style={{
-          color: '#e0d7ff',
-          fontSize: '2rem',
-          fontWeight: 700,
-          marginTop: '0.5rem',
-        }}
-      >
-        {value}
+    <div className="stat-card">
+      <div className="head">
+        <span className="lab">{label}</span>
+        <span className="chip" style={{ background: chipBg, color: chipFg }}>{chip}</span>
       </div>
+      <div className="val">{value}{valSmall && <small>{valSmall}</small>}</div>
+      {sub && <div className="sub">{sub}</div>}
     </div>
   );
 }
@@ -58,10 +71,11 @@ export function AdminPage() {
   const [stats, setStats] = useState<StatsResponse | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Player[]>([]);
+  const [hasSearched, setHasSearched] = useState(false);
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
   const [playerHistory, setPlayerHistory] = useState<HistoryRound[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
-  const [actionStatus, setActionStatus] = useState('');
+  const [toast, setToast] = useState<{ msg: string; kind: 'win' | 'loss' } | null>(null);
 
   useEffect(() => {
     apiClient
@@ -70,12 +84,18 @@ export function AdminPage() {
       .catch(() => {});
   }, []);
 
+  function showToast(msg: string, kind: 'win' | 'loss') {
+    setToast({ msg, kind });
+    setTimeout(() => setToast(null), 3000);
+  }
+
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
     apiClient
       .get<{ players: Player[] }>('/admin/players?q=' + encodeURIComponent(searchQuery))
       .then(res => setSearchResults(res.data.players))
-      .catch(() => {});
+      .catch(() => setSearchResults([]))
+      .finally(() => setHasSearched(true));
   }
 
   function handleSelectPlayer(player: Player) {
@@ -102,222 +122,197 @@ export function AdminPage() {
       if (selectedPlayer?.id === player.id) {
         setSelectedPlayer(prev => prev ? { ...prev, isBanned: !prev.isBanned } : prev);
       }
-      setActionStatus(
-        player.isBanned
-          ? `${player.username} has been unbanned.`
-          : `${player.username} has been banned.`
+      showToast(
+        player.isBanned ? `${player.username} has been unbanned.` : `${player.username} has been banned.`,
+        player.isBanned ? 'win' : 'loss'
       );
-      setTimeout(() => setActionStatus(''), 3000);
     } catch {
-      setActionStatus('Action failed. Please try again.');
-      setTimeout(() => setActionStatus(''), 3000);
+      showToast('Action failed. Please try again.', 'loss');
     }
   }
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#0f0f1a' }}>
-      <Header />
-      <main style={{ maxWidth: '1100px', margin: '0 auto', padding: '2rem' }}>
-        <h1 style={{ color: '#e0d7ff', marginBottom: '2rem' }}>Admin Dashboard</h1>
+    <AppShell>
+      {/* Header */}
+      <div className="lb-head">
+        <div className="lb-title">
+          <ShieldIcon size={32} />
+          <div>
+            <div className="crumb"><span>HOME</span><span className="crumb-sep">/</span><span>ADMIN</span></div>
+            <h1 className="h-title">Admin Console</h1>
+          </div>
+          <span className="tag accent">STAFF</span>
+        </div>
+      </div>
 
-        {/* Stat cards row */}
-        <section
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(3, 1fr)',
-            gap: '1rem',
-            marginBottom: '2rem',
-          }}
-        >
-          <StatCard label="Total Users" value={stats ? stats.totalUsers.toLocaleString() : '—'} />
-          <StatCard label="Total Bets" value={stats ? stats.totalBets.toLocaleString() : '—'} />
-          <StatCard
-            label="Coins in Circulation"
-            value={stats ? stats.coinsInCirculation.toLocaleString() : '—'}
-          />
-        </section>
+      {/* Platform metrics */}
+      <div className="acc-stat-grid admin-stats">
+        <StatCard
+          label="TOTAL USERS"
+          value={stats ? stats.totalUsers.toLocaleString() : '—'}
+          chipBg="rgba(91,141,239,0.18)" chipFg="var(--blue)" chip={<ProfileIcon size={14} />}
+          sub="registered accounts"
+        />
+        <StatCard
+          label="TOTAL BETS"
+          value={stats ? stats.totalBets.toLocaleString() : '—'}
+          chipBg="var(--accent-soft)" chipFg="var(--accent)" chip={<ZapIcon size={13} />}
+          sub="rounds settled"
+        />
+        <StatCard
+          label="COINS IN CIRCULATION"
+          value={stats ? stats.coinsInCirculation.toLocaleString() : '—'}
+          valSmall=" V"
+          chipBg="var(--gold-soft)" chipFg="var(--gold)" chip={<CoinIcon size={14} />}
+          sub="across all balances"
+        />
+      </div>
 
-        {/* Player search */}
-        <section
-          style={{
-            backgroundColor: '#1a1a2e',
-            padding: '1.5rem',
-            borderRadius: '8px',
-            marginBottom: '2rem',
-          }}
-        >
-          <h2 style={{ color: '#e0d7ff', marginBottom: '1rem' }}>Player Search</h2>
-          <form onSubmit={handleSearch}>
-            <input
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              placeholder="Search by username..."
-              style={{
-                backgroundColor: '#0f0f1a',
-                border: '1px solid #2a2a4a',
-                color: '#c0b8e0',
-                padding: '0.5rem 1rem',
-                borderRadius: '4px',
-                width: '300px',
-                marginRight: '1rem',
-              }}
-            />
-            <button
-              type="submit"
-              style={{
-                backgroundColor: '#7c3aed',
-                color: '#fff',
-                border: 'none',
-                padding: '0.5rem 1.5rem',
-                borderRadius: '4px',
-                cursor: 'pointer',
-              }}
-            >
-              Search
-            </button>
-          </form>
-          {searchResults.length > 0 && (
-            <table style={{ width: '100%', marginTop: '1rem', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ borderBottom: '1px solid #2a2a4a' }}>
-                  <th style={{ color: '#a0a0c0', textAlign: 'left', padding: '0.5rem' }}>
-                    Username
-                  </th>
-                  <th style={{ color: '#a0a0c0', textAlign: 'left', padding: '0.5rem' }}>
-                    Email
-                  </th>
-                  <th style={{ color: '#a0a0c0', textAlign: 'right', padding: '0.5rem' }}>
-                    Balance
-                  </th>
-                  <th style={{ color: '#a0a0c0', textAlign: 'left', padding: '0.5rem' }}>
-                    Status
-                  </th>
-                  <th style={{ color: '#a0a0c0', textAlign: 'left', padding: '0.5rem' }}>
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {searchResults.map(player => (
-                  <tr
-                    key={player.id}
-                    style={{ borderBottom: '1px solid #2a2a4a', cursor: 'pointer' }}
-                    onClick={() => handleSelectPlayer(player)}
-                  >
-                    <td style={{ padding: '0.5rem', color: '#c0b8e0' }}>{player.username}</td>
-                    <td style={{ padding: '0.5rem', color: '#a0a0c0' }}>{player.email}</td>
-                    <td style={{ padding: '0.5rem', color: '#c0b8e0', textAlign: 'right' }}>
-                      {player.balance.toLocaleString()}
-                    </td>
-                    <td style={{ padding: '0.5rem' }}>
-                      <span
-                        style={{
-                          color: player.isBanned ? '#f87171' : '#4ade80',
-                          fontSize: '0.85rem',
-                          fontWeight: 600,
-                        }}
-                      >
-                        {player.isBanned ? 'Banned' : 'Active'}
-                      </span>
-                    </td>
-                    <td style={{ padding: '0.5rem' }}>
-                      <button
-                        onClick={e => {
-                          e.stopPropagation();
-                          void handleBanToggle(player);
-                        }}
-                        style={{
-                          backgroundColor: player.isBanned ? '#4ade80' : '#ef4444',
-                          color: '#fff',
-                          border: 'none',
-                          padding: '0.25rem 0.75rem',
-                          borderRadius: '4px',
-                          cursor: 'pointer',
-                          fontSize: '0.85rem',
-                        }}
-                      >
-                        {player.isBanned ? 'Unban' : 'Ban'}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      {/* Player search */}
+      <div className="panel" style={{ marginBottom: 14 }}>
+        <div className="panel-head">
+          <h3>Player Search</h3>
+          {hasSearched && (
+            <span className="net" style={{ letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+              {searchResults.length} {searchResults.length === 1 ? 'RESULT' : 'RESULTS'}
+            </span>
           )}
-        </section>
+        </div>
 
-        {/* Player inspector — shown when a player is selected */}
-        {selectedPlayer && (
-          <section
-            style={{ backgroundColor: '#1a1a2e', padding: '1.5rem', borderRadius: '8px' }}
-          >
-            <h2 style={{ color: '#e0d7ff', marginBottom: '1rem' }}>
-              Game History — {selectedPlayer.username}
-            </h2>
-            {isLoadingHistory ? (
-              <p style={{ color: '#a0a0c0' }}>Loading...</p>
-            ) : (
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <form className="admin-search" onSubmit={handleSearch}>
+          <input
+            className="input"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="Search by username…"
+          />
+          <button type="submit" className="btn btn-primary">
+            <SearchIcon size={15} /> Search
+          </button>
+        </form>
+
+        {hasSearched && searchResults.length === 0 ? (
+          <div className="lb-empty">No players match “{searchQuery}”.</div>
+        ) : searchResults.length > 0 ? (
+          <table className="act-table admin-table" style={{ marginTop: 16 }}>
+            <thead>
+              <tr>
+                <th>Player</th>
+                <th className="r">Balance</th>
+                <th className="r">Wagered</th>
+                <th>Status</th>
+                <th className="r">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {searchResults.map(player => (
+                <tr
+                  key={player.id}
+                  className={selectedPlayer?.id === player.id ? 'sel' : ''}
+                  onClick={() => handleSelectPlayer(player)}
+                >
+                  <td>
+                    <div className="gcell">
+                      <span className="avatar">{initial(player.username)}</span>
+                      <div>
+                        <div className="gname">{player.username}</div>
+                        <div className="gtype">{player.email}</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="res">{player.balance.toLocaleString()}<small> V</small></td>
+                  <td className="mult" style={{ color: 'var(--text-secondary)' }}>{player.totalWagered.toLocaleString()}</td>
+                  <td>
+                    <div className="tags">
+                      {player.role === 'admin' && <span className="tag gold">ADMIN</span>}
+                      <span className={'tag ' + (player.isBanned ? 'loss' : 'accent')}>
+                        {player.isBanned ? 'BANNED' : 'ACTIVE'}
+                      </span>
+                    </div>
+                  </td>
+                  <td style={{ textAlign: 'right' }}>
+                    <button
+                      type="button"
+                      className={'admin-btn ' + (player.isBanned ? 'unban' : 'ban')}
+                      onClick={e => {
+                        e.stopPropagation();
+                        void handleBanToggle(player);
+                      }}
+                    >
+                      {player.isBanned ? 'Unban' : 'Ban'}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : null}
+      </div>
+
+      {/* Player inspector — shown when a player is selected */}
+      {selectedPlayer && (
+        <div className="panel">
+          <div className="panel-head">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <h3>Game History</h3>
+              <span className="tag muted">{selectedPlayer.username.toUpperCase()}</span>
+            </div>
+          </div>
+
+          {isLoadingHistory ? (
+            <div className="lb-empty">Loading…</div>
+          ) : playerHistory.length === 0 ? (
+            <div className="lb-empty">No rounds played yet.</div>
+          ) : (
+            <>
+              <table className="act-table">
                 <thead>
-                  <tr style={{ borderBottom: '1px solid #2a2a4a' }}>
-                    <th style={{ color: '#a0a0c0', textAlign: 'left', padding: '0.5rem' }}>
-                      Time
-                    </th>
-                    <th style={{ color: '#a0a0c0', textAlign: 'left', padding: '0.5rem' }}>
-                      Game
-                    </th>
-                    <th style={{ color: '#a0a0c0', textAlign: 'right', padding: '0.5rem' }}>
-                      Bet
-                    </th>
-                    <th style={{ color: '#a0a0c0', textAlign: 'left', padding: '0.5rem' }}>
-                      Outcome
-                    </th>
-                    <th style={{ color: '#a0a0c0', textAlign: 'right', padding: '0.5rem' }}>
-                      Profit
-                    </th>
+                  <tr>
+                    <th>Game</th>
+                    <th>Outcome</th>
+                    <th className="r">Bet</th>
+                    <th className="r">Time</th>
+                    <th className="r">Profit</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {playerHistory.map(round => (
-                    <tr key={round.id} style={{ borderBottom: '1px solid #2a2a4a' }}>
-                      <td style={{ padding: '0.5rem', color: '#a0a0c0', fontSize: '0.85rem' }}>
-                        {new Date(round.createdAt).toLocaleString()}
-                      </td>
-                      <td
-                        style={{
-                          padding: '0.5rem',
-                          color: '#c0b8e0',
-                          textTransform: 'capitalize',
-                        }}
-                      >
-                        {round.gameType}
-                      </td>
-                      <td style={{ padding: '0.5rem', color: '#c0b8e0', textAlign: 'right' }}>
-                        {round.betAmount.toLocaleString()}
-                      </td>
-                      <td style={{ padding: '0.5rem', color: '#a0a0c0' }}>{round.outcome}</td>
-                      <td
-                        style={{
-                          padding: '0.5rem',
-                          textAlign: 'right',
-                          color: round.profit >= 0 ? '#4ade80' : '#f87171',
-                        }}
-                      >
-                        {round.profit >= 0 ? '+' : ''}
-                        {round.profit.toLocaleString()}
-                      </td>
-                    </tr>
-                  ))}
+                  {playerHistory.map(round => {
+                    const Ico = gameIcons[round.gameType];
+                    const color = GAME_COLOR[round.gameType] ?? 'var(--accent)';
+                    const pos = round.profit >= 0;
+                    return (
+                      <tr key={round.id}>
+                        <td>
+                          <div className="gcell">
+                            <span className="gicon" style={{ color }}>{Ico && <Ico size={14} />}</span>
+                            <div>
+                              <div className="gname">{GAME_LABEL[round.gameType] ?? round.gameType}</div>
+                              <div className="gtype">ROUND #{String(round.id).padStart(4, '0')}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="desc">{prettyOutcome(round.outcome)}</td>
+                        <td className="mult" style={{ color: 'var(--text-secondary)' }}>{round.betAmount.toLocaleString()}</td>
+                        <td className="time">{new Date(round.createdAt).toLocaleString()}</td>
+                        <td className={'res ' + (pos ? 'win' : 'loss')}>
+                          {pos ? '+' : '−'}{Math.abs(round.profit).toLocaleString()}<small> V</small>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
-            )}
-          </section>
-        )}
+              <div className="act-foot">
+                <span>SHOWING {playerHistory.length} {playerHistory.length === 1 ? 'ROUND' : 'ROUNDS'}</span>
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
-        {actionStatus && (
-          <p style={{ marginTop: '1rem', color: '#4ade80' }}>{actionStatus}</p>
-        )}
-      </main>
-    </div>
+      {toast && (
+        <div className={'notice admin-toast ' + toast.kind}>{toast.msg}</div>
+      )}
+    </AppShell>
   );
 }
