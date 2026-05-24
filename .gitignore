@@ -5,3 +5,6 @@ dist/
 
 # Playwright MCP test artifacts
 .playwright-mcp/
+
+# Internal planning / spec artifacts (kept local, not published)
+.planning/
