@@ -46,7 +46,7 @@ const ShieldIco = () => <svg width="10" height="10" viewBox="0 0 24 24" fill="no
 const FireIco = () => <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c1 3-1 4-2 6s0 4 2 4 2-3 1-5c2 1 4 4 4 7a7 7 0 0 1-14 0c0-3 2-5 3-7 1 2 3 1 3-2 0-1 0-2 0-3z" /></svg>;
 
 function deriveHandle(username: string): string {
-  const letters = (username.replace(/[^a-z]/gi, '').slice(0, 3) || 'VCS').toUpperCase();
+  const letters = (username.replace(/[^a-z]/gi, '').slice(0, 3) || 'STK').toUpperCase();
   let h = 0;
   for (let i = 0; i < username.length; i++) h = (h * 31 + username.charCodeAt(i)) >>> 0;
   return `${letters}-${String(1000 + (h % 9000))}`;

@@ -158,7 +158,7 @@ export const CoinIcon = ({ size = 16 }: IconProps) => (
     </defs>
     <circle cx="12" cy="12" r="10" fill="url(#vault-coin-grad)" />
     <circle cx="12" cy="12" r="7" fill="none" stroke="rgba(0,0,0,0.18)" strokeWidth="0.6" strokeDasharray="0.8 1.2" />
-    <text x="12" y="16" textAnchor="middle" fontFamily="Geist Mono, monospace" fontSize="11" fontWeight="700" fill="#3a2810">V</text>
+    <text x="12" y="16" textAnchor="middle" fontFamily="Geist Mono, monospace" fontSize="11" fontWeight="700" fill="#3a2810">S</text>
   </svg>
 );
 
