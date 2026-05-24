@@ -29,7 +29,7 @@ const games: NavEntry[] = [
   { to: '/games/blackjack', label: 'Blackjack', Icon: BlackjackIcon },
 ];
 
-export function Sidebar() {
+export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const { username, signOut } = useAuth();
   const account: NavEntry[] = [
     { to: '/leaderboard', label: 'Leaderboard', Icon: LeaderboardIcon, pill: 'NEW' },
@@ -40,7 +40,7 @@ export function Sidebar() {
 
   return (
     <aside className="sidebar">
-      <NavLink to="/dashboard" className="brand">
+      <NavLink to="/dashboard" className="brand" onClick={onNavigate}>
         <BrandMark size={32} />
         <div>
           <div className="brand-word">
@@ -53,7 +53,7 @@ export function Sidebar() {
       <nav className="nav">
         <div className="nav-section">Games</div>
         {games.map(({ to, label, Icon }) => (
-          <NavLink key={to} to={to} className={navClass} end={to === '/dashboard'}>
+          <NavLink key={to} to={to} className={navClass} end={to === '/dashboard'} onClick={onNavigate}>
             <Icon size={18} />
             <span>{label}</span>
           </NavLink>
@@ -63,7 +63,7 @@ export function Sidebar() {
           Account
         </div>
         {account.map(({ to, label, Icon, pill }) => (
-          <NavLink key={label} to={to} className={navClass}>
+          <NavLink key={label} to={to} className={navClass} onClick={onNavigate}>
             <Icon size={18} />
             <span>{label}</span>
             {pill && <span className="pill">{pill}</span>}
@@ -73,7 +73,7 @@ export function Sidebar() {
         <div className="nav-section" style={{ marginTop: 8 }}>
           Support
         </div>
-        <button type="button" className="nav-item" onClick={() => void signOut()} style={{ width: '100%', textAlign: 'left' }}>
+        <button type="button" className="nav-item" onClick={() => { onNavigate?.(); void signOut(); }} style={{ width: '100%', textAlign: 'left' }}>
           <LogoutIcon size={18} />
           <span>Sign out</span>
         </button>

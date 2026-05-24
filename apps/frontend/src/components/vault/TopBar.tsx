@@ -1,17 +1,23 @@
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { BalanceChip } from './BalanceChip';
-import { SearchIcon, BellIcon, ChatIcon } from './icons';
+import { SearchIcon, BellIcon, ChatIcon, MenuIcon } from './icons';
 
 // Top bar for the app shell. The search field and bell/chat buttons are
 // styled affordances reserved for future features — deliberately carrying NO
 // fabricated counts or results (unlike the prototype's hard-coded "3" badge).
-export function TopBar() {
+//
+// `onMenuToggle` opens/closes the mobile navigation drawer; the hamburger that
+// triggers it is hidden on desktop via CSS.
+export function TopBar({ onMenuToggle }: { onMenuToggle?: () => void }) {
   const { username } = useAuth();
   const initial = (username ?? '?').charAt(0).toUpperCase();
 
   return (
     <header className="header">
+      <button type="button" className="menu-btn" aria-label="Open navigation" onClick={onMenuToggle}>
+        <MenuIcon size={18} />
+      </button>
       <div className="search">
         <SearchIcon size={14} />
         <input placeholder="Search games, players, transactions…" aria-label="Search" />

@@ -331,6 +331,7 @@ export function ProfilePage() {
           <div style={{ color: 'var(--text-muted)', fontSize: 13, padding: '12px 0' }}>No bets yet.</div>
         ) : (
           <>
+            <div className="table-scroll">
             <table className="act-table">
               <thead>
                 <tr><th>Game</th><th>Description</th><th className="r">Time</th><th className="r">Multiplier</th><th className="r">Result</th></tr>
@@ -362,6 +363,7 @@ export function ProfilePage() {
                 })}
               </tbody>
             </table>
+            </div>
             <div className="act-foot">
               <span>SHOWING {activity.length} OF {data.gamesPlayed.toLocaleString()} ROUNDS</span>
             </div>

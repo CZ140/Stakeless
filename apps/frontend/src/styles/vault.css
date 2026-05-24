@@ -800,7 +800,9 @@ body::before {
   align-items: start;
 }
 @media (max-width: 980px) {
-  .game-layout { grid-template-columns: 1fr; }
+  /* minmax(0,1fr) (not plain 1fr) so the single column can shrink below the
+     content's intrinsic min-content and stay inside the viewport on phones. */
+  .game-layout { grid-template-columns: minmax(0, 1fr); }
 }
 .game-stage {
   background: var(--bg-surface);
@@ -1672,4 +1674,119 @@ body::before {
   max-width: 340px; text-align: left;
   box-shadow: 0 16px 40px rgba(0,0,0,0.5);
   animation: admin-toast-in 0.2s ease-out;
+}
+
+/* Horizontal-scroll wrapper for wide data tables on narrow screens. */
+.table-scroll { width: 100%; }
+
+/* ============================================================
+   Responsive / mobile pass
+   The redesign is desktop-first; these rules let the shell and
+   content reflow down to phone widths (~360px).
+   ============================================================ */
+/* Hamburger + drawer backdrop are desktop-hidden by default. */
+.menu-btn { display: none; }
+.nav-backdrop { display: none; }
+
+@media (max-width: 860px) {
+  /* Sidebar slides in over the content as an off-canvas drawer. */
+  .sidebar {
+    position: fixed;
+    top: 0; bottom: 0; left: 0;
+    z-index: 50;
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+    box-shadow: 12px 0 40px rgba(0, 0, 0, 0.5);
+  }
+  .shell.nav-open .sidebar { transform: none; }
+
+  .nav-backdrop {
+    display: block;
+    position: fixed; inset: 0;
+    z-index: 40;
+    background: rgba(0, 0, 0, 0.55);
+    border: none; padding: 0; margin: 0;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.25s ease;
+    cursor: pointer;
+  }
+  .shell.nav-open .nav-backdrop { opacity: 1; pointer-events: auto; }
+
+  /* Hamburger in the top bar. */
+  .menu-btn {
+    display: grid; place-items: center;
+    width: 38px; height: 38px; flex-shrink: 0;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    color: var(--text-secondary);
+    cursor: pointer;
+  }
+  .menu-btn:hover { color: var(--text); border-color: var(--border-strong); }
+
+  /* Top bar: drop the (non-functional) search, tighten spacing. */
+  .header { padding: 0 14px; gap: 10px; }
+  .header .search { display: none; }
+  .header-right { gap: 8px; margin-left: auto; }
+
+  /* Tighter page gutters. */
+  .main { padding: 18px 16px; }
+
+  /* Leaderboard / page heads can wrap the title above the tabs. */
+  .lb-head, .game-page-head, .section-head { gap: 14px; }
+}
+
+/* Phone-width refinements. */
+@media (max-width: 600px) {
+  /* Top bar: keep balance + avatar, drop placeholder icons + name label. */
+  .header .icon-btn { display: none; }
+  .user-pill .name { display: none; }
+  .user-pill { padding: 4px; }
+
+  /* Leaderboard podium stacks gold → silver → bronze. */
+  .podium { grid-template-columns: 1fr; gap: 10px; }
+  .podium-card.gold, .podium-card.silver, .podium-card.bronze { order: 0; }
+  .podium-card.gold { padding: 22px; }
+
+  /* Leaderboard rows: shrink the rank + value columns. */
+  .lb-row { grid-template-columns: 38px 1fr auto; padding: 12px 14px; gap: 8px; }
+  .lb-head-row { padding: 10px 14px; }
+
+  /* Account hero stacks; avatar shrinks. */
+  .acc-hero { grid-template-columns: 1fr; gap: 16px; padding: 20px; }
+  .acc-hero-actions { flex-direction: row; align-items: center; }
+  .acc-ava { width: 72px; height: 72px; font-size: 32px; border-radius: 18px; }
+  .acc-id h1 { font-size: 24px; }
+
+  /* Tier ladder stacks the progress readout under the track. */
+  .tier-bar { grid-template-columns: 1fr; gap: 14px; }
+  .tier-progress { text-align: left; }
+
+  /* Profit/loss + game-mix columns already stack at 900px; tighten panels. */
+  .panel { padding: 16px; }
+
+  /* Daily bonus banner stacks its CTA. */
+  .bonus { flex-direction: column; align-items: flex-start; gap: 16px; }
+  .bonus-cta { width: 100%; justify-content: space-between; }
+
+  /* Wide data tables scroll horizontally instead of overflowing the page. */
+  .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .table-scroll .act-table { min-width: 480px; }
+
+  /* Blackjack felt: tighter padding + smaller cards. */
+  .felt { padding: 18px; }
+  .playing-card { width: 72px; height: 102px; }
+}
+
+/* Roulette bet board: compress fixed columns + type so 0–36 fit a phone.
+   minmax(0,1fr) lets the 12 number tracks shrink below their content width,
+   keeping the whole board inside the (narrow) stage instead of overflowing. */
+@media (max-width: 560px) {
+  .bet-board { grid-template-columns: 26px repeat(12, minmax(0, 1fr)) 34px; gap: 2px; font-size: 10px; }
+  .bet-cell { height: 30px; min-width: 0; }
+  .bet-cell.outside { font-size: 8px; }
+  /* min-height:0 removes the desktop 520px floor; overflow-x:auto is a safety
+     net so an unusually wide board scrolls inside the stage rather than
+     pushing the whole page sideways. */
+  .game-stage { padding: 16px; min-height: 0; overflow-x: auto; }
 }

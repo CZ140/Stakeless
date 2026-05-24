@@ -194,7 +194,8 @@ export function AdminPage() {
         {hasSearched && searchResults.length === 0 ? (
           <div className="lb-empty">No players match “{searchQuery}”.</div>
         ) : searchResults.length > 0 ? (
-          <table className="act-table admin-table" style={{ marginTop: 16 }}>
+          <div className="table-scroll" style={{ marginTop: 16 }}>
+          <table className="act-table admin-table">
             <thead>
               <tr>
                 <th>Player</th>
@@ -246,6 +247,7 @@ export function AdminPage() {
               ))}
             </tbody>
           </table>
+          </div>
         ) : null}
       </div>
 
@@ -265,6 +267,7 @@ export function AdminPage() {
             <div className="lb-empty">No rounds played yet.</div>
           ) : (
             <>
+              <div className="table-scroll">
               <table className="act-table">
                 <thead>
                   <tr>
@@ -302,6 +305,7 @@ export function AdminPage() {
                   })}
                 </tbody>
               </table>
+              </div>
               <div className="act-foot">
                 <span>SHOWING {playerHistory.length} {playerHistory.length === 1 ? 'ROUND' : 'ROUNDS'}</span>
               </div>
