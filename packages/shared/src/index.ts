@@ -48,6 +48,22 @@ export {
 export { COINFLIP, coinflipMultiplier } from './coinflip.js';
 export type { CoinSide } from './coinflip.js';
 
+// Hi-Lo — a card-based cash-out ladder (guess higher/lower, compounding
+// multiplier, cash out any time). Odds/multiplier math shared by the backend
+// (settlement) and frontend (live readout). The crypto RNG (drawCard) lives
+// backend-only in services/hiloService.ts. See hilo.ts for the model + RTP math.
+export {
+  HILO,
+  cardsHigher,
+  cardsLower,
+  hiloWinChance,
+  hiloDirectionAvailable,
+  hiloStepMultiplier,
+  hiloGuessWins,
+  hiloCompound,
+} from './hilo.js';
+export type { HiloDirection, HiloCard, CardSuit } from './hilo.js';
+
 export interface ApiResponse<T = unknown> {
   success: boolean;
   data?: T;
@@ -60,7 +76,7 @@ export interface HealthResponse {
 }
 
 // Game types (stubs for future phases)
-export type GameType = 'roulette' | 'plinko' | 'mines' | 'blackjack' | 'dice' | 'slots' | 'crash' | 'flip';
+export type GameType = 'roulette' | 'plinko' | 'mines' | 'blackjack' | 'dice' | 'slots' | 'crash' | 'flip' | 'hilo';
 
 // ─── Dice ─────────────────────────────────────────────────────────────────────
 // Pure dice math shared by the backend (settlement) and frontend (live readout)

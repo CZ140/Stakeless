@@ -2084,6 +2084,61 @@ body::before {
 
 /* .banner-flip card gradient is defined in the game-card section above. */
 
+/* ─── Hi-Lo ───────────────────────────────────────────────────────────────────
+   Reuses the .dice-stats stat-strip and the .playing-card face (Blackjack). */
+.hilo-stage {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 20px; padding: 18px 12px; width: 100%;
+}
+/* Perspective wrapper so the hero card flips in 3D on each reveal. */
+.hilo-hero { perspective: 1000px; min-height: 172px; display: flex; align-items: center; justify-content: center; }
+.playing-card.hilo-hero-card {
+  width: 120px; height: 168px; border-radius: 12px; padding: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.55);
+}
+.playing-card.hilo-hero-card .rank { font-size: 30px; }
+.playing-card.hilo-hero-card .suit-sm { font-size: 22px; }
+.playing-card.hilo-hero-card .center-suit { font-size: 56px; }
+
+.hilo-hint {
+  font-family: var(--font-mono, monospace); font-size: 13px; letter-spacing: 0.04em;
+  color: var(--text-secondary); text-align: center; min-height: 18px;
+}
+
+.hilo-guesses {
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;
+  width: 100%; max-width: 420px;
+}
+.hilo-guess {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 14px 10px; border-radius: var(--r-md, 10px);
+  background: var(--bg-elevated, rgba(255, 255, 255, 0.04));
+  border: 1px solid var(--border-strong, rgba(255, 255, 255, 0.12));
+  color: var(--text); cursor: pointer; transition: border-color 0.12s, transform 0.06s, background 0.12s;
+}
+.hilo-guess:hover:not(:disabled) { transform: translateY(-1px); }
+.hilo-guess:active:not(:disabled) { transform: translateY(0); }
+.hilo-guess:disabled { opacity: 0.4; cursor: not-allowed; }
+.hilo-guess .dir { font-weight: 700; font-size: 15px; }
+.hilo-guess .sub { font-family: var(--font-mono, monospace); font-size: 11px; color: var(--text-muted); }
+.hilo-guess .mult { font-family: var(--font-mono, monospace); font-size: 18px; font-weight: 700; margin-top: 2px; }
+.hilo-guess .chance { font-family: var(--font-mono, monospace); font-size: 11px; color: var(--text-muted); }
+.hilo-guess.hi:not(:disabled) { color: var(--win, #00E082); }
+.hilo-guess.hi:hover:not(:disabled) { border-color: var(--win, #00E082); background: rgba(0, 224, 130, 0.08); }
+.hilo-guess.lo:not(:disabled) { color: var(--loss, #F0445A); }
+.hilo-guess.lo:hover:not(:disabled) { border-color: var(--loss, #F0445A); background: rgba(240, 68, 90, 0.08); }
+
+.hilo-history { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; max-width: 460px; }
+.playing-card.hilo-mini-card {
+  width: 34px; height: 48px; border-radius: 5px; padding: 3px; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+.playing-card.hilo-mini-card .corner.tr { display: none; }
+.playing-card.hilo-mini-card .rank { font-size: 11px; }
+.playing-card.hilo-mini-card .suit-sm { font-size: 8px; }
+.playing-card.hilo-mini-card .center-suit { display: none; }
+
+/* .banner-hilo card gradient is defined in the game-card section above. */
+
 /* ─── Slots ─────────────────────────────────────────────────────────────────── */
 .slots-stage {
   display: flex; flex-direction: column; align-items: center;

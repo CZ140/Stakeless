@@ -10,6 +10,7 @@ import { PlinkoPage } from './pages/PlinkoPage';
 import { MinesPage } from './pages/MinesPage';
 import { DicePage } from './pages/DicePage';
 import { CoinflipPage } from './pages/CoinflipPage';
+import { HiloPage } from './pages/HiloPage';
 import { SlotsPage } from './pages/SlotsPage';
 import { CrashPage } from './pages/CrashPage';
 import { BlackjackPage } from './pages/BlackjackPage';
@@ -87,6 +88,14 @@ export default function App() {
         element={
           <ProtectedRoute>
             <CoinflipPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/games/hilo"
+        element={
+          <ProtectedRoute>
+            <HiloPage />
           </ProtectedRoute>
         }
       />
