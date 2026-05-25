@@ -502,6 +502,8 @@ export class PokerTable {
       actingSeat: this.actingIndex,
       actionDeadline: null, // set by the realtime layer (P4)
       handNumber: this.handNumber,
+      currentBet: this.currentBet,
+      minRaise: this.minRaise,
     };
   }
 

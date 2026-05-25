@@ -17,6 +17,8 @@ import { RpsPage } from './pages/RpsPage';
 import { SlotsPage } from './pages/SlotsPage';
 import { CrashPage } from './pages/CrashPage';
 import { BlackjackPage } from './pages/BlackjackPage';
+import { PokerLobbyPage } from './pages/PokerLobbyPage';
+import { PokerTablePage } from './pages/PokerTablePage';
 import { LeaderboardPage } from './pages/LeaderboardPage';
 import { FriendsPage } from './pages/FriendsPage';
 import { GroupsPage } from './pages/GroupsPage';
@@ -150,6 +152,22 @@ export default function App() {
         element={
           <ProtectedRoute>
             <BlackjackPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/games/poker"
+        element={
+          <ProtectedRoute>
+            <PokerLobbyPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/games/poker/:id"
+        element={
+          <ProtectedRoute>
+            <PokerTablePage />
           </ProtectedRoute>
         }
       />

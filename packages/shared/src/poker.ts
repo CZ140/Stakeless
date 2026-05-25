@@ -341,6 +341,8 @@ export interface PublicTableState {
   actingSeat: number | null; // seat index whose turn it is, or null
   actionDeadline: number | null; // epoch ms the acting seat must act by
   handNumber: number;
+  currentBet: number; // highest committed-this-street (for the client's bet slider)
+  minRaise: number; // size of the last full raise (≥ big blind)
 }
 
 export interface PrivateHand {
