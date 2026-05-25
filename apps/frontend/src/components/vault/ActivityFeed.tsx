@@ -22,6 +22,7 @@ const GAME_LABEL: Record<string, string> = {
   flip: 'Coin Flip',
   hilo: 'Hi-Lo',
   pump: 'Pump',
+  chicken: 'Chicken',
 };
 
 const ROULETTE_RED = new Set([
@@ -74,6 +75,15 @@ function describe(row: RawActivity): string {
         return `Cashed out · ${n} pump${n === 1 ? '' : 's'}`;
       }
       return /^pop_\d+$/.test(outcome) ? 'Balloon popped' : 'Round settled';
+    }
+    case 'chicken': {
+      // outcome is `cashout_${lane}` or `dead_${lane}`.
+      const c = /^cashout_(\d+)$/.exec(outcome);
+      if (c) {
+        const n = Number(c[1]);
+        return `Cashed out · ${n} lane${n === 1 ? '' : 's'}`;
+      }
+      return /^dead_\d+$/.test(outcome) ? 'Hit a car' : 'Round settled';
     }
     case 'blackjack':
       switch (outcome) {

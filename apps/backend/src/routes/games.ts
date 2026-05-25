@@ -13,6 +13,7 @@ import { spinGrid } from '../services/slotsService.js';
 import { flipCoin, resolveCoinflip } from '../services/coinflipService.js';
 import { initialHiloState, applyHiloGuess, type HiloSessionState } from '../services/hiloService.js';
 import { initialPumpState, applyPump, type PumpSessionState } from '../services/pumpService.js';
+import { initialChickenState, applyStep, type ChickenSessionState } from '../services/chickenService.js';
 import { startCrashRound, manualCashout, reconcileActiveCrash } from '../services/crashService.js';
 import {
   diceWinChance,
@@ -21,6 +22,8 @@ import {
   hiloDirectionAvailable,
   isPumpDifficulty,
   pumpMaxPumps,
+  isChickenDifficulty,
+  chickenMaxLanes,
   CRASH,
 } from '@gambling/shared';
 import {
@@ -1141,6 +1144,222 @@ gamesRouter.get('/pump/active-session', requireAuth, async (req, res) => {
     });
   } catch (err: unknown) {
     console.error('[games] pump active-session error:', err);
+    res.status(500).json({ error: 'An unexpected error occurred' });
+  }
+});
+
+// ─── Chicken routes (lane-crossing cash-out ladder) ─────────────────────────
+
+const chickenStartSchema = z.object({
+  betAmount: z.number().int().min(1).max(1_000_000),
+  difficulty: z.enum(['easy', 'medium', 'hard', 'daredevil']),
+});
+const chickenStepSchema = z.object({
+  sessionId: z.number().int(),
+});
+const chickenCashoutSchema = z.object({
+  sessionId: z.number().int(),
+});
+
+// Load the caller's single open Chicken session, or null.
+async function loadActiveChicken(userId: number) {
+  const rows = await db
+    .select()
+    .from(gameSessions)
+    .where(and(eq(gameSessions.userId, userId), eq(gameSessions.gameType, 'chicken'), isNull(gameSessions.completedAt)))
+    .orderBy(desc(gameSessions.createdAt))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+// POST /api/games/chicken/start
+// Deducts the bet and opens a round at 1× (0 lanes) on the chosen difficulty. The
+// hidden car layout stays server-side. Returns { sessionId, difficulty, lane,
+// multiplier, maxLanes, newBalance }. 402 INSUFFICIENT_FUNDS, 409 if a round is
+// already in progress.
+gamesRouter.post('/chicken/start', gameLimiter, clickInterval, requireAuth, async (req, res) => {
+  const parsed = chickenStartSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Invalid request' });
+    return;
+  }
+  const userId = req.user!.id;
+  const { betAmount, difficulty } = parsed.data;
+  if (!isChickenDifficulty(difficulty)) {
+    res.status(400).json({ error: 'Invalid difficulty' });
+    return;
+  }
+
+  try {
+    const existing = await loadActiveChicken(userId);
+    if (existing) {
+      res.status(409).json({ error: 'You already have a round in progress' });
+      return;
+    }
+
+    const { newBalance } = await deductBet(userId, betAmount, 'chicken');
+    const state = initialChickenState(difficulty);
+    const [session] = await db
+      .insert(gameSessions)
+      .values({ userId, gameType: 'chicken', state: JSON.stringify(state), betAmount })
+      .returning({ id: gameSessions.id });
+
+    io?.to(`user:${userId}`).emit('balance:update', { balance: newBalance });
+    res.json({
+      sessionId: session!.id,
+      difficulty,
+      lane: 0,
+      multiplier: 1,
+      maxLanes: chickenMaxLanes(difficulty),
+      newBalance,
+    });
+  } catch (err: unknown) {
+    const code = (err as { code?: string }).code;
+    if (code === 'INSUFFICIENT_FUNDS') { res.status(402).json({ error: 'Insufficient funds' }); return; }
+    if (code === 'BET_TOO_SMALL') { res.status(400).json({ error: 'Bet amount too small' }); return; }
+    console.error('[games] chicken start error:', err);
+    res.status(500).json({ error: 'An unexpected error occurred' });
+  }
+});
+
+// POST /api/games/chicken/step
+// Steps into the next lane. A clear lane compounds the multiplier and the round
+// continues; a car kills the chicken and settles a loss. Returns 200
+// { dead, lane, multiplier, crossed, newBalance? }. 400 if the round isn't active
+// or the chicken has already crossed, 404 if the session isn't the caller's.
+gamesRouter.post('/chicken/step', gameLimiter, clickInterval, requireAuth, async (req, res) => {
+  const parsed = chickenStepSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Invalid request' });
+    return;
+  }
+  const userId = req.user!.id;
+  const { sessionId } = parsed.data;
+
+  try {
+    const rows = await db
+      .select()
+      .from(gameSessions)
+      .where(and(eq(gameSessions.id, sessionId), eq(gameSessions.userId, userId), isNull(gameSessions.completedAt)));
+    const session = rows[0];
+    if (!session) {
+      res.status(404).json({ error: 'Session not found' });
+      return;
+    }
+
+    const state = JSON.parse(session.state) as ChickenSessionState;
+    if (state.status !== 'active') {
+      res.status(400).json({ error: 'Round already ended' });
+      return;
+    }
+    // The chicken has reached the far side — no lanes remain. Force a cash-out.
+    if (state.lane >= chickenMaxLanes(state.difficulty)) {
+      res.status(400).json({ error: 'Already across — cash out' });
+      return;
+    }
+
+    const { dead, lane, multiplier, crossed } = applyStep(state);
+
+    if (dead) {
+      // Hit a car — round over, stake already deducted, nothing credited.
+      await db
+        .update(gameSessions)
+        .set({ state: JSON.stringify(state), completedAt: new Date() })
+        .where(eq(gameSessions.id, sessionId));
+      const { newBalance } = await settleBet(userId, 0, session.betAmount, `dead_${lane}`, 'chicken');
+      io?.to(`user:${userId}`).emit('balance:update', { balance: newBalance });
+      await applyTierUp(userId);
+      res.json({ dead: true, lane, multiplier, crossed: false, newBalance });
+      return;
+    }
+
+    // Survived — advance the ladder; the player may step again or cash out.
+    await db
+      .update(gameSessions)
+      .set({ state: JSON.stringify(state), updatedAt: new Date() })
+      .where(eq(gameSessions.id, sessionId));
+    res.json({ dead: false, lane, multiplier, crossed });
+  } catch (err: unknown) {
+    console.error('[games] chicken step error:', err);
+    res.status(500).json({ error: 'An unexpected error occurred' });
+  }
+});
+
+// POST /api/games/chicken/cashout
+// Locks in the current cumulative multiplier. Requires at least one lane crossed.
+// Returns 200 { payout, newBalance, multiplier, lane }. 400 if no lane has been
+// crossed or the round already ended, 404 if not the caller's session.
+gamesRouter.post('/chicken/cashout', gameLimiter, clickInterval, requireAuth, async (req, res) => {
+  const parsed = chickenCashoutSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Invalid request' });
+    return;
+  }
+  const userId = req.user!.id;
+  const { sessionId } = parsed.data;
+
+  try {
+    const rows = await db
+      .select()
+      .from(gameSessions)
+      .where(and(eq(gameSessions.id, sessionId), eq(gameSessions.userId, userId), isNull(gameSessions.completedAt)));
+    const session = rows[0];
+    if (!session) {
+      res.status(404).json({ error: 'Session not found' });
+      return;
+    }
+
+    const state = JSON.parse(session.state) as ChickenSessionState;
+    if (state.status !== 'active') {
+      res.status(400).json({ error: 'Round already ended' });
+      return;
+    }
+    if (state.lane === 0) {
+      res.status(400).json({ error: 'Cross at least one lane before cashing out' });
+      return;
+    }
+
+    const payout = Math.floor(session.betAmount * state.multiplier);
+    state.status = 'cashout';
+    await db
+      .update(gameSessions)
+      .set({ state: JSON.stringify(state), completedAt: new Date() })
+      .where(eq(gameSessions.id, sessionId));
+
+    const { newBalance } = await settleBet(userId, payout, session.betAmount, `cashout_${state.lane}`, 'chicken');
+    io?.to(`user:${userId}`).emit('balance:update', { balance: newBalance });
+    await applyTierUp(userId);
+    res.json({ payout, newBalance, multiplier: state.multiplier, lane: state.lane });
+  } catch (err: unknown) {
+    console.error('[games] chicken cashout error:', err);
+    res.status(500).json({ error: 'An unexpected error occurred' });
+  }
+});
+
+// GET /api/games/chicken/active-session
+// Resume support: returns the open round (without the hidden car layout) so a
+// refresh can rejoin the road. Returns { session: null } when there is none.
+gamesRouter.get('/chicken/active-session', requireAuth, async (req, res) => {
+  const userId = req.user!.id;
+  try {
+    const session = await loadActiveChicken(userId);
+    if (!session) {
+      res.json({ session: null });
+      return;
+    }
+    const state = JSON.parse(session.state) as ChickenSessionState;
+    res.json({
+      session: {
+        sessionId: session.id,
+        difficulty: state.difficulty,
+        lane: state.lane,
+        multiplier: state.multiplier,
+        maxLanes: chickenMaxLanes(state.difficulty),
+        betAmount: session.betAmount,
+      },
+    });
+  } catch (err: unknown) {
+    console.error('[games] chicken active-session error:', err);
     res.status(500).json({ error: 'An unexpected error occurred' });
   }
 });
