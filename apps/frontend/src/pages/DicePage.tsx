@@ -1,10 +1,14 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import gsap from 'gsap';
 import { diceWinChance, diceMultiplier, type DiceDirection } from '@gambling/shared';
 import { AppShell } from '../components/vault/AppShell';
 import { BetPanel } from '../components/vault/BetPanel';
 import { useDiceStore } from '../stores/diceStore';
 import { useBalanceStore } from '../stores/balanceStore';
-import { useGameSounds } from '../hooks/useGameSounds';
+import { useAudioStore } from '../stores/audioStore';
+import { sound } from '../lib/sound';
+import { celebrate, countUp, pulse, winTier } from '../lib/juice';
+import { prefersReducedMotion } from '../hooks/useReducedMotion';
 import { apiClient } from '../api/client';
 
 interface DiceResponse {
@@ -23,20 +27,58 @@ const LOSE = 'rgba(240, 68, 90, 0.30)';
 
 export function DicePage() {
   const {
-    betAmount, target, direction, isMuted, rolling, lastResult,
-    setBetAmount, setTarget, setDirection, toggleMute, setRolling, setLastResult,
+    betAmount, target, direction, rolling, lastResult,
+    setBetAmount, setTarget, setDirection, setRolling, setLastResult,
   } = useDiceStore();
-  const { playWin, playLoss } = useGameSounds(isMuted);
+  const { muted, toggleMute } = useAudioStore();
   const balance = useBalanceStore((s) => s.balance);
   const [error, setError] = useState<string | null>(null);
+
+  const stageRef = useRef<HTMLDivElement>(null);
+  const markerRef = useRef<HTMLDivElement>(null);
+  const numRef = useRef<HTMLSpanElement>(null);
+  const flagRef = useRef<HTMLSpanElement>(null);
+  const prevRollRef = useRef(0);
 
   // Live (pre-roll) odds for the current target + direction.
   const winChance = diceWinChance(target, direction);
   const multiplier = diceMultiplier(target, direction);
   const profitOnWin = Math.max(0, Math.floor(betAmount * multiplier) - betAmount);
 
+  // Animate the marker + number toward the server-decided roll, then settle/celebrate.
+  useEffect(() => {
+    if (!lastResult) return;
+    const roll = lastResult.roll;
+    const reduced = prefersReducedMotion();
+
+    if (flagRef.current) flagRef.current.textContent = roll.toFixed(2);
+    countUp(numRef.current!, prevRollRef.current, roll, { duration: reduced ? 0 : 0.5, format: (v) => v.toFixed(2) });
+    prevRollRef.current = roll;
+
+    if (markerRef.current) {
+      gsap.to(markerRef.current, {
+        left: `${roll}%`,
+        opacity: 1,
+        duration: reduced ? 0 : 0.55,
+        ease: reduced ? 'none' : 'back.out(2)',
+        onComplete: () => sound.tick(),
+      });
+    }
+
+    if (lastResult.win) {
+      pulse(numRef.current, '#00E082');
+      celebrate(winTier(lastResult.profit, betAmount), { shakeEl: stageRef.current, originEl: stageRef.current });
+    } else {
+      celebrate('none');
+    }
+    // betAmount intentionally read at fire time; lastResult identity drives this.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastResult]);
+
   async function handleRoll() {
     if (rolling) return;
+    sound.unlock();
+    sound.diceRoll();
     setError(null);
     setRolling(true);
     localStorage.setItem('lastBet_dice', String(betAmount));
@@ -47,9 +89,8 @@ export function DicePage() {
       setLastResult({
         roll: d.roll, win: d.win, multiplier: d.multiplier, profit: d.profit, target: d.target, direction: d.direction,
       });
-      if (d.win) playWin();
-      else playLoss();
     } catch (err: unknown) {
+      sound.error();
       const ax = err as { response?: { data?: { error?: string }; status?: number } };
       if (ax.response?.status === 402) setError('Insufficient funds.');
       else if (ax.response?.status === 429) setError('Too many rolls too fast — slow down.');
@@ -66,7 +107,6 @@ export function DicePage() {
       ? `linear-gradient(to right, ${WIN} 0%, ${WIN} ${t}%, ${LOSE} ${t}%, ${LOSE} 100%)`
       : `linear-gradient(to right, ${LOSE} 0%, ${LOSE} ${t}%, ${WIN} ${t}%, ${WIN} 100%)`;
 
-  const rollValue = lastResult ? lastResult.roll.toFixed(2) : '00.00';
   const rollColor = lastResult ? (lastResult.win ? 'var(--win)' : 'var(--loss)') : 'var(--text-muted)';
 
   return (
@@ -79,8 +119,8 @@ export function DicePage() {
         <h1 className="h-title">Dice</h1>
         <div className="game-meta-spec">
           <span>0.00–99.99</span><span className="dot">·</span><span>PROVABLY-FAIR STYLE</span>
-          <button className="icon-btn" onClick={toggleMute} title={isMuted ? 'Unmute' : 'Mute'} style={{ fontSize: 14 }}>
-            {isMuted ? '🔇' : '🔊'}
+          <button className="icon-btn" onClick={toggleMute} title={muted ? 'Unmute' : 'Mute'} style={{ fontSize: 14 }}>
+            {muted ? '🔇' : '🔊'}
           </button>
         </div>
       </div>
@@ -89,10 +129,10 @@ export function DicePage() {
 
       <div className="game-layout">
         <div className="game-stage">
-          <div className="dice-stage">
-            {/* Rolled value */}
+          <div className="dice-stage" ref={stageRef}>
+            {/* Rolled value (count-up owned by GSAP via numRef) */}
             <div className="dice-result" style={{ color: rollColor }}>
-              {rollValue}
+              <span ref={numRef}>00.00</span>
               {lastResult && (
                 <div className="dice-result-label" style={{ color: rollColor }}>
                   {lastResult.win ? `WON · +${lastResult.profit}` : `LOST · ${lastResult.profit}`}
@@ -123,11 +163,9 @@ export function DicePage() {
                 style={{ background: trackGradient }}
                 aria-label="Dice target"
               />
-              {lastResult && (
-                <div className="dice-roll-marker" style={{ left: `${lastResult.roll}%` }}>
-                  <span className="dice-roll-flag">{lastResult.roll.toFixed(2)}</span>
-                </div>
-              )}
+              <div className="dice-roll-marker" ref={markerRef} style={{ left: '50%', opacity: 0 }}>
+                <span className="dice-roll-flag" ref={flagRef}>00.00</span>
+              </div>
               <div className="dice-scale"><span>0</span><span>25</span><span>50</span><span>75</span><span>100</span></div>
             </div>
 
