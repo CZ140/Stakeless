@@ -11,6 +11,13 @@ export interface ChickenResultData {
   dead: boolean;
 }
 
+// A finished round for the "recent rounds" strip (session-only, newest first).
+export interface ChickenRecent {
+  won: boolean;
+  multiplier: number;
+  lanes: number;
+}
+
 const lastDifficulty = (localStorage.getItem('lastDifficulty_chicken') as ChickenDifficulty | null) ?? 'medium';
 
 interface ChickenState {
@@ -24,6 +31,7 @@ interface ChickenState {
   crossed: boolean; // reached the far side — only cash-out remains
   deadLane: number | null; // lane the chicken died on (for the death marker)
   result: ChickenResultData | null;
+  recent: ChickenRecent[]; // finished rounds this session (newest first)
 
   setBetAmount: (n: number) => void;
   setDifficulty: (d: ChickenDifficulty) => void;
@@ -53,6 +61,7 @@ export const useChickenStore = create<ChickenState>()((set) => ({
   crossed: false,
   deadLane: null,
   result: null,
+  recent: [],
 
   setBetAmount: (n) => set({ betAmount: Math.max(1, Math.floor(n)) }),
   setDifficulty: (d) => {
@@ -66,10 +75,19 @@ export const useChickenStore = create<ChickenState>()((set) => ({
   applyAdvance: ({ lane, multiplier, crossed }) => set({ lane, multiplier, crossed }),
 
   applyDeath: ({ lane, multiplier }) =>
-    set({ phase: 'result', deadLane: lane, result: { won: false, payout: 0, lane, multiplier, dead: true } }),
+    set((s) => ({
+      phase: 'result',
+      deadLane: lane,
+      result: { won: false, payout: 0, lane, multiplier, dead: true },
+      recent: [{ won: false, multiplier: 0, lanes: lane }, ...s.recent].slice(0, 12),
+    })),
 
   applyCashout: ({ payout, multiplier, lane }) =>
-    set({ phase: 'result', result: { won: true, payout, lane, multiplier, dead: false } }),
+    set((s) => ({
+      phase: 'result',
+      result: { won: true, payout, lane, multiplier, dead: false },
+      recent: [{ won: true, multiplier, lanes: lane }, ...s.recent].slice(0, 12),
+    })),
 
   restoreSession: (s) =>
     set({

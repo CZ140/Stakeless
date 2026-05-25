@@ -2173,57 +2173,146 @@ body::before {
 
 /* .banner-pump card gradient is defined in the game-card section above. */
 
-/* ─── Chicken (cross the road) ────────────────────────────────────────────────
-   Reuses the .dice-stats stat-strip and .hilo-hint. A horizontal scrolling road
-   of lane tiles; the chicken advances lane by lane. Amber/asphalt theme. */
-.chk-stage {
-  display: flex; flex-direction: column; align-items: center;
-  gap: 18px; padding: 18px 12px; width: 100%;
-}
-.chk-road {
-  display: flex; align-items: stretch; gap: 8px;
-  width: 100%; max-width: 640px; padding: 14px 6px;
-  overflow-x: auto; scroll-behavior: smooth;
-  background:
-    repeating-linear-gradient(90deg, transparent 0 28px, rgba(246, 184, 93, 0.06) 28px 30px),
-    linear-gradient(180deg, #15110a 0%, #0c0a06 100%);
-  border: 1px solid rgba(246, 184, 93, 0.16); border-radius: var(--r-md, 10px);
-}
-.chk-curb { flex: 0 0 8px; align-self: stretch; border-radius: 3px; }
-.chk-curb.start  { background: repeating-linear-gradient(180deg, #F6B85D 0 8px, #1a1208 8px 16px); }
-.chk-curb.finish { background: repeating-linear-gradient(180deg, #00E082 0 8px, #1a1208 8px 16px); }
-.chk-lane {
-  position: relative; flex: 0 0 auto; width: 58px; min-height: 120px;
-  display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
-  gap: 6px; padding: 10px 4px 8px; border-radius: 8px;
-  background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08);
-  transition: background 0.15s, border-color 0.15s, transform 0.1s;
-}
-.chk-lane.is-crossed { background: rgba(246, 184, 93, 0.14); border-color: rgba(246, 184, 93, 0.45); }
-.chk-lane.is-current { border-color: #F6B85D; box-shadow: 0 0 0 1px #F6B85D, 0 6px 16px rgba(246, 184, 93, 0.22); transform: translateY(-2px); }
-.chk-lane.is-dead { background: rgba(240, 68, 90, 0.16); border-color: var(--loss, #F0445A); }
-.chk-mult { font-family: var(--font-mono, monospace); font-size: 12px; font-weight: 700; color: var(--text-secondary); }
-.chk-lane.is-crossed .chk-mult, .chk-lane.is-current .chk-mult { color: #F6B85D; }
-.chk-chicken { font-size: 26px; line-height: 1; margin-top: auto; }
-.chk-tick { font-size: 13px; color: #F6B85D; margin-top: auto; }
+/* ─── Chicken Road ─────────────────────────────────────────────────────────────
+   A full road scene: dusk skyline backdrop, a horizontally-scrolling asphalt road
+   of lane tiles (the chicken advances lane by lane), START/PAYOUT curbs, a HUD
+   strip, difficulty cards, and a recent-rounds strip. Ported from the Claude
+   Design handoff (chicken.jsx); adapted to a flex/scroll layout for variable lane
+   counts. All colours pull from the shared Vault tokens. */
+.chicken-stage { padding: 0; overflow: hidden; }
 
-.chk-btn {
-  display: flex; flex-direction: column; align-items: center; gap: 3px;
-  width: 100%; max-width: 420px; padding: 16px 10px; border-radius: var(--r-md, 10px);
-  background: linear-gradient(135deg, rgba(246, 184, 93, 0.16), rgba(154, 102, 40, 0.12));
-  border: 1px solid rgba(246, 184, 93, 0.5);
-  color: #F6CF9A; cursor: pointer;
-  transition: border-color 0.12s, transform 0.06s, background 0.12s, box-shadow 0.12s;
+/* Dusk skyline */
+.chk-sky {
+  position: relative; height: 104px;
+  background:
+    radial-gradient(ellipse 60% 100% at 22% 110%, rgba(246, 184, 93, 0.45), transparent 60%),
+    linear-gradient(180deg, #0d1a2e 0%, #1f1a2e 55%, #3a2614 100%);
+  border-bottom: 1px solid var(--border); overflow: hidden;
 }
-.chk-btn:hover:not(:disabled) {
-  transform: translateY(-1px); border-color: #F6B85D;
-  background: linear-gradient(135deg, rgba(246, 184, 93, 0.26), rgba(154, 102, 40, 0.2));
-  box-shadow: 0 6px 18px rgba(246, 184, 93, 0.25);
+.chk-sun {
+  position: absolute; left: 18%; bottom: 0; width: 84px; height: 84px; border-radius: 50%;
+  background: radial-gradient(circle at 40% 40%, #FFD27A, #E08C3A 60%, transparent 75%);
+  box-shadow: 0 0 60px rgba(246, 184, 93, 0.6); transform: translateY(40%);
 }
-.chk-btn:active:not(:disabled) { transform: translateY(0); }
-.chk-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-.chk-btn .lbl { font-weight: 800; font-size: 17px; letter-spacing: 0.06em; }
-.chk-btn .sub { font-family: var(--font-mono, monospace); font-size: 12px; color: var(--text-muted); }
+.chk-stars { position: absolute; inset: 0; pointer-events: none; }
+.chk-stars span { position: absolute; background: #fff; border-radius: 50%; }
+.chk-skyline { position: absolute; bottom: 0; left: 0; right: 0; display: flex; align-items: flex-end; gap: 2px; padding: 0 12px; height: 68px; }
+.chk-building { background: #0a0e16; border-top: 1px solid rgba(255,255,255,0.05); border-left: 1px solid rgba(255,255,255,0.04); border-radius: 1px 1px 0 0; position: relative; min-width: 14px; }
+.chk-windows { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; padding: 3px; height: 100%; }
+.chk-windows span { background: #F6B85D; border-radius: 1px; }
+
+/* Road */
+.chk-road-scroll { overflow-x: auto; scroll-behavior: smooth; }
+.chk-road {
+  position: relative; display: flex; align-items: stretch; height: 340px;
+  width: max-content; min-width: 100%;
+  background:
+    repeating-linear-gradient(90deg, transparent 0 60px, rgba(0,0,0,0.18) 60px 61px),
+    linear-gradient(180deg, #1b1d22 0%, #232529 50%, #1b1d22 100%);
+  box-shadow: inset 0 8px 24px rgba(0,0,0,0.5), inset 0 -8px 24px rgba(0,0,0,0.4);
+}
+.chk-lane {
+  position: relative; flex: 0 0 94px;
+  display: flex; flex-direction: column; align-items: center; padding-top: 16px;
+}
+/* dashed lane divider on the right edge of each lane */
+.chk-lane::after {
+  content: ''; position: absolute; right: 0; top: 22px; bottom: 64px; width: 3px;
+  background: repeating-linear-gradient(180deg, rgba(255,235,180,0.72) 0 18px, transparent 18px 34px);
+  box-shadow: 0 0 8px rgba(255,235,180,0.22);
+}
+
+/* lane multiplier tile (pinned near the top) */
+.chk-tile-pin {
+  display: flex; flex-direction: column; align-items: center;
+  background: rgba(20, 24, 32, 0.85); border: 1px solid var(--border-strong);
+  border-radius: 10px; padding: 6px 12px; min-width: 76px;
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.45);
+}
+.chk-mult { font-family: var(--font-mono); font-weight: 700; font-size: 15px; color: var(--gold); font-variant-numeric: tabular-nums; }
+.chk-lane-no { font-family: var(--font-mono); font-size: 8px; letter-spacing: 0.18em; color: var(--text-muted); text-transform: uppercase; margin-top: 1px; }
+.chk-tile-pin.past { background: rgba(33, 208, 122, 0.16); border-color: rgba(33, 208, 122, 0.45); }
+.chk-tile-pin.past .chk-mult { color: var(--win); }
+.chk-tile-pin.here { background: rgba(246, 184, 93, 0.18); border-color: rgba(246, 184, 93, 0.6); box-shadow: 0 6px 24px rgba(246, 184, 93, 0.35), 0 0 0 1px rgba(246, 184, 93, 0.2); }
+.chk-tile-pin.here .chk-mult { color: #FFD27A; }
+.chk-tile-pin.dead { background: rgba(240, 68, 90, 0.18); border-color: rgba(240, 68, 90, 0.6); }
+.chk-tile-pin.dead .chk-mult { color: var(--loss); }
+
+.chk-marker { height: 30px; display: grid; place-items: center; margin-top: 8px; }
+.chk-tile-check {
+  width: 22px; height: 22px; border-radius: 50%; background: var(--win); color: #021a0e;
+  display: grid; place-items: center; font-size: 13px; font-weight: 800;
+  box-shadow: 0 4px 12px rgba(33,208,122,0.5), inset 0 1px 0 rgba(255,255,255,0.25);
+}
+.chk-tile-pulse {
+  width: 12px; height: 12px; border-radius: 50%; background: var(--gold);
+  box-shadow: 0 0 0 0 rgba(246,184,93,0.6); animation: chk-pulse 1.6s infinite ease-out;
+}
+@keyframes chk-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(246,184,93,0.6); }
+  100% { box-shadow: 0 0 0 14px rgba(246,184,93,0); }
+}
+
+/* the chicken + the hazard truck sit at the bottom of a lane */
+.chk-actor { margin-top: auto; margin-bottom: 38px; position: relative; height: 96px; width: 100%; display: flex; align-items: flex-end; justify-content: center; }
+.chk-chicken { position: relative; z-index: 4; display: flex; flex-direction: column; align-items: center; animation: chk-bob 1.4s infinite ease-in-out; }
+.chk-chicken.hit { animation: none; transform: rotate(-14deg); opacity: 0.9; }
+.chk-chicken-shadow { width: 34px; height: 6px; border-radius: 50%; background: radial-gradient(ellipse, rgba(0,0,0,0.55), transparent 65%); margin-top: 2px; }
+@keyframes chk-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+.chk-truck { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); z-index: 3; filter: drop-shadow(0 12px 18px rgba(0,0,0,0.5)); animation: chk-slam 0.32s ease-out; }
+@keyframes chk-slam { 0% { transform: translate(-50%, -120px); opacity: 0; } 70% { transform: translate(-50%, 6px); } 100% { transform: translate(-50%, 0); opacity: 1; } }
+
+/* curbs */
+.chk-curb {
+  flex: 0 0 38px; align-self: stretch; position: relative; z-index: 5;
+  background: repeating-linear-gradient(180deg, #B8C0CC 0 22px, #8E96A3 22px 24px), linear-gradient(90deg, #98a0ad, #b1b8c4);
+  display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 14px 0;
+}
+.chk-curb-l { border-right: 2px solid #4a4f57; }
+.chk-curb-r { border-left: 2px solid #4a4f57; }
+.chk-curb-label { writing-mode: vertical-rl; transform: rotate(180deg); font-family: var(--font-mono); font-size: 10px; font-weight: 700; letter-spacing: 0.3em; color: #2b2e34; text-transform: uppercase; }
+.chk-curb-coin { width: 28px; height: 28px; border-radius: 50%; background: linear-gradient(135deg, var(--gold) 0%, #f5c977 50%, var(--gold-dim) 100%); display: grid; place-items: center; color: #2a1e08; box-shadow: inset 0 1px 0 rgba(255,255,255,0.3), 0 4px 10px rgba(212,168,87,0.4); }
+
+/* HUD strip under the road */
+.chk-hud { display: grid; grid-template-columns: 1fr 1px 1fr 1px 1fr 1px 1fr; padding: 16px 22px; background: var(--bg-base); align-items: center; }
+.chk-hud-cell { display: flex; flex-direction: column; gap: 4px; padding: 0 18px; }
+.chk-hud-cell:first-child { padding-left: 0; }
+.chk-hud-divider { width: 1px; height: 30px; background: var(--border); }
+.chk-hud-v { font-size: 22px; font-weight: 700; font-family: var(--font-mono); }
+.chk-hud-sub { color: var(--text-muted); font-size: 12px; }
+
+/* difficulty cards (in the bet panel) */
+.chk-diff-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.chk-diff { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 8px 10px; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--r-md); text-align: left; cursor: pointer; transition: border-color 0.15s, background 0.15s; }
+.chk-diff:hover:not(:disabled) { border-color: var(--border-strong); }
+.chk-diff:disabled { cursor: not-allowed; opacity: 0.55; }
+.chk-diff.active { background: rgba(246, 184, 93, 0.10); border-color: rgba(246, 184, 93, 0.5); }
+.chk-diff-label { font-size: 13px; font-weight: 600; color: var(--text); }
+.chk-diff.active .chk-diff-label { color: var(--gold); }
+.chk-diff-hint { font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.1em; color: var(--text-muted); text-transform: uppercase; }
+
+/* step action button */
+.chk-step-card { margin-top: 2px; }
+.chk-step-btn {
+  width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 13px 12px; border-radius: var(--r-md); cursor: pointer; font-weight: 700; font-size: 14px;
+  color: #2a1e08; background: linear-gradient(135deg, var(--gold) 0%, #f5c977 50%, var(--gold-dim) 100%);
+  border: 1px solid var(--gold-dim); box-shadow: 0 4px 14px rgba(212,168,87,0.3);
+  transition: transform 0.06s, box-shadow 0.12s, filter 0.12s;
+}
+.chk-step-btn:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.05); box-shadow: 0 6px 18px rgba(212,168,87,0.45); }
+.chk-step-btn:active:not(:disabled) { transform: translateY(0); }
+.chk-step-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.chk-step-arrow { font-size: 16px; }
+.chk-step-next { font-family: var(--font-mono); font-size: 12px; opacity: 0.8; margin-left: 2px; }
+
+/* recent rounds strip */
+.chk-history-strip { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 14px; padding: 12px 16px; border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--bg-surface); }
+.chk-hist { padding: 4px 10px; border-radius: var(--r-pill); font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; font-family: var(--font-mono); }
+.chk-hist.win { background: rgba(33,208,122,0.10); color: var(--win); border: 1px solid rgba(33,208,122,0.3); }
+.chk-hist.loss { background: rgba(240,68,90,0.10); color: var(--loss); border: 1px solid rgba(240,68,90,0.3); }
+.chk-hist small { color: var(--text-muted); margin-left: 6px; font-size: 9px; letter-spacing: 0.1em; }
 
 /* .banner-chicken card gradient is defined in the game-card section above. */
 

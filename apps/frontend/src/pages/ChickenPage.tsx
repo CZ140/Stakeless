@@ -10,6 +10,7 @@ import {
 } from '@gambling/shared';
 import { AppShell } from '../components/vault/AppShell';
 import { BetPanel } from '../components/vault/BetPanel';
+import { CoinIcon } from '../components/vault/icons';
 import { useChickenStore } from '../stores/chickenStore';
 import { useBalanceStore } from '../stores/balanceStore';
 import { useAudioStore } from '../stores/audioStore';
@@ -25,9 +26,103 @@ interface ActiveSessionResponse {
   session: null | { sessionId: number; difficulty: ChickenDifficulty; lane: number; multiplier: number; maxLanes: number; betAmount: number };
 }
 
+// Per-difficulty hazard rate as the player-facing "1 in N" the design uses.
+function hazardRate(d: ChickenDifficulty): string {
+  return `1 in ${Math.round(1 / chickenDeathChance(d))}`;
+}
+
+// ── Dusk skyline backdrop ─────────────────────────────────────────────
+const BUILDING_HEIGHTS = [34, 22, 48, 18, 28, 42, 26, 56, 30, 20, 36, 24, 50, 28];
+function Skyline() {
+  return (
+    <div className="chk-sky">
+      <div className="chk-sun" />
+      <div className="chk-stars">
+        {Array.from({ length: 28 }, (_, i) => (
+          <span key={i} style={{
+            left: `${(i * 37) % 100}%`,
+            top: `${(i * 19) % 60}%`,
+            opacity: 0.25 + ((i * 7) % 60) / 100,
+            width: i % 5 === 0 ? 2 : 1,
+            height: i % 5 === 0 ? 2 : 1,
+          }} />
+        ))}
+      </div>
+      <div className="chk-skyline">
+        {BUILDING_HEIGHTS.map((h, i) => (
+          <div key={i} className="chk-building" style={{ height: h, flex: i % 3 === 0 ? 1.4 : 1 }}>
+            <div className="chk-windows">
+              {Array.from({ length: Math.floor(h / 10) }, (_, w) => (
+                <span key={w} style={{ opacity: (i * w * 7) % 5 === 0 ? 0.9 : 0.2 }} />
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ChickenSprite() {
+  return (
+    <svg width="50" height="50" viewBox="0 0 64 64" fill="none" style={{ display: 'block' }}>
+      <line x1="26" y1="48" x2="26" y2="56" stroke="#F6B85D" strokeWidth="2.5" strokeLinecap="round" />
+      <line x1="36" y1="48" x2="36" y2="56" stroke="#F6B85D" strokeWidth="2.5" strokeLinecap="round" />
+      <path d="M 23 56 L 23 58 L 28 58" stroke="#F6B85D" strokeWidth="2" strokeLinecap="round" fill="none" />
+      <path d="M 33 56 L 33 58 L 38 58" stroke="#F6B85D" strokeWidth="2" strokeLinecap="round" fill="none" />
+      <ellipse cx="32" cy="38" rx="14" ry="12" fill="#FFFFFF" />
+      <ellipse cx="32" cy="38" rx="14" ry="12" fill="url(#chk-body-grad)" opacity="0.5" />
+      <path d="M 24 36 Q 22 42 26 46 Q 30 44 32 40 Z" fill="#E6E9EF" />
+      <circle cx="40" cy="26" r="9" fill="#FFFFFF" />
+      <path d="M 36 17 L 38 13 L 40 17 L 42 13 L 44 17 L 46 14 Z" fill="#C8364B" />
+      <path d="M 48 26 L 53 25 L 48 29 Z" fill="#F6B85D" />
+      <circle cx="42" cy="24" r="1.6" fill="#1a0a0d" />
+      <circle cx="42.5" cy="23.5" r="0.5" fill="#fff" />
+      <ellipse cx="46" cy="30" rx="2" ry="2.5" fill="#C8364B" />
+      <defs>
+        <linearGradient id="chk-body-grad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#FFFFFF" />
+          <stop offset="1" stopColor="#D0D5DB" />
+        </linearGradient>
+      </defs>
+    </svg>
+  );
+}
+
+// The hazard that hits the chicken — only shown on the fatal lane after a death.
+function Truck() {
+  return (
+    <svg width="44" height="86" viewBox="0 0 60 120" fill="none" style={{ display: 'block' }}>
+      <ellipse cx="30" cy="118" rx="24" ry="3" fill="#000" opacity="0.45" />
+      <rect x="8" y="34" width="44" height="62" rx="3" fill="#D6453B" />
+      <rect x="8" y="34" width="44" height="62" rx="3" fill="url(#truck-shade)" opacity="0.35" />
+      <rect x="10" y="36" width="40" height="58" rx="2" fill="none" stroke="rgba(0,0,0,0.25)" />
+      <line x1="10" y1="50" x2="50" y2="50" stroke="rgba(0,0,0,0.18)" />
+      <line x1="10" y1="64" x2="50" y2="64" stroke="rgba(0,0,0,0.18)" />
+      <line x1="10" y1="78" x2="50" y2="78" stroke="rgba(0,0,0,0.18)" />
+      <rect x="10" y="14" width="40" height="22" rx="4" fill="#D6453B" />
+      <rect x="10" y="14" width="40" height="22" rx="4" fill="url(#truck-shade)" opacity="0.35" />
+      <rect x="14" y="18" width="32" height="10" rx="2" fill="#A8C7E8" />
+      <rect x="12" y="12" width="6" height="3" rx="1" fill="#FFE89A" />
+      <rect x="42" y="12" width="6" height="3" rx="1" fill="#FFE89A" />
+      <rect x="3" y="40" width="6" height="14" rx="2" fill="#0a0a0a" />
+      <rect x="51" y="40" width="6" height="14" rx="2" fill="#0a0a0a" />
+      <rect x="3" y="78" width="6" height="14" rx="2" fill="#0a0a0a" />
+      <rect x="51" y="78" width="6" height="14" rx="2" fill="#0a0a0a" />
+      <defs>
+        <linearGradient id="truck-shade" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stopColor="#000" stopOpacity="0.4" />
+          <stop offset="0.5" stopColor="#000" stopOpacity="0" />
+          <stop offset="1" stopColor="#000" stopOpacity="0.4" />
+        </linearGradient>
+      </defs>
+    </svg>
+  );
+}
+
 export function ChickenPage() {
   const {
-    betAmount, difficulty, phase, sessionId, lane, multiplier, maxLanes, crossed, deadLane, result,
+    betAmount, difficulty, phase, sessionId, lane, multiplier, maxLanes, crossed, deadLane, result, recent,
     setBetAmount, setDifficulty, startRound, applyAdvance, applyDeath, applyCashout, restoreSession, reset,
   } = useChickenStore();
   const { muted, toggleMute } = useAudioStore();
@@ -37,13 +132,15 @@ export function ChickenPage() {
 
   const stageRef = useRef<HTMLDivElement>(null);
   const roadRef = useRef<HTMLDivElement>(null);
-  const chickenRef = useRef<HTMLSpanElement>(null);
+  const chickenRef = useRef<HTMLDivElement>(null);
 
-  // The number of lanes to render — fixed by difficulty even in the betting phase
-  // so the road previews the climb the player is about to take.
   const roadLanes = phase === 'betting' ? chickenMaxLanes(difficulty) : maxLanes;
-  // The lane the chicken is about to step into (1-based); null once across/ended.
-  const targetTile = phase === 'active' && !crossed ? lane + 1 : null;
+  // Display lane (1-based) the chicken currently stands on.
+  const chickenCol = phase === 'betting' ? 1
+    : result?.dead ? (deadLane ?? 0) + 1
+    : phase === 'result' ? Math.max(1, lane)
+    : crossed ? maxLanes
+    : lane + 1;
 
   const resume = useCallback(async () => {
     try {
@@ -56,15 +153,12 @@ export function ChickenPage() {
 
   useEffect(() => { void resume(); }, [resume]);
 
-  // Keep the chicken's lane scrolled into view, and hop it forward on each step.
+  // Keep the chicken's lane scrolled into view as it advances. (The chicken's
+  // idle bob is a CSS animation; GSAP only owns the death shake + win celebrate.)
   useEffect(() => {
-    if (!roadRef.current) return;
-    const focus = roadRef.current.querySelector('.chk-lane.is-current') ?? roadRef.current.querySelector('.chk-lane.is-dead');
+    const focus = roadRef.current?.querySelector('.chk-lane.is-chicken');
     focus?.scrollIntoView({ behavior: prefersReducedMotion() ? 'auto' : 'smooth', inline: 'center', block: 'nearest' });
-    if (phase === 'active' && lane > 0 && chickenRef.current && !prefersReducedMotion()) {
-      gsap.fromTo(chickenRef.current, { y: -14 }, { y: 0, duration: 0.34, ease: 'bounce.out' });
-    }
-  }, [lane, phase, crossed]);
+  }, [lane, phase, crossed, chickenCol]);
 
   // Auto-clear the result back to betting after a short pause.
   useEffect(() => {
@@ -112,7 +206,7 @@ export function ChickenPage() {
         applyDeath({ lane: d.lane, multiplier: d.multiplier });
         if (d.newBalance != null) useBalanceStore.getState().setBalance(d.newBalance);
         if (!prefersReducedMotion() && stageRef.current) {
-          gsap.fromTo(stageRef.current, { x: -8 }, { x: 0, duration: 0.05, repeat: 5, yoyo: true, clearProps: 'x' });
+          gsap.fromTo(stageRef.current, { x: -9 }, { x: 0, duration: 0.05, repeat: 6, yoyo: true, clearProps: 'x' });
         }
         celebrate('none'); // loss stinger
       } else {
@@ -147,8 +241,8 @@ export function ChickenPage() {
   const isBetting = phase === 'betting';
   const profit = Math.max(0, Math.floor(betAmount * multiplier) - betAmount);
   const cfg = CHICKEN_DIFFICULTIES[difficulty];
-  const nextMultiplier = targetTile != null ? chickenMultiplier(difficulty, targetTile) : null;
-  const deathPct = Math.round(chickenDeathChance(difficulty) * 100);
+  const nextMultiplier = isActive && !crossed ? chickenMultiplier(difficulty, lane + 1) : null;
+  const canStep = isActive && !crossed && !busy;
 
   let primaryLabel = busy ? 'Starting…' : 'Place bet';
   let onPrimary: () => void = () => { void handleStart(); };
@@ -159,7 +253,7 @@ export function ChickenPage() {
       onPrimary = () => { void handleCashout(); };
       primaryDisabled = busy;
     } else {
-      primaryLabel = 'Cross to begin';
+      primaryLabel = 'Cross a lane to cash';
       onPrimary = () => {};
       primaryDisabled = true;
     }
@@ -173,12 +267,17 @@ export function ChickenPage() {
     <AppShell>
       <div className="crumb">
         <span>HOME</span><span className="crumb-sep">/</span><span>GAMES</span>
-        <span className="crumb-sep">/</span><span style={{ color: 'var(--text-secondary)' }}>CHICKEN</span>
+        <span className="crumb-sep">/</span><span style={{ color: 'var(--text-secondary)' }}>CHICKEN ROAD</span>
       </div>
       <div className="game-page-head">
-        <h1 className="h-title">Chicken</h1>
+        <h1 className="h-title">
+          Chicken Road
+          <span style={{ color: 'var(--text-muted)', fontWeight: 400, fontSize: 14, marginLeft: 8 }}>Cash out before a truck hits</span>
+        </h1>
         <div className="game-meta-spec">
-          <span>CROSS THE ROAD</span><span className="dot">·</span><span>{cfg.label.toUpperCase()} · {deathPct}% / LANE</span><span className="dot">·</span><span>97% RTP</span>
+          <span>{cfg.label.toUpperCase()}</span><span className="dot">·</span>
+          <span>{Math.round(chickenDeathChance(difficulty) * 100)}% / LANE</span><span className="dot">·</span>
+          <span>97% RTP</span>
           <button className="icon-btn" onClick={toggleMute} title={muted ? 'Unmute' : 'Mute'} style={{ fontSize: 14 }}>
             {muted ? '🔇' : '🔊'}
           </button>
@@ -188,67 +287,69 @@ export function ChickenPage() {
       {error && <div className="notice loss" style={{ marginBottom: 16, textAlign: 'left' }}>{error}</div>}
 
       <div className="game-layout">
-        <div className="game-stage">
-          <div className="chk-stage" ref={stageRef}>
-            <div className="dice-stats">
-              <div className="col">
-                <div className="section-title">Multiplier</div>
-                <div className="num v" style={{ color: 'var(--accent)' }}>{multiplier.toFixed(2)}×</div>
-              </div>
-              <div className="divider" />
-              <div className="col">
-                <div className="section-title">Lane</div>
-                <div className="num v">{lane}{roadLanes > 0 ? `/${roadLanes}` : ''}</div>
-              </div>
-              <div className="divider" />
-              <div className="col">
-                <div className="section-title">Profit</div>
-                <div className="num v" style={{ color: 'var(--win)' }}>+{profit.toLocaleString()}</div>
-              </div>
-            </div>
+        <div className="game-stage chicken-stage" ref={stageRef}>
+          <Skyline />
 
-            <div className="chk-road" ref={roadRef}>
-              <div className="chk-curb start" />
-              {Array.from({ length: roadLanes }, (_, i) => {
-                const tile = i + 1; // 1-based display lane
-                const isCrossed = isActive && tile <= lane;
-                const isCurrent = targetTile === tile;
-                const isDead = deadLane != null && tile === deadLane + 1;
-                const cls = 'chk-lane' + (isCrossed ? ' is-crossed' : '') + (isCurrent ? ' is-current' : '') + (isDead ? ' is-dead' : '');
+          <div className="chk-road-scroll" ref={roadRef}>
+            <div className="chk-road">
+              <div className="chk-curb chk-curb-l"><div className="chk-curb-label">START</div></div>
+
+              {Array.from({ length: roadLanes }, (_, idx) => {
+                const i = idx + 1; // 1-based display lane
+                const isPast = !isBetting && i <= lane;
+                const isHere = isActive && !crossed && i === lane + 1;
+                const isDead = !!result?.dead && deadLane != null && i === deadLane + 1;
+                const hasChicken = i === chickenCol;
+                const pinCls = 'chk-tile-pin' + (isPast ? ' past' : '') + (isHere ? ' here' : '') + (isDead ? ' dead' : '');
                 return (
-                  <div key={tile} className={cls}>
-                    <span className="chk-mult">{chickenMultiplier(difficulty, tile).toFixed(2)}×</span>
-                    {(isCurrent || (isDead && phase === 'result')) && (
-                      <span className="chk-chicken" ref={isCurrent ? chickenRef : undefined}>{isDead ? '💥' : '🐔'}</span>
-                    )}
-                    {isCrossed && !isDead && <span className="chk-tick">✓</span>}
+                  <div key={i} className={'chk-lane' + (hasChicken ? ' is-chicken' : '')}>
+                    <div className={pinCls}>
+                      <span className="chk-mult">{chickenMultiplier(difficulty, i).toFixed(2)}×</span>
+                      <span className="chk-lane-no">Lane {i}</span>
+                    </div>
+                    <div className="chk-marker">
+                      {isPast && !isDead && <div className="chk-tile-check">✓</div>}
+                      {isHere && <div className="chk-tile-pulse" />}
+                    </div>
+                    <div className="chk-actor">
+                      {isDead && <div className="chk-truck"><Truck /></div>}
+                      {hasChicken && (
+                        <div className={'chk-chicken' + (isDead ? ' hit' : '')} ref={chickenRef}>
+                          <ChickenSprite />
+                          <div className="chk-chicken-shadow" />
+                        </div>
+                      )}
+                    </div>
                   </div>
                 );
               })}
-              <div className="chk-curb finish" />
-            </div>
 
-            <div className="hilo-hint">
-              {isBetting && 'Pick a difficulty and place a bet to start crossing'}
-              {isActive && !crossed && (lane > 0 ? 'Step to the next lane — or cash out before a car hits.' : 'Step onto the road to start the climb.')}
-              {isActive && crossed && 'You made it across — cash out!'}
-              {phase === 'result' && result && (result.won
-                ? `Cashed out ${result.payout.toLocaleString()} V · ${result.lane} lane${result.lane === 1 ? '' : 's'}`
-                : `💥 Hit on lane ${result.lane + 1} — lost ${betAmount.toLocaleString()} V`)}
+              <div className="chk-curb chk-curb-r">
+                <div className="chk-curb-label">PAYOUT</div>
+                <div className="chk-curb-coin"><CoinIcon size={18} /></div>
+              </div>
             </div>
+          </div>
 
-            <div className="pump-actions">
-              <button
-                type="button"
-                className="chk-btn"
-                disabled={!isActive || busy || crossed}
-                onClick={() => { void handleStep(); }}
-              >
-                <span className="lbl">🐔 STEP</span>
-                {nextMultiplier != null && (
-                  <span className="sub">{nextMultiplier.toFixed(2)}× · {deathPct}% car</span>
-                )}
-              </button>
+          <div className="chk-hud">
+            <div className="chk-hud-cell">
+              <div className="section-title">Step</div>
+              <div className="num chk-hud-v">{lane} <span className="chk-hud-sub">/ {roadLanes}</span></div>
+            </div>
+            <div className="chk-hud-divider" />
+            <div className="chk-hud-cell">
+              <div className="section-title">Current multiplier</div>
+              <div className="num chk-hud-v" style={{ color: 'var(--gold)' }}>{multiplier.toFixed(2)}×</div>
+            </div>
+            <div className="chk-hud-divider" />
+            <div className="chk-hud-cell">
+              <div className="section-title">Cash out value</div>
+              <div className="num chk-hud-v" style={{ color: 'var(--win)' }}>+{profit.toLocaleString()}</div>
+            </div>
+            <div className="chk-hud-divider" />
+            <div className="chk-hud-cell">
+              <div className="section-title">Next lane</div>
+              <div className="num chk-hud-v">{nextMultiplier != null ? `${nextMultiplier.toFixed(2)}×` : '—'}</div>
             </div>
           </div>
         </div>
@@ -258,30 +359,60 @@ export function ChickenPage() {
           onAmountChange={setBetAmount}
           balance={balance}
           amountLocked={!isBetting}
-          multiplier={isActive ? multiplier.toFixed(2) : undefined}
-          profitOnWin={isActive && lane > 0 ? profit : undefined}
+          summary={[
+            { label: 'Difficulty', value: cfg.label },
+            { label: 'Hazard rate', value: hazardRate(difficulty) },
+            { label: 'Lanes ahead', value: `${Math.max(0, roadLanes - lane)} / ${roadLanes}` },
+          ]}
           primaryLabel={primaryLabel}
           onPrimary={onPrimary}
           primaryDisabled={primaryDisabled}
         >
           <div>
             <label className="label">Difficulty</label>
-            <div className="opt-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
+            <div className="chk-diff-grid">
               {CHICKEN_DIFFICULTY_IDS.map((id) => (
                 <button
                   key={id}
                   type="button"
                   disabled={!isBetting}
-                  className={difficulty === id ? 'active' : ''}
+                  className={'chk-diff' + (difficulty === id ? ' active' : '')}
                   onClick={() => setDifficulty(id)}
                 >
-                  {CHICKEN_DIFFICULTIES[id].label}
+                  <span className="chk-diff-label">{CHICKEN_DIFFICULTIES[id].label}</span>
+                  <span className="chk-diff-hint">{hazardRate(id)}</span>
                 </button>
               ))}
             </div>
           </div>
+
+          {isActive && (
+            <div className="chk-step-card">
+              <button
+                type="button"
+                className="chk-step-btn"
+                disabled={!canStep}
+                onClick={() => { void handleStep(); }}
+              >
+                {crossed ? 'Across the road!' : 'Next lane'} <span className="chk-step-arrow">→</span>
+                {nextMultiplier != null && <span className="chk-step-next">{nextMultiplier.toFixed(2)}×</span>}
+              </button>
+            </div>
+          )}
         </BetPanel>
       </div>
+
+      {recent.length > 0 && (
+        <div className="chk-history-strip">
+          <span className="label">recent rounds</span>
+          {recent.map((h, i) => (
+            <span key={i} className={'num chk-hist ' + (h.won ? 'win' : 'loss')}>
+              {h.won ? `${h.multiplier.toFixed(2)}×` : 'BUST'}
+              <small>{h.lanes}L</small>
+            </span>
+          ))}
+        </div>
+      )}
     </AppShell>
   );
 }
