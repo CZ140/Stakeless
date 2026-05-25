@@ -28,6 +28,15 @@ interface ServerToClientEvents {
   'leaderboard:update': (data: LeaderboardSnapshot) => void;
   'balance:update': (data: { balance: number }) => void;
   'tier:up': (data: TierUpEvent) => void;
+  // Crash round resolution, pushed to the player's room by the crash scheduler.
+  'crash:bust': (data: { sessionId: number; crashPoint: number }) => void;
+  'crash:cashout': (data: {
+    sessionId: number;
+    multiplier: number;
+    payout: number;
+    newBalance: number;
+    auto: boolean;
+  }) => void;
 }
 
 interface ClientToServerEvents {

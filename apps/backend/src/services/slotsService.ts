@@ -1,5 +1,5 @@
 import { randomInt } from 'node:crypto';
-import { SLOTS, SLOT_TOTAL_WEIGHT, symbolForRoll, type SlotGrid } from '@gambling/shared';
+import { SLOTS, SLOT_TOTAL_WEIGHT, symbolForRoll, type SlotGrid, type SlotSymbolId } from '@gambling/shared';
 
 // Fill the 3×3 grid with independent crypto-secure weighted draws — one per cell,
 // matching the rest of the platform (Roulette/Plinko/Mines/Dice all use
@@ -8,7 +8,7 @@ import { SLOTS, SLOT_TOTAL_WEIGHT, symbolForRoll, type SlotGrid } from '@gamblin
 export function spinGrid(): SlotGrid {
   const grid: SlotGrid = [];
   for (let reel = 0; reel < SLOTS.REELS; reel++) {
-    const column = [];
+    const column: SlotSymbolId[] = [];
     for (let row = 0; row < SLOTS.ROWS; row++) {
       column.push(symbolForRoll(randomInt(0, SLOT_TOTAL_WEIGHT)));
     }

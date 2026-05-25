@@ -36,6 +36,13 @@
       "when": 1779647705636,
       "tag": "0004_nostalgic_domino",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1779666713556,
+      "tag": "0005_typical_photon",
+      "breakpoints": true
     }
   ]
 }
