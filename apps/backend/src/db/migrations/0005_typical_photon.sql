@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX IF NOT EXISTS "one_active_crash_per_user" ON "game_sessions" USING btree ("user_id") WHERE "game_sessions"."game_type" = 'crash' AND "game_sessions"."completed_at" IS NULL;

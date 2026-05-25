@@ -7,7 +7,9 @@ import {
   integer,
   text,
   boolean,
+  uniqueIndex,
 } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 
 export const users = pgTable('users', {
   id: serial('id').primaryKey(),
@@ -53,18 +55,31 @@ export const gameLogs = pgTable('game_logs', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
 });
 
-export const gameSessions = pgTable('game_sessions', {
-  id: serial('id').primaryKey(),
-  userId: integer('user_id')
-    .notNull()
-    .references(() => users.id),
-  gameType: varchar('game_type', { length: 50 }).notNull(),
-  state: text('state').notNull(), // JSON-encoded game state
-  betAmount: bigint('bet_amount', { mode: 'number' }).notNull(),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
-  updatedAt: timestamp('updated_at').notNull().defaultNow(),
-  completedAt: timestamp('completed_at'),
-});
+export const gameSessions = pgTable(
+  'game_sessions',
+  {
+    id: serial('id').primaryKey(),
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id),
+    gameType: varchar('game_type', { length: 50 }).notNull(),
+    state: text('state').notNull(), // JSON-encoded game state
+    betAmount: bigint('bet_amount', { mode: 'number' }).notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+    completedAt: timestamp('completed_at'),
+  },
+  (t) => ({
+    // At most one live Crash round per user. Crash deducts the stake at start and
+    // settles seconds later, so two concurrent /crash/start requests could both
+    // deduct and arm a round; this partial unique index makes the second insert
+    // fail (handled as 409). Scoped to crash + unsettled rows so it never touches
+    // other games or completed rounds.
+    oneActiveCrashPerUser: uniqueIndex('one_active_crash_per_user')
+      .on(t.userId)
+      .where(sql`${t.gameType} = 'crash' AND ${t.completedAt} IS NULL`),
+  }),
+);
 
 export const dailyBonusClaims = pgTable('daily_bonus_claims', {
   id: serial('id').primaryKey(),

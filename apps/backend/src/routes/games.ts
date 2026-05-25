@@ -11,7 +11,7 @@ import { resolvePlinko, rollPlinkoBucket } from '../services/plinkoService.js';
 import { rollDice, resolveDice } from '../services/diceService.js';
 import { spinGrid } from '../services/slotsService.js';
 import { startCrashRound, manualCashout, reconcileActiveCrash } from '../services/crashService.js';
-import { diceWinChance, diceWinChanceValid, resolveSlots, CRASH, isValidAutoCashout } from '@gambling/shared';
+import { diceWinChance, diceWinChanceValid, resolveSlots, CRASH } from '@gambling/shared';
 import {
   generateMineGrid,
   calculateMinesMultiplier,
@@ -271,8 +271,8 @@ gamesRouter.post('/slots/bet', gameLimiter, clickInterval, requireAuth, async (r
 
 const crashStartSchema = z.object({
   betAmount: z.number().int().min(1).max(1_000_000),
-  // Optional auto-cash-out target; null/omitted = manual only. Range checked below.
-  autoCashout: z.number().min(1).max(CRASH.MAX_CRASH).nullable().optional(),
+  // Optional auto-cash-out target; null/omitted = manual only.
+  autoCashout: z.number().min(CRASH.MIN_AUTO_CASHOUT).max(CRASH.MAX_CRASH).nullable().optional(),
 });
 const crashCashoutSchema = z.object({ sessionId: z.number().int() });
 
@@ -291,40 +291,45 @@ gamesRouter.post('/crash/start', gameLimiter, clickInterval, requireAuth, async 
   const userId = req.user!.id;
   const { betAmount } = parsed.data;
   const autoCashout = parsed.data.autoCashout ?? null;
-  if (autoCashout != null && !isValidAutoCashout(autoCashout)) {
-    res.status(400).json({ error: 'Auto cash-out must be at least 1.01×' });
-    return;
+
+  // Surface the running round (for resume) without duplicating the 409 payload.
+  async function respondAlreadyRunning() {
+    const running = await reconcileActiveCrash(userId);
+    res.status(409).json({
+      error: 'You already have a round in progress',
+      session: running
+        ? {
+            sessionId: running.sessionId,
+            startedAt: running.startedAt,
+            autoCashout: running.autoCashout,
+            serverNow: Date.now(),
+          }
+        : undefined,
+    });
   }
 
   try {
-    // Settle/clean up any finished-but-unsettled round; reject if one is live.
+    // Fast path: settle/clean up any finished-but-unsettled round; reject if live.
     const existing = await reconcileActiveCrash(userId);
     if (existing && existing.status === 'running') {
-      res.status(409).json({
-        error: 'You already have a round in progress',
-        session: {
-          sessionId: existing.sessionId,
-          startedAt: existing.startedAt,
-          autoCashout: existing.autoCashout,
-          serverNow: Date.now(),
-        },
-      });
+      await respondAlreadyRunning();
       return;
     }
 
-    const { newBalance } = await deductBet(userId, betAmount, 'crash');
-    // Reflect the stake immediately — the round may run for seconds before it settles.
-    io?.to(`user:${userId}`).emit('balance:update', { balance: newBalance });
+    // startCrashRound inserts first (the partial unique index is the real guard
+    // against a concurrent double-start), then deducts, then arms.
     const round = await startCrashRound(userId, betAmount, autoCashout);
+    io?.to(`user:${userId}`).emit('balance:update', { balance: round.newBalance });
     res.json({
       sessionId: round.sessionId,
       startedAt: round.startedAt,
       autoCashout: round.autoCashout,
       serverNow: Date.now(),
-      newBalance,
+      newBalance: round.newBalance,
     });
   } catch (err: unknown) {
     const code = (err as { code?: string }).code;
+    if (code === 'ALREADY_RUNNING') { await respondAlreadyRunning(); return; }
     if (code === 'INSUFFICIENT_FUNDS') { res.status(402).json({ error: 'Insufficient funds' }); return; }
     if (code === 'BET_TOO_SMALL') { res.status(400).json({ error: 'Bet amount too small' }); return; }
     console.error('[games] crash start error:', err);

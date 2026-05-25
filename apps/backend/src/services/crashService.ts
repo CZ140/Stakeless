@@ -8,7 +8,7 @@ import {
 } from '@gambling/shared';
 import { db } from '../db/index.js';
 import { gameSessions } from '../db/schema.js';
-import { settleBet } from './walletService.js';
+import { deductBet, settleBet } from './walletService.js';
 import { applyTierUp } from './tierNotify.js';
 import { io } from '../socket/index.js';
 
@@ -19,6 +19,18 @@ const UNIFORM_RES = 1_000_000_000;
 // shared distribution). Matches the rest of the platform's use of crypto.randomInt.
 export function generateCrashPoint(): number {
   return crashPointFromUniform(randomInt(0, UNIFORM_RES) / UNIFORM_RES);
+}
+
+// Postgres error codes surface either on the error or, when Drizzle wraps the
+// query error, on its `.cause`. Walk the chain to find the SQLSTATE code.
+function pgErrorCode(err: unknown): string | undefined {
+  let e: unknown = err;
+  for (let i = 0; i < 5 && e != null; i++) {
+    const code = (e as { code?: unknown }).code;
+    if (typeof code === 'string') return code;
+    e = (e as { cause?: unknown }).cause;
+  }
+  return undefined;
 }
 
 // Persisted per-round state (gameSessions.state JSON). crashPoint + startedAt make
@@ -45,14 +57,32 @@ export function cancelTimers(sessionId: number): void {
   }
 }
 
+// Clear every armed timer. Used by tests between runs so a pending bust/auto timer
+// can't fire against a truncated DB / recycled session id.
+export function cancelAllTimers(): void {
+  for (const ts of timers.values()) ts.forEach(clearTimeout);
+  timers.clear();
+}
+
 // Atomically claim a session for settlement: write the final state + completedAt,
-// but only if it hasn't been settled yet. Exactly one caller wins this race
-// (manual cash-out vs bust timer vs auto timer vs lazy reconcile).
-async function claimSession(sessionId: number, finalState: CrashSessionState): Promise<boolean> {
+// but only if it hasn't been settled yet AND it belongs to this user (defence in
+// depth against id reuse). Exactly one caller wins this race (manual cash-out vs
+// bust timer vs auto timer vs lazy reconcile).
+async function claimSession(
+  userId: number,
+  sessionId: number,
+  finalState: CrashSessionState,
+): Promise<boolean> {
   const rows = await db
     .update(gameSessions)
     .set({ state: JSON.stringify(finalState), completedAt: new Date() })
-    .where(and(eq(gameSessions.id, sessionId), isNull(gameSessions.completedAt)))
+    .where(
+      and(
+        eq(gameSessions.id, sessionId),
+        eq(gameSessions.userId, userId),
+        isNull(gameSessions.completedAt),
+      ),
+    )
     .returning({ id: gameSessions.id });
   return rows.length > 0;
 }
@@ -75,7 +105,7 @@ export async function settleCrashWin(
     cashoutMultiplier: multiplier,
     payout,
   };
-  if (!(await claimSession(sessionId, finalState))) return null;
+  if (!(await claimSession(userId, sessionId, finalState))) return null;
   cancelTimers(sessionId);
   const { newBalance } = await settleBet(userId, payout, betAmount, `cashout_${multiplier.toFixed(2)}`, 'crash');
   io?.to(`user:${userId}`).emit('balance:update', { balance: newBalance });
@@ -87,20 +117,22 @@ export async function settleCrashWin(
 }
 
 // Settle a bust (no cash-out in time). Emits crash:bust so the client stops the
-// curve and reveals the crash point. No-op if the round was already settled.
+// curve and reveals the crash point. Returns true if this call settled it, false
+// if another path got there first.
 export async function settleCrashBust(
   userId: number,
   sessionId: number,
   betAmount: number,
   state: CrashSessionState,
-): Promise<void> {
+): Promise<boolean> {
   const finalState: CrashSessionState = { ...state, status: 'busted' };
-  if (!(await claimSession(sessionId, finalState))) return;
+  if (!(await claimSession(userId, sessionId, finalState))) return false;
   cancelTimers(sessionId);
   const { newBalance } = await settleBet(userId, 0, betAmount, `bust_${state.crashPoint.toFixed(2)}`, 'crash');
   io?.to(`user:${userId}`).emit('balance:update', { balance: newBalance });
   io?.to(`user:${userId}`).emit('crash:bust', { sessionId, crashPoint: state.crashPoint });
   await applyTierUp(userId);
+  return true;
 }
 
 // Schedule the auto-cash-out (if armed and below the crash point) and the bust.
@@ -124,22 +156,46 @@ export function armRound(
   timers.set(sessionId, ts);
 }
 
-// Deduct already done by the caller. Generate the hidden crash point, persist the
-// round, arm its timers, and return the resume info (crash point stays secret).
+// Start a round atomically. Insert FIRST so the partial unique index
+// (one_active_crash_per_user) rejects a concurrent second start before any money
+// moves; then deduct (rolling back the insert on insufficient funds); then arm.
+// Throws { code: 'ALREADY_RUNNING' } on the unique-violation and rethrows
+// INSUFFICIENT_FUNDS / BET_TOO_SMALL from deductBet.
 export async function startCrashRound(
   userId: number,
   betAmount: number,
   autoCashout: number | null,
-): Promise<{ sessionId: number; startedAt: number; autoCashout: number | null }> {
+): Promise<{ sessionId: number; startedAt: number; autoCashout: number | null; newBalance: number }> {
   const crashPoint = generateCrashPoint();
   const startedAt = Date.now();
   const state: CrashSessionState = { crashPoint, autoCashout, startedAt, status: 'active' };
-  const [session] = await db
-    .insert(gameSessions)
-    .values({ userId, gameType: 'crash', state: JSON.stringify(state), betAmount })
-    .returning({ id: gameSessions.id });
-  armRound(userId, session!.id, betAmount, state);
-  return { sessionId: session!.id, startedAt, autoCashout };
+
+  let sessionId: number;
+  try {
+    const [session] = await db
+      .insert(gameSessions)
+      .values({ userId, gameType: 'crash', state: JSON.stringify(state), betAmount })
+      .returning({ id: gameSessions.id });
+    sessionId = session!.id;
+  } catch (err: unknown) {
+    if (pgErrorCode(err) === '23505') {
+      throw Object.assign(new Error('Round already in progress'), { code: 'ALREADY_RUNNING' });
+    }
+    throw err;
+  }
+
+  let newBalance: number;
+  try {
+    ({ newBalance } = await deductBet(userId, betAmount, 'crash'));
+  } catch (err) {
+    // No money moved yet — drop the placeholder round so the unique index frees up.
+    cancelTimers(sessionId);
+    await db.delete(gameSessions).where(eq(gameSessions.id, sessionId));
+    throw err;
+  }
+
+  armRound(userId, sessionId, betAmount, state);
+  return { sessionId, startedAt, autoCashout, newBalance };
 }
 
 export interface CrashReconcileResult {
@@ -156,7 +212,8 @@ export interface CrashReconcileResult {
 // Resolve the player's latest active crash round deterministically as of now.
 // Settles it if its bust / auto-cash-out moment has passed; re-arms timers and
 // reports 'running' otherwise (covers a mid-round server restart). Returns null
-// when there is no active round.
+// when there is no active round. Ordered by id (monotonic) so same-millisecond
+// rows tie-break deterministically.
 export async function reconcileActiveCrash(userId: number): Promise<CrashReconcileResult | null> {
   const rows = await db
     .select()
@@ -168,7 +225,7 @@ export async function reconcileActiveCrash(userId: number): Promise<CrashReconci
         isNull(gameSessions.completedAt),
       ),
     )
-    .orderBy(desc(gameSessions.createdAt))
+    .orderBy(desc(gameSessions.id))
     .limit(1);
   const session = rows[0];
   if (!session) return null;
@@ -232,6 +289,11 @@ function settledOutcome(state: CrashSessionState): ManualCashoutResult {
     : { win: false, crashPoint: state.crashPoint, alreadySettled: true };
 }
 
+async function freshState(sessionId: number): Promise<CrashSessionState | null> {
+  const rows = await db.select().from(gameSessions).where(eq(gameSessions.id, sessionId));
+  return rows[0] ? (JSON.parse(rows[0].state) as CrashSessionState) : null;
+}
+
 // Manual cash-out: server-authoritative on its own clock. Returns null if the
 // round doesn't belong to the user / doesn't exist.
 export async function manualCashout(userId: number, sessionId: number): Promise<ManualCashoutResult | null> {
@@ -252,15 +314,19 @@ export async function manualCashout(userId: number, sessionId: number): Promise<
   if (crashCashoutWins(c, state.crashPoint)) {
     const newBalance = await settleCrashWin(userId, sessionId, betAmount, state, c, false);
     if (newBalance == null) {
-      // A timer settled it first — report the stored outcome.
-      const fresh = (await db.select().from(gameSessions).where(eq(gameSessions.id, sessionId)))[0]!;
-      return settledOutcome(JSON.parse(fresh.state) as CrashSessionState);
+      // A timer settled it first — report whatever it became (win OR loss).
+      const fresh = await freshState(sessionId);
+      return fresh ? settledOutcome(fresh) : { win: false, alreadySettled: true };
     }
     return { win: true, multiplier: c, payout: Math.floor(betAmount * c), newBalance };
   }
 
-  // The curve already passed the crash point — settle the bust now (if a timer
-  // hasn't) and report the loss.
-  await settleCrashBust(userId, sessionId, betAmount, state);
+  // The curve already passed the crash point — settle the bust (unless a timer
+  // beat us, in which case report its actual outcome rather than assuming a loss).
+  const claimed = await settleCrashBust(userId, sessionId, betAmount, state);
+  if (!claimed) {
+    const fresh = await freshState(sessionId);
+    return fresh ? settledOutcome(fresh) : { win: false, crashPoint: state.crashPoint, alreadySettled: true };
+  }
   return { win: false, crashPoint: state.crashPoint };
 }

@@ -1,9 +1,10 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import request from 'supertest';
 import { eq } from 'drizzle-orm';
 import { createApp } from '../src/app.js';
 import { db } from '../src/db/index.js';
-import { gameLogs } from '../src/db/schema.js';
+import { gameLogs, gameSessions } from '../src/db/schema.js';
+import { cancelAllTimers } from '../src/services/crashService.js';
 import { resetDb, createUser, getBalance } from './helpers.js';
 
 const app = createApp();
@@ -14,6 +15,9 @@ function bearer(path: string, token: string) {
 
 describe('Crash routes — money path', () => {
   beforeEach(resetDb);
+  // Kill any still-armed bust/auto timers so they can't fire against the next
+  // test's truncated DB / recycled session ids.
+  afterEach(cancelAllTimers);
 
   it('rejects unauthenticated start', async () => {
     const res = await request(app).post('/api/games/crash/start').send({ betAmount: 10 });
@@ -47,15 +51,38 @@ describe('Crash routes — money path', () => {
   });
 
   it('rejects a second start while a round is in progress (409)', async () => {
-    const { token } = await createUser({ balance: 1000 });
-    const first = await bearer('/api/games/crash/start', token).send({ betAmount: 100, autoCashout: 100 });
-    expect(first.status).toBe(200);
+    const { user, token } = await createUser({ balance: 1000 });
+    // Seed a guaranteed-long-running round directly (huge crash point, just
+    // started) so the reconcile fast-path reliably sees it as live — a round
+    // started via the API could bust in the gap on a small random crash point.
+    const [seeded] = await db
+      .insert(gameSessions)
+      .values({
+        userId: user.id,
+        gameType: 'crash',
+        betAmount: 100,
+        state: JSON.stringify({ crashPoint: 1000, autoCashout: null, startedAt: Date.now(), status: 'active' }),
+      })
+      .returning({ id: gameSessions.id });
 
     const second = await bearer('/api/games/crash/start', token).send({ betAmount: 100 });
     expect(second.status).toBe(409);
-    expect(second.body.session.sessionId).toBe(first.body.sessionId);
+    expect(second.body.session.sessionId).toBe(seeded!.id);
+  });
 
-    await bearer('/api/games/crash/cashout', token).send({ sessionId: first.body.sessionId });
+  it('prevents a concurrent double-start (one wins, one 409s, one stake deducted)', async () => {
+    const { user, token } = await createUser({ balance: 1000 });
+    // Fire two starts at once — the partial unique index must let only one through.
+    const [a, b] = await Promise.all([
+      bearer('/api/games/crash/start', token).send({ betAmount: 100 }),
+      bearer('/api/games/crash/start', token).send({ betAmount: 100 }),
+    ]);
+    expect([a.status, b.status].sort()).toEqual([200, 409]);
+    // Exactly one stake left the balance — the loser threw before deducting.
+    expect(await getBalance(user.id)).toBe(900);
+
+    const winner = a.status === 200 ? a : b;
+    await bearer('/api/games/crash/cashout', token).send({ sessionId: winner.body.sessionId });
   });
 
   it('cashes out at the live multiplier, keeping the balance consistent', async () => {
