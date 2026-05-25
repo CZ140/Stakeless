@@ -145,6 +145,43 @@ export type {
   GroupLeaderboardMetric,
 } from './social.js';
 
+// Poker — No-Limit Texas Hold'em engine primitives (cards, 7-card evaluator,
+// betting math, side pots). PURE + RNG-free; the shuffle and the authoritative
+// table state machine live backend-only in services/poker. See poker.ts.
+export {
+  SUIT_CHARS,
+  cardToString,
+  cardFromString,
+  freshDeck,
+  HAND_CATEGORY,
+  handCategoryName,
+  rank5,
+  evaluateHand,
+  compareHands,
+  legalActions,
+  buildPots,
+  awardPots,
+  POKER,
+  POKER_STAKES,
+} from './poker.js';
+export type {
+  Suit,
+  Card,
+  RankedHand,
+  PokerActionType,
+  PokerAction,
+  ActionContext,
+  LegalActions,
+  SeatContribution,
+  Pot,
+  SeatStatus,
+  Street,
+  PublicSeat,
+  PublicTableState,
+  PrivateHand,
+  PokerStakeId,
+} from './poker.js';
+
 export interface ApiResponse<T = unknown> {
   success: boolean;
   data?: T;
