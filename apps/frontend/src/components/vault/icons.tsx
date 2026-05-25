@@ -73,6 +73,16 @@ export const PumpIcon = ({ size = 18 }: IconProps) => (
   </svg>
 );
 
+export const ChickenIcon = ({ size = 18 }: IconProps) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" {...stroke}>
+    <path d="M4 18 L20 18" />
+    <path d="M7 18 L7 21 M13 18 L13 21 M18 18 L18 21" />
+    <circle cx="11" cy="9" r="4" />
+    <path d="M11 4.5 L10 3 M11 4.5 L12 3" />
+    <path d="M15 9 L17.5 9.6" />
+  </svg>
+);
+
 export const SlotsIcon = ({ size = 18 }: IconProps) => (
   <svg width={size} height={size} viewBox="0 0 24 24" {...stroke}>
     <rect x="3" y="5" width="18" height="14" rx="2" />
@@ -251,4 +261,5 @@ export const gameIcons: Record<string, (props: IconProps) => ReactElement> = {
   flip: FlipIcon,
   hilo: HiloIcon,
   pump: PumpIcon,
+  chicken: ChickenIcon,
 };

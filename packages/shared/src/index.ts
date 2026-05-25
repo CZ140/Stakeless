@@ -82,6 +82,24 @@ export {
 } from './pump.js';
 export type { PumpDifficulty, PumpDifficultyConfig } from './pump.js';
 
+// Chicken ("Chicken Road") — a lane-crossing cash-out ladder. Constant per-lane
+// death chance, geometric multiplier, edge applied once (exact 97% RTP at every
+// cash-out). Difficulty/odds/multiplier math shared by the backend (settlement)
+// and frontend (live readout + per-lane preview). The crypto RNG (the hidden car
+// layout) lives backend-only in services/chickenService.ts. See chicken.ts.
+export {
+  CHICKEN,
+  CHICKEN_DIFFICULTIES,
+  CHICKEN_DIFFICULTY_IDS,
+  isChickenDifficulty,
+  chickenConfig,
+  chickenMaxLanes,
+  chickenDeathChance,
+  chickenSurvivalChance,
+  chickenMultiplier,
+} from './chicken.js';
+export type { ChickenDifficulty, ChickenDifficultyConfig } from './chicken.js';
+
 export interface ApiResponse<T = unknown> {
   success: boolean;
   data?: T;
@@ -94,7 +112,7 @@ export interface HealthResponse {
 }
 
 // Game types (stubs for future phases)
-export type GameType = 'roulette' | 'plinko' | 'mines' | 'blackjack' | 'dice' | 'slots' | 'crash' | 'flip' | 'hilo' | 'pump';
+export type GameType = 'roulette' | 'plinko' | 'mines' | 'blackjack' | 'dice' | 'slots' | 'crash' | 'flip' | 'hilo' | 'pump' | 'chicken';
 
 // ─── Dice ─────────────────────────────────────────────────────────────────────
 // Pure dice math shared by the backend (settlement) and frontend (live readout)
