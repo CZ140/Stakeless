@@ -5,9 +5,9 @@ export interface GameCardData {
   id: string;
   name: string;
   route: string;
+  /** Short category descriptor (Classic, Live, Fast, Risk, …). */
   tag: string;
-  /** Live games: simulated concurrent players + return-to-player. */
-  players?: string;
+  /** Live games: real return-to-player. */
   rtp?: string;
   /** Coming-soon games: estimated ship window. */
   eta?: string;
@@ -37,7 +37,7 @@ export function VaultGameCard({ game, soon = false }: { game: GameCardData; soon
             </>
           ) : (
             <>
-              <span><strong>{game.players}</strong> playing</span>
+              <span>{game.tag}</span>
               <span>RTP <strong>{game.rtp}</strong></span>
             </>
           )}

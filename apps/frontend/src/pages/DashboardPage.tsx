@@ -8,17 +8,17 @@ import { VaultDailyBonus } from '../components/vault/VaultDailyBonus';
 import { VaultGameCard, type GameCardData } from '../components/vault/VaultGameCard';
 import { ActivityFeed } from '../components/vault/ActivityFeed';
 
-// Live games, ordered most-played first. `players` are simulated social-proof
-// figures (the lobby ticker is likewise simulated); `rtp` reflects each game's
-// real return-to-player.
+// Live games. `rtp` is each game's real return-to-player (RNG games are tuned to
+// 97%; Slots 97.06%; Roulette 97.30% from the single-zero 2.70% edge; Blackjack
+// ~99.5% under basic strategy). No fabricated "players online" counts.
 const GAMES: GameCardData[] = [
-  { id: 'roulette', name: 'Roulette', route: '/games/roulette', tag: 'Classic', players: '1,284', rtp: '97.3%' },
-  { id: 'crash', name: 'Crash', route: '/games/crash', tag: 'Live', players: '1,103', rtp: '97.0%' },
-  { id: 'plinko', name: 'Plinko', route: '/games/plinko', tag: 'Fast', players: '892', rtp: '97.0%' },
-  { id: 'slots', name: 'Slots', route: '/games/slots', tag: 'Spin', players: '724', rtp: '97.0%' },
-  { id: 'mines', name: 'Mines', route: '/games/mines', tag: 'Risk', players: '631', rtp: '97.0%' },
-  { id: 'dice', name: 'Dice', route: '/games/dice', tag: 'Pure RNG', players: '518', rtp: '97.0%' },
-  { id: 'blackjack', name: 'Blackjack', route: '/games/blackjack', tag: 'Strategy', players: '447', rtp: '99.5%' },
+  { id: 'roulette', name: 'Roulette', route: '/games/roulette', tag: 'Classic', rtp: '97.3%' },
+  { id: 'crash', name: 'Crash', route: '/games/crash', tag: 'Live', rtp: '97.0%' },
+  { id: 'plinko', name: 'Plinko', route: '/games/plinko', tag: 'Fast', rtp: '97.0%' },
+  { id: 'slots', name: 'Slots', route: '/games/slots', tag: 'Spin', rtp: '97.1%' },
+  { id: 'mines', name: 'Mines', route: '/games/mines', tag: 'Risk', rtp: '97.0%' },
+  { id: 'dice', name: 'Dice', route: '/games/dice', tag: 'Pure RNG', rtp: '97.0%' },
+  { id: 'blackjack', name: 'Blackjack', route: '/games/blackjack', tag: 'Strategy', rtp: '99.5%' },
 ];
 
 // Planned games (THE_NEXT_STEP lineup) — shown as non-clickable "coming soon" tiles.
