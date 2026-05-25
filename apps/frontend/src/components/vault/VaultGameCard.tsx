@@ -6,26 +6,52 @@ export interface GameCardData {
   name: string;
   route: string;
   tag: string;
-  description: string;
+  /** Live games: simulated concurrent players + return-to-player. */
+  players?: string;
+  rtp?: string;
+  /** Coming-soon games: estimated ship window. */
+  eta?: string;
 }
 
-// Dashboard game tile. Shows only real, verifiable info: the game name, a
-// category tag, and a one-line description. The prototype's fabricated
-// "1,284 playing" counts and its doubled LIVE dot are intentionally dropped.
-export function VaultGameCard({ game }: { game: GameCardData }) {
+// Dashboard game tile (Claude Design handoff — VCasino.html). Live tiles link to
+// the game with a pulsing LIVE badge + players/RTP stats; "soon" tiles show a SOON
+// ribbon + ETA and aren't clickable.
+export function VaultGameCard({ game, soon = false }: { game: GameCardData; soon?: boolean }) {
   const Art = gameArt[game.id];
-  return (
-    <Link to={game.route} className="game-card">
-      <div className={`banner banner-${game.id}`}>{Art && <div className="icon-art"><Art /></div>}</div>
+  const inner = (
+    <>
+      <div className={`banner banner-${game.id}`}>
+        {Art && <div className="icon-art"><Art /></div>}
+        {soon && <div className="soon-ribbon">SOON</div>}
+      </div>
       <div className="meta">
         <div className="name">
           <span>{game.name}</span>
-          <span className="tag-chip">{game.tag}</span>
+          {soon ? <span className="soon-label">◆ SOON</span> : <span className="live">● LIVE</span>}
         </div>
         <div className="stats">
-          <span className="desc">{game.description}</span>
+          {soon ? (
+            <>
+              <span>{game.tag}</span>
+              <span>ETA <strong>{game.eta}</strong></span>
+            </>
+          ) : (
+            <>
+              <span><strong>{game.players}</strong> playing</span>
+              <span>RTP <strong>{game.rtp}</strong></span>
+            </>
+          )}
         </div>
       </div>
+    </>
+  );
+
+  if (soon) {
+    return <div className="game-card soon">{inner}</div>;
+  }
+  return (
+    <Link to={game.route} className="game-card">
+      {inner}
     </Link>
   );
 }

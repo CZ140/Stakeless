@@ -718,12 +718,19 @@ body::before {
   margin-bottom: 8px;
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
 }
-/* tag chip on the card (replaces prototype's fake "LIVE" + double dot) */
-.game-card .meta .name .tag-chip {
-  font-family: var(--font-mono); font-size: 9px; color: var(--text-muted);
+.game-card .meta .name .live {
+  display: flex; align-items: center; gap: 4px;
+  font-family: var(--font-mono); font-size: 9px; color: var(--accent);
   letter-spacing: 0.12em; text-transform: uppercase;
-  background: var(--bg-elevated); border: 1px solid var(--border);
-  padding: 2px 7px; border-radius: var(--r-pill); font-weight: 600;
+}
+.game-card .meta .name .live::before {
+  content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--accent);
+  animation: pulse 2s infinite;
+}
+.game-card .meta .name .soon-label {
+  display: flex; align-items: center; gap: 4px;
+  font-family: var(--font-mono); font-size: 9px; color: var(--gold);
+  letter-spacing: 0.12em; text-transform: uppercase;
 }
 .game-card .meta .stats {
   display: flex; justify-content: space-between; gap: 10px;
@@ -733,12 +740,31 @@ body::before {
   color: var(--text-muted);
 }
 .game-card .meta .stats strong { color: var(--text); font-weight: 500; }
-.game-card .meta .desc { color: var(--text-secondary); font-size: var(--fs-sm); }
+
+/* Coming-soon variant */
+.game-card.soon { cursor: default; opacity: 0.92; }
+.game-card.soon:hover { transform: none; border-color: var(--border); box-shadow: none; }
+.game-card.soon .banner { filter: saturate(0.65) brightness(0.85); }
+.soon-ribbon {
+  position: absolute; top: 10px; right: 10px;
+  font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.18em;
+  padding: 4px 8px; border-radius: 4px;
+  background: rgba(212, 168, 87, 0.18); color: var(--gold);
+  border: 1px solid rgba(212, 168, 87, 0.55); z-index: 2; font-weight: 700;
+}
 
 .banner-roulette  { background: linear-gradient(135deg, #1a3a2a 0%, #0a1f15 100%); }
 .banner-plinko    { background: linear-gradient(135deg, #1a2b4a 0%, #0a1428 100%); }
 .banner-mines     { background: linear-gradient(135deg, #3a1a26 0%, #1f0a10 100%); }
 .banner-blackjack { background: linear-gradient(135deg, #2c1a3a 0%, #150a22 100%); }
+.banner-dice      { background: linear-gradient(135deg, #3a2c14 0%, #1f1808 100%); }
+.banner-slots     { background: linear-gradient(135deg, #3a1a30 0%, #1f0a1c 100%); }
+.banner-crash     { background: linear-gradient(135deg, #0d3a3a 0%, #051f1f 100%); }
+.banner-chicken   { background: linear-gradient(135deg, #3a2614 0%, #1f1408 100%); }
+.banner-hilo      { background: linear-gradient(135deg, #1a2c3a 0%, #0a141f 100%); }
+.banner-flip      { background: linear-gradient(135deg, #3a2a14 0%, #221808 100%); }
+.banner-pump      { background: linear-gradient(135deg, #3a1a2c 0%, #1f0a18 100%); }
+.banner-rps       { background: linear-gradient(135deg, #261a3a 0%, #140a1f 100%); }
 
 /* ============================================================
    Shared game-page primitives (used in later passes)
@@ -2009,7 +2035,7 @@ body::before {
 .dice-stats .col { display: flex; flex-direction: column; gap: 4px; text-align: center; min-width: 90px; }
 .dice-stats .divider { width: 1px; align-self: stretch; min-height: 36px; background: var(--border, rgba(255,255,255,0.08)); }
 
-.banner-dice { background: radial-gradient(120% 120% at 30% 20%, rgba(212,168,87,0.20), transparent 60%); }
+/* .banner-dice card gradient is defined in the game-card section above. */
 
 /* ─── Slots ─────────────────────────────────────────────────────────────────── */
 .slots-stage {
@@ -2083,7 +2109,7 @@ body::before {
   font-family: var(--font-mono, monospace); font-size: 10px;
   color: var(--text-muted); letter-spacing: 0.06em; text-align: center;
 }
-.banner-slots { background: radial-gradient(120% 120% at 30% 20%, rgba(212,168,87,0.22), transparent 60%); }
+/* .banner-slots card gradient is defined in the game-card section above. */
 
 /* ─── Crash ─────────────────────────────────────────────────────────────────── */
 .crash-stage {
@@ -2138,4 +2164,4 @@ body::before {
 .crash-auto-toggle:disabled { opacity: 0.5; cursor: not-allowed; }
 .crash-auto .amount-row .coin-suffix { font-size: 9px; }
 
-.banner-crash { background: radial-gradient(120% 120% at 30% 80%, rgba(0,224,130,0.16), transparent 60%); }
+/* .banner-crash card gradient is defined in the game-card section above. */

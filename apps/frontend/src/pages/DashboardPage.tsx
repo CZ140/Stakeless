@@ -8,14 +8,26 @@ import { VaultDailyBonus } from '../components/vault/VaultDailyBonus';
 import { VaultGameCard, type GameCardData } from '../components/vault/VaultGameCard';
 import { ActivityFeed } from '../components/vault/ActivityFeed';
 
+// Live games, ordered most-played first. `players` are simulated social-proof
+// figures (the lobby ticker is likewise simulated); `rtp` reflects each game's
+// real return-to-player.
 const GAMES: GameCardData[] = [
-  { id: 'roulette', name: 'Roulette', route: '/games/roulette', tag: 'Classic', description: 'European wheel · single zero' },
-  { id: 'plinko', name: 'Plinko', route: '/games/plinko', tag: 'Fast', description: 'Drop the ball, ride the pegs' },
-  { id: 'dice', name: 'Dice', route: '/games/dice', tag: 'Fast', description: 'Pick your odds, roll the number' },
-  { id: 'slots', name: 'Slots', route: '/games/slots', tag: 'Fast', description: '3×3 reels · 5 paylines' },
-  { id: 'crash', name: 'Crash', route: '/games/crash', tag: 'Risk', description: 'Ride the curve, cash out before it busts' },
-  { id: 'mines', name: 'Mines', route: '/games/mines', tag: 'Risk', description: 'Avoid the mines, cash out big' },
-  { id: 'blackjack', name: 'Blackjack', route: '/games/blackjack', tag: 'Strategy', description: 'Beat the dealer to 21' },
+  { id: 'roulette', name: 'Roulette', route: '/games/roulette', tag: 'Classic', players: '1,284', rtp: '97.3%' },
+  { id: 'crash', name: 'Crash', route: '/games/crash', tag: 'Live', players: '1,103', rtp: '97.0%' },
+  { id: 'plinko', name: 'Plinko', route: '/games/plinko', tag: 'Fast', players: '892', rtp: '97.0%' },
+  { id: 'slots', name: 'Slots', route: '/games/slots', tag: 'Spin', players: '724', rtp: '97.0%' },
+  { id: 'mines', name: 'Mines', route: '/games/mines', tag: 'Risk', players: '631', rtp: '97.0%' },
+  { id: 'dice', name: 'Dice', route: '/games/dice', tag: 'Pure RNG', players: '518', rtp: '97.0%' },
+  { id: 'blackjack', name: 'Blackjack', route: '/games/blackjack', tag: 'Strategy', players: '447', rtp: '99.5%' },
+];
+
+// Planned games (THE_NEXT_STEP lineup) — shown as non-clickable "coming soon" tiles.
+const COMING_SOON: GameCardData[] = [
+  { id: 'chicken', name: 'Chicken Road', route: '', tag: 'Cash-out ladder', eta: '~4 weeks' },
+  { id: 'hilo', name: 'Hi-Lo', route: '', tag: 'Card guess', eta: '~3 weeks' },
+  { id: 'flip', name: 'Flip', route: '', tag: 'Coin toss', eta: '~2 weeks' },
+  { id: 'pump', name: 'Pump', route: '', tag: 'Balloon', eta: '~6 weeks' },
+  { id: 'rps', name: 'Rock·Paper·Scissors', route: '', tag: '3-way duel', eta: '~8 weeks' },
 ];
 
 interface MeResponse {
@@ -74,12 +86,23 @@ export function DashboardPage() {
 
       <div className="section-head">
         <h3>
-          Casino Games <span>· {GAMES.length} available</span>
+          Casino Games <span>· {GAMES.length} live</span>
         </h3>
       </div>
       <div className="game-grid">
         {GAMES.map((game) => (
           <VaultGameCard key={game.id} game={game} />
+        ))}
+      </div>
+
+      <div className="section-head">
+        <h3>
+          Coming soon <span>· {COMING_SOON.length} in development</span>
+        </h3>
+      </div>
+      <div className="game-grid">
+        {COMING_SOON.map((game) => (
+          <VaultGameCard key={game.id} game={game} soon />
         ))}
       </div>
 
