@@ -20,6 +20,7 @@ const GAME_LABEL: Record<string, string> = {
   mines: 'Mines',
   blackjack: 'Blackjack',
   flip: 'Coin Flip',
+  hilo: 'Hi-Lo',
 };
 
 const ROULETTE_RED = new Set([
@@ -54,6 +55,15 @@ function describe(row: RawActivity): string {
       // outcome is stored as `${call}=${result}` (e.g. "heads=tails").
       const m = /^(heads|tails)=(heads|tails)$/.exec(outcome);
       return m ? `Landed ${m[2]}` : 'Coin flipped';
+    }
+    case 'hilo': {
+      // outcome is `cashout_${streak}` or `bust_${streak}`.
+      const c = /^cashout_(\d+)$/.exec(outcome);
+      if (c) {
+        const n = Number(c[1]);
+        return `Cashed out · ${n} card${n === 1 ? '' : 's'}`;
+      }
+      return /^bust_\d+$/.test(outcome) ? 'Wrong call' : 'Round settled';
     }
     case 'blackjack':
       switch (outcome) {

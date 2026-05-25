@@ -11,8 +11,9 @@ import { resolvePlinko, rollPlinkoBucket } from '../services/plinkoService.js';
 import { rollDice, resolveDice } from '../services/diceService.js';
 import { spinGrid } from '../services/slotsService.js';
 import { flipCoin, resolveCoinflip } from '../services/coinflipService.js';
+import { initialHiloState, applyHiloGuess, type HiloSessionState } from '../services/hiloService.js';
 import { startCrashRound, manualCashout, reconcileActiveCrash } from '../services/crashService.js';
-import { diceWinChance, diceWinChanceValid, resolveSlots, CRASH } from '@gambling/shared';
+import { diceWinChance, diceWinChanceValid, resolveSlots, hiloDirectionAvailable, CRASH } from '@gambling/shared';
 import {
   generateMineGrid,
   calculateMinesMultiplier,
@@ -706,6 +707,213 @@ gamesRouter.get('/mines/active-session', requireAuth, async (req, res) => {
     });
   } catch (err: unknown) {
     console.error('[games] mines active-session error:', err);
+    res.status(500).json({ error: 'An unexpected error occurred' });
+  }
+});
+
+// ─── Hi-Lo routes (card cash-out ladder) ─────────────────────────────────────
+
+const hiloStartSchema = z.object({
+  betAmount: z.number().int().min(1).max(1_000_000),
+});
+const hiloGuessSchema = z.object({
+  sessionId: z.number().int(),
+  direction: z.enum(['hi', 'lo']),
+});
+const hiloCashoutSchema = z.object({
+  sessionId: z.number().int(),
+});
+
+// Load the caller's single open Hi-Lo session, or null.
+async function loadActiveHilo(userId: number) {
+  const rows = await db
+    .select()
+    .from(gameSessions)
+    .where(and(eq(gameSessions.userId, userId), eq(gameSessions.gameType, 'hilo'), isNull(gameSessions.completedAt)))
+    .orderBy(desc(gameSessions.createdAt))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+// POST /api/games/hilo/start
+// Deducts the bet and opens a round with a freshly drawn (public) base card.
+// The current card IS returned — only the NEXT card is unknown. Returns
+// { sessionId, currentCard, streak, multiplier }.
+// Returns 402 INSUFFICIENT_FUNDS, 409 if a round is already in progress.
+gamesRouter.post('/hilo/start', gameLimiter, clickInterval, requireAuth, async (req, res) => {
+  const parsed = hiloStartSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Invalid request' });
+    return;
+  }
+  const userId = req.user!.id;
+  const { betAmount } = parsed.data;
+
+  try {
+    const existing = await loadActiveHilo(userId);
+    if (existing) {
+      res.status(409).json({ error: 'You already have a round in progress' });
+      return;
+    }
+
+    const { newBalance } = await deductBet(userId, betAmount, 'hilo');
+    const state = initialHiloState();
+    const [session] = await db
+      .insert(gameSessions)
+      .values({ userId, gameType: 'hilo', state: JSON.stringify(state), betAmount })
+      .returning({ id: gameSessions.id });
+
+    io?.to(`user:${userId}`).emit('balance:update', { balance: newBalance });
+    res.json({ sessionId: session!.id, currentCard: state.currentCard, streak: 0, multiplier: 1, newBalance });
+  } catch (err: unknown) {
+    const code = (err as { code?: string }).code;
+    if (code === 'INSUFFICIENT_FUNDS') { res.status(402).json({ error: 'Insufficient funds' }); return; }
+    if (code === 'BET_TOO_SMALL') { res.status(400).json({ error: 'Bet amount too small' }); return; }
+    console.error('[games] hilo start error:', err);
+    res.status(500).json({ error: 'An unexpected error occurred' });
+  }
+});
+
+// POST /api/games/hilo/guess
+// Draws the next card. A correct (strict) guess compounds the multiplier and the
+// round continues; a wrong guess (or a tie) busts the round and settles a loss.
+// Returns 200 { nextCard, win, busted, streak, multiplier, newBalance? }.
+// Returns 400 if the round isn't active or the direction is impossible, 404 if
+// the session isn't the caller's.
+gamesRouter.post('/hilo/guess', gameLimiter, clickInterval, requireAuth, async (req, res) => {
+  const parsed = hiloGuessSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Invalid request' });
+    return;
+  }
+  const userId = req.user!.id;
+  const { sessionId, direction } = parsed.data;
+
+  try {
+    const rows = await db
+      .select()
+      .from(gameSessions)
+      .where(and(eq(gameSessions.id, sessionId), eq(gameSessions.userId, userId), isNull(gameSessions.completedAt)));
+    const session = rows[0];
+    if (!session) {
+      res.status(404).json({ error: 'Session not found' });
+      return;
+    }
+
+    const state = JSON.parse(session.state) as HiloSessionState;
+    if (state.status !== 'active') {
+      res.status(400).json({ error: 'Round already ended' });
+      return;
+    }
+    // Reject an impossible call (Ace→higher, 2→lower) before drawing.
+    if (!hiloDirectionAvailable(state.currentCard.rank, direction)) {
+      res.status(400).json({ error: 'That call is not possible on this card' });
+      return;
+    }
+
+    const { nextCard, win, multiplier, streak } = applyHiloGuess(state, direction);
+
+    if (!win) {
+      // Bust — round over, stake already deducted, nothing credited.
+      await db
+        .update(gameSessions)
+        .set({ state: JSON.stringify(state), completedAt: new Date() })
+        .where(eq(gameSessions.id, sessionId));
+      const { newBalance } = await settleBet(userId, 0, session.betAmount, `bust_${streak}`, 'hilo');
+      io?.to(`user:${userId}`).emit('balance:update', { balance: newBalance });
+      await applyTierUp(userId);
+      res.json({ nextCard, win: false, busted: true, streak, multiplier, newBalance });
+      return;
+    }
+
+    // Correct guess — advance the ladder; the player may guess again or cash out.
+    await db
+      .update(gameSessions)
+      .set({ state: JSON.stringify(state), updatedAt: new Date() })
+      .where(eq(gameSessions.id, sessionId));
+    res.json({ nextCard, win: true, busted: false, streak, multiplier });
+  } catch (err: unknown) {
+    console.error('[games] hilo guess error:', err);
+    res.status(500).json({ error: 'An unexpected error occurred' });
+  }
+});
+
+// POST /api/games/hilo/cashout
+// Locks in the current cumulative multiplier. Requires at least one correct
+// guess. Returns 200 { payout, newBalance, multiplier, streak }.
+// Returns 400 if no guess has been made or the round already ended, 404 if not
+// the caller's session.
+gamesRouter.post('/hilo/cashout', gameLimiter, clickInterval, requireAuth, async (req, res) => {
+  const parsed = hiloCashoutSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Invalid request' });
+    return;
+  }
+  const userId = req.user!.id;
+  const { sessionId } = parsed.data;
+
+  try {
+    const rows = await db
+      .select()
+      .from(gameSessions)
+      .where(and(eq(gameSessions.id, sessionId), eq(gameSessions.userId, userId), isNull(gameSessions.completedAt)));
+    const session = rows[0];
+    if (!session) {
+      res.status(404).json({ error: 'Session not found' });
+      return;
+    }
+
+    const state = JSON.parse(session.state) as HiloSessionState;
+    if (state.status !== 'active') {
+      res.status(400).json({ error: 'Round already ended' });
+      return;
+    }
+    if (state.streak === 0) {
+      res.status(400).json({ error: 'Make at least one guess before cashing out' });
+      return;
+    }
+
+    const payout = Math.floor(session.betAmount * state.multiplier);
+    state.status = 'cashout';
+    await db
+      .update(gameSessions)
+      .set({ state: JSON.stringify(state), completedAt: new Date() })
+      .where(eq(gameSessions.id, sessionId));
+
+    const { newBalance } = await settleBet(userId, payout, session.betAmount, `cashout_${state.streak}`, 'hilo');
+    io?.to(`user:${userId}`).emit('balance:update', { balance: newBalance });
+    await applyTierUp(userId);
+    res.json({ payout, newBalance, multiplier: state.multiplier, streak: state.streak });
+  } catch (err: unknown) {
+    console.error('[games] hilo cashout error:', err);
+    res.status(500).json({ error: 'An unexpected error occurred' });
+  }
+});
+
+// GET /api/games/hilo/active-session
+// Resume support: returns the open round (current card is public) so a refresh
+// can rejoin the ladder. Returns { session: null } when there is none.
+gamesRouter.get('/hilo/active-session', requireAuth, async (req, res) => {
+  const userId = req.user!.id;
+  try {
+    const session = await loadActiveHilo(userId);
+    if (!session) {
+      res.json({ session: null });
+      return;
+    }
+    const state = JSON.parse(session.state) as HiloSessionState;
+    res.json({
+      session: {
+        sessionId: session.id,
+        currentCard: state.currentCard,
+        history: state.history,
+        streak: state.streak,
+        multiplier: state.multiplier,
+        betAmount: session.betAmount,
+      },
+    });
+  } catch (err: unknown) {
+    console.error('[games] hilo active-session error:', err);
     res.status(500).json({ error: 'An unexpected error occurred' });
   }
 });
