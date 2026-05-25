@@ -148,4 +148,6 @@ GSAP plugins (MotionPath, CustomEase, CustomBounce) ship inside the installed `g
 - [x] **Game 2: Roulette** — real ball: fast orbit → independent decel (keeps moving after wheel slows) → bounce drop into pocket, rattle ticks + whir + drop audio, tiered celebrate. Motion verified via transform trace.
 - [x] **Game 3: Dice** — marker glides to the roll with back.out overshoot, number counts up, fade-in, pulse + tiered celebrate on win, roll/tick/stinger audio. Verified via trace.
 - [x] **Game 4: Crash** — glowing/pulsing curve head (SVG glow filter), rising tension tone pitched to the multiplier, cash-out (green flash + elastic mult pop + ka-ching + celebrate) vs bust (screen shake + red flash + boom). Resume still works. Verified live (rise → cash-out).
-- [ ] **Game 5: Blackjack**
+- [x] **Game 5: Blackjack** — staggered shoe deal with back-out overshoot, 3D hole-card flip on reveal (flip cue), deal/chip/UI sounds, tiered celebrate on a winning net. Verified (deal → stand → settle).
+
+**All five games complete + browser-verified.** Foundation (`lib/sound.ts`, `lib/juice.ts`, `stores/audioStore.ts`) shared across all. Audio is procedural Web Audio (see §2 deviation). Open question for the user: judge the procedural audio feel with sound on; if recorded SFX are wanted, swap Howler + CC0 samples behind the same `sound.*` API.

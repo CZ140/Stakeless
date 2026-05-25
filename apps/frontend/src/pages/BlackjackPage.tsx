@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { AppShell } from '../components/vault/AppShell';
 import {
@@ -9,8 +9,14 @@ import {
   type BJSessionView,
 } from '../stores/blackjackStore';
 import { useBalanceStore } from '../stores/balanceStore';
-import { useGameSounds } from '../hooks/useGameSounds';
+import { useAudioStore } from '../stores/audioStore';
+import { sound } from '../lib/sound';
+import { celebrate, winTier } from '../lib/juice';
+import { prefersReducedMotion } from '../hooks/useReducedMotion';
 import { apiClient } from '../api/client';
+
+// A snappy back-out overshoot for cards settling into place.
+const CARD_EASE: [number, number, number, number] = [0.34, 1.56, 0.64, 1];
 
 const SUIT_SYMBOLS: Record<string, string> = { hearts: '♥', diamonds: '♦', spades: '♠', clubs: '♣' };
 const RED_SUITS = new Set(['hearts', 'diamonds']);
@@ -37,13 +43,20 @@ function CardFace({ card }: { card: Card | 'facedown' }) {
   );
 }
 
-// A card that slides+flips in when it first appears.
-function DealtCard({ card, flip = false }: { card: Card | 'facedown'; flip?: boolean }) {
+// A card that deals in from the shoe (top-right) with a staggered, overshooting
+// settle — or flips in 3D on reveal. Plays a deal/flip cue timed to its stagger.
+function DealtCard({ card, flip = false, index = 0 }: { card: Card | 'facedown'; flip?: boolean; index?: number }) {
+  const reduced = prefersReducedMotion();
+  useEffect(() => {
+    const id = window.setTimeout(() => (flip ? sound.cardFlip() : sound.cardDeal()), reduced ? 0 : index * 90);
+    return () => window.clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   return (
     <motion.div
-      initial={flip ? { rotateY: 90, opacity: 0 } : { opacity: 0, y: -28, x: 18, rotate: -7 }}
+      initial={flip ? { rotateY: 90, opacity: 0 } : { opacity: 0, y: -52, x: 64, rotate: 9 }}
       animate={{ rotateY: 0, opacity: 1, y: 0, x: 0, rotate: 0 }}
-      transition={{ duration: 0.32, ease: 'easeOut' }}
+      transition={{ duration: reduced ? 0 : 0.42, ease: CARD_EASE, delay: reduced ? 0 : index * 0.09 }}
       style={{ transformStyle: 'preserve-3d' }}
     >
       <CardFace card={card} />
@@ -76,7 +89,7 @@ function PlayerHand({ hand, index, active, settled }: { hand: BJHandView; index:
     <div className={`bj-hand${active ? ' active' : ''}${settled ? ' done' : ''}`}>
       <div className="cards-row">
         {hand.cards.map((c, i) => (
-          <DealtCard key={`${index}-${i}-${c.suit}-${c.rank}`} card={c} />
+          <DealtCard key={`${index}-${i}-${c.suit}-${c.rank}`} card={c} index={i} />
         ))}
       </div>
       <div className="bj-hand-foot">
@@ -90,8 +103,9 @@ function PlayerHand({ hand, index, active, settled }: { hand: BJHandView; index:
 
 export function BlackjackPage() {
   const store = useBlackjackStore();
-  const { playWin, playLoss } = useGameSounds(store.isMuted);
+  const { muted, toggleMute } = useAudioStore();
   const balance = useBalanceStore((s) => s.balance);
+  const feltRef = useRef<HTMLDivElement>(null);
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -112,21 +126,28 @@ export function BlackjackPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function playSettleSound(view: BJSessionView) {
+  function celebrateSettle(view: BJSessionView) {
     if (view.phase !== 'settled') return;
     const net = view.hands.reduce((s, h) => s + handNet(h), 0);
-    if (net > 0) playWin();
-    else if (net < 0) playLoss();
+    const stake = view.hands.reduce((s, h) => s + h.bet * (h.isDoubled ? 2 : 1), 0);
+    // The dealer's hole card flips first; let the win flourish land just after.
+    window.setTimeout(() => {
+      if (net > 0) celebrate(winTier(net, stake), { shakeEl: feltRef.current, originEl: feltRef.current });
+      else if (net < 0) celebrate('none');
+      // net === 0 (push): no sound.
+    }, prefersReducedMotion() ? 0 : 420);
   }
 
   function applySettled(view: BJSessionView) {
     store.applyView(view);
     if (view.newBalance !== undefined) useBalanceStore.getState().setBalance(view.newBalance);
-    playSettleSound(view);
+    celebrateSettle(view);
   }
 
   async function handleDeal() {
     if (isLoading) return;
+    sound.unlock();
+    sound.chip();
     setError(null);
     localStorage.setItem('lastBet_blackjack', String(betAmount));
     setIsLoading(true);
@@ -146,6 +167,8 @@ export function BlackjackPage() {
 
   async function act(action: 'hit' | 'stand' | 'double' | 'split') {
     if (isLoading || sessionId === null || !isPlayerTurn) return;
+    if (action === 'double' || action === 'split') sound.chip();
+    else sound.uiClick();
     setIsLoading(true);
     setError(null);
     try {
@@ -191,7 +214,7 @@ export function BlackjackPage() {
         <h1 className="h-title">Blackjack</h1>
         <div className="game-meta-spec">
           <span>SINGLE DECK</span><span className="dot">·</span><span>BJ PAYS 3:2</span><span className="dot">·</span><span>DEALER STANDS 17</span>
-          <button className="icon-btn" onClick={store.toggleMute} title={store.isMuted ? 'Unmute' : 'Mute'} style={{ fontSize: 14 }}>{store.isMuted ? '🔇' : '🔊'}</button>
+          <button className="icon-btn" onClick={toggleMute} title={muted ? 'Unmute' : 'Mute'} style={{ fontSize: 14 }}>{muted ? '🔇' : '🔊'}</button>
         </div>
       </div>
 
@@ -199,7 +222,7 @@ export function BlackjackPage() {
 
       <div className="game-layout">
         <div className="game-stage" style={{ padding: 14 }}>
-          <div className="felt">
+          <div className="felt" ref={feltRef}>
             <div className="felt-label">STAKELESS · BLACKJACK</div>
 
             {/* Dealer */}
@@ -210,7 +233,7 @@ export function BlackjackPage() {
               </div>
               <div className="cards-row">
                 {dealerCards.map((c, i) => (
-                  <DealtCard key={`dealer-${phase}-${i}`} card={c} flip={isSettled && i === 1} />
+                  <DealtCard key={`dealer-${phase}-${i}`} card={c} index={i} flip={isSettled && i === 1} />
                 ))}
               </div>
             </div>
