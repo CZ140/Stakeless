@@ -118,3 +118,27 @@ export const emailVerificationTokens = pgTable('email_verification_tokens', {
   usedAt: timestamp('used_at'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 });
+
+// ─── Social: friendships ────────────────────────────────────────────────────
+// Directed pair (requester → addressee) gives incoming vs outgoing for free.
+// Friends of U = accepted rows where U is on either side; the friend is the
+// other column. A decline DELETEs the row (lets them re-ask); a remove also
+// DELETEs; a block sets status='blocked' (requester = the blocker). The
+// reverse-direction duplicate (B→A while A→B exists) is prevented in the
+// service layer, and a mutual pending request auto-accepts.
+export const friendships = pgTable(
+  'friendships',
+  {
+    id: serial('id').primaryKey(),
+    requesterId: integer('requester_id').notNull().references(() => users.id),
+    addresseeId: integer('addressee_id').notNull().references(() => users.id),
+    // 'pending' | 'accepted' | 'blocked'
+    status: varchar('status', { length: 20 }).notNull().default('pending'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    respondedAt: timestamp('responded_at'),
+  },
+  (t) => ({
+    // One row per ordered pair.
+    uniquePair: uniqueIndex('friendship_unique_pair').on(t.requesterId, t.addresseeId),
+  }),
+);

@@ -1,5 +1,6 @@
 import { Server } from 'socket.io';
 import type { Server as HttpServer } from 'node:http';
+import type { FriendDTO, FriendRequestDTO, GroupInviteDTO } from '@gambling/shared';
 import { attachAuthMiddleware } from './authMiddleware.js';
 import { startLeaderboardBroadcast } from './leaderboardBroadcast.js';
 
@@ -37,10 +38,14 @@ interface ServerToClientEvents {
     newBalance: number;
     auto: boolean;
   }) => void;
+  // Social: pushed to the target's user:<id> room.
+  'friend:request': (data: { request: FriendRequestDTO }) => void;
+  'friend:accepted': (data: { friend: FriendDTO }) => void;
+  'group:invite': (data: { invite: GroupInviteDTO }) => void;
 }
 
 interface ClientToServerEvents {
-  // Clients do not send custom events in Phase 6
+  // Clients do not send custom events yet (group:subscribe added in the Groups phase)
 }
 
 interface SocketData {

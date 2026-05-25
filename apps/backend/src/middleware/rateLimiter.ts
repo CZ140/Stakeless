@@ -25,3 +25,17 @@ export const gameLimiter = rateLimit({
   skip: () => process.env.NODE_ENV === 'test',
   message: { error: 'Too many requests. Slow down.' },
 });
+
+// socialLimiter — caps friend-request and group-invite/create spam. Applied to
+// mutating social POSTs (send request, invite, create group) before requireAuth.
+// 60/min/IP is generous for real use but stops a script blasting requests.
+export const socialLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  // Integration tests fire many social POSTs from one IP; the limit is not the
+  // thing under test, so skip it under test (mirrors gameLimiter).
+  skip: () => process.env.NODE_ENV === 'test',
+  message: { error: 'Too many requests. Slow down.' },
+});

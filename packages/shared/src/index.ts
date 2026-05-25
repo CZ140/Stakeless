@@ -117,6 +117,34 @@ export {
 } from './rps.js';
 export type { RpsChoice, RpsOutcome } from './rps.js';
 
+// Social layer — Friends & Groups. Shared DTOs plus the group role/permission
+// matrix (roleCan/canKick), used by the backend (enforcement) and the frontend
+// (hide/disable controls). See social.ts for the matrix and the security note.
+export {
+  roleCan,
+  canKick,
+  SOCIAL_LIMITS,
+} from './social.js';
+export type {
+  SocialUser,
+  FriendshipStatus,
+  FriendDTO,
+  FriendRequestDTO,
+  FriendRequestsDTO,
+  RelationshipTag,
+  UserSearchResultDTO,
+  GroupRole,
+  GroupPermission,
+  GroupAvatar,
+  GroupSummaryDTO,
+  GroupMemberDTO,
+  GroupDetailDTO,
+  GroupInviteDTO,
+  GroupLeaderboardRow,
+  GroupLeaderboardSnapshot,
+  GroupLeaderboardMetric,
+} from './social.js';
+
 export interface ApiResponse<T = unknown> {
   success: boolean;
   data?: T;
