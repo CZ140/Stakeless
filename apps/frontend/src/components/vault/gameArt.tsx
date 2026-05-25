@@ -257,7 +257,27 @@ const RpsArt = () => (
   </svg>
 );
 
+// ─── Poker — two hole cards + a chip ────────────────────────────────
+const PokerArt = () => (
+  <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+    <g transform="translate(24 34) rotate(-12)">
+      <rect x="-9" y="-13" width="18" height="26" rx="2.4" fill="#fff" stroke="rgba(0,0,0,0.25)" strokeWidth="0.6" />
+      <path d="M0 -7 C4 -3 7 0 0 6 C-7 0 -4 -3 0 -7 Z" fill="#0a0d12" />
+      <rect x="-1" y="3" width="2" height="4" fill="#0a0d12" />
+    </g>
+    <g transform="translate(38 32) rotate(10)">
+      <rect x="-9" y="-13" width="18" height="26" rx="2.4" fill="#fff" stroke="rgba(0,0,0,0.25)" strokeWidth="0.6" />
+      <path d="M0 -6 L4 0 L0 6 L-4 0 Z" fill="#9a1f2e" />
+    </g>
+    <g transform="translate(44 46)">
+      <circle r="8" fill="#21D07A" stroke="#0a0d12" strokeWidth="1.2" strokeDasharray="2 2.4" />
+      <circle r="4.2" fill="none" stroke="#0a0d12" strokeWidth="1" />
+    </g>
+  </svg>
+);
+
 export const gameArt: Record<string, () => ReactElement> = {
+  poker: PokerArt,
   roulette: RouletteArt,
   plinko: PlinkoArt,
   mines: MinesArt,

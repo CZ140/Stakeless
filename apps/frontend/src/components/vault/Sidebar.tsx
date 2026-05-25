@@ -16,6 +16,7 @@ import {
   CrashIcon,
   MinesIcon,
   BlackjackIcon,
+  PokerIcon,
   LeaderboardIcon,
   ProfileIcon,
   FriendsIcon,
@@ -46,6 +47,7 @@ const games: NavEntry[] = [
   { to: '/games/crash', label: 'Crash', Icon: CrashIcon },
   { to: '/games/mines', label: 'Mines', Icon: MinesIcon },
   { to: '/games/blackjack', label: 'Blackjack', Icon: BlackjackIcon },
+  { to: '/games/poker', label: 'Poker', Icon: PokerIcon },
 ];
 
 export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {

@@ -24,6 +24,7 @@ const GAMES: GameCardData[] = [
   { id: 'chicken', name: 'Chicken', route: '/games/chicken', tag: 'Cross the road', rtp: '97.0%' },
   { id: 'rps', name: 'Rock·Paper·Scissors', route: '/games/rps', tag: '3-way duel', rtp: '97.0%' },
   { id: 'blackjack', name: 'Blackjack', route: '/games/blackjack', tag: 'Strategy', rtp: '99.5%' },
+  { id: 'poker', name: 'Poker', route: '/games/poker', tag: 'Multiplayer', rtp: 'No rake' },
 ];
 
 // Planned games (THE_NEXT_STEP lineup) — the whole lineup is now live, so this is

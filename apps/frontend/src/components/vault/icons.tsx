@@ -318,6 +318,13 @@ export const TransferIcon = ({ size = 13 }: IconProps) => (
   </svg>
 );
 
+// Poker — a spade.
+export const PokerIcon = ({ size = 18 }: IconProps) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" {...stroke}>
+    <path d="M12 3 C16 7 20 10 20 14 a4 4 0 0 1 -7 2.6 C13.2 19 13.8 20 15 21 L9 21 C10.2 20 10.8 19 11 16.6 A4 4 0 0 1 4 14 C4 10 8 7 12 3 Z" />
+  </svg>
+);
+
 // Map keyed by game id, for activity rows etc.
 export const gameIcons: Record<string, (props: IconProps) => ReactElement> = {
   roulette: RouletteIcon,

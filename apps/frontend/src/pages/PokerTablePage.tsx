@@ -1,0 +1,336 @@
+import { useEffect, useState, useRef } from 'react';
+import { useParams, useNavigate, Link } from 'react-router-dom';
+import { toast } from 'sonner';
+import { AppShell } from '../components/vault/AppShell';
+import { Avatar } from '../components/vault/Avatar';
+import { PlayingCard } from '../components/vault/PlayingCard';
+import { apiClient } from '../api/client';
+import { socket } from '../socket';
+import { sound } from '../lib/sound';
+import { useAuth } from '../contexts/AuthContext';
+import { usePokerStore } from '../stores/pokerStore';
+import { legalActions, type PublicTableState, type PrivateHand, type PokerHandResult, type PublicSeat } from '@gambling/shared';
+
+// Fixed seat anchors around the felt (percent of the table box). Seat 0 sits at
+// the bottom (the usual hero position); the rest fan out clockwise.
+const SEAT_POS = [
+  { left: '50%', top: '90%' },
+  { left: '11%', top: '66%' },
+  { left: '15%', top: '20%' },
+  { left: '50%', top: '7%' },
+  { left: '85%', top: '20%' },
+  { left: '89%', top: '66%' },
+];
+
+export function PokerTablePage() {
+  const { id } = useParams<{ id: string }>();
+  const tableId = Number(id);
+  const navigate = useNavigate();
+  const { username } = useAuth();
+
+  const table = usePokerStore((s) => s.table);
+  const myHole = usePokerStore((s) => s.myHole);
+  const lastResult = usePokerStore((s) => s.lastResult);
+
+  const [buyInSeat, setBuyInSeat] = useState<number | null>(null);
+  const [now, setNow] = useState(Date.now());
+  const prevStreetCards = useRef(0);
+
+  // Subscribe to the live table on mount.
+  useEffect(() => {
+    if (!Number.isInteger(tableId)) {
+      navigate('/games/poker');
+      return;
+    }
+    apiClient
+      .get<{ table: PublicTableState; hand: PrivateHand | null }>(`/poker/tables/${tableId}`)
+      .then((r) => {
+        usePokerStore.getState().setTable(r.data.table);
+        usePokerStore.getState().setHand(r.data.hand);
+      })
+      .catch(() => navigate('/games/poker'));
+
+    function onState(d: { tableId: number; state: PublicTableState }) {
+      if (d.tableId !== tableId) return;
+      usePokerStore.getState().setTable(d.state);
+      if (d.state.board.length > prevStreetCards.current) {
+        sound.cardDeal();
+        prevStreetCards.current = d.state.board.length;
+      }
+      if (d.state.street === 'preflop') prevStreetCards.current = 0;
+    }
+    function onHand(d: { tableId: number; hand: PrivateHand }) {
+      if (d.tableId === tableId) usePokerStore.getState().setHand(d.hand);
+    }
+    function onResult(d: { tableId: number; result: PokerHandResult }) {
+      if (d.tableId !== tableId) return;
+      usePokerStore.getState().setResult(d.result);
+      const mine = d.result.seats.find((s) => s.username === username);
+      if (mine && mine.won > 0) sound.winMed();
+      window.setTimeout(() => usePokerStore.getState().setResult(null), 4500);
+    }
+
+    if (!socket.connected) socket.connect();
+    socket.on('poker:state', onState);
+    socket.on('poker:hand', onHand);
+    socket.on('poker:result', onResult);
+    socket.emit('poker:subscribe', tableId);
+    return () => {
+      socket.emit('poker:unsubscribe', tableId);
+      socket.off('poker:state', onState);
+      socket.off('poker:hand', onHand);
+      socket.off('poker:result', onResult);
+      usePokerStore.getState().reset();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tableId]);
+
+  // Tick for the turn timer ring.
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 250);
+    return () => clearInterval(t);
+  }, []);
+
+  if (!table) {
+    return (
+      <AppShell>
+        <div className="crumb"><Link to="/games/poker">HOME / POKER</Link></div>
+        <div className="fg-search-hint">Loading table…</div>
+      </AppShell>
+    );
+  }
+
+  const mySeatObj = table.seats.find((s) => s.username === username && s.userId !== null) ?? null;
+  const iAmSeated = mySeatObj !== null;
+  const isMyTurn = iAmSeated && table.actingSeat === mySeatObj!.seatIndex;
+
+  async function act(type: 'fold' | 'check' | 'call' | 'raise', amount?: number) {
+    sound.chip();
+    try {
+      await apiClient.post(`/poker/tables/${tableId}/action`, { type, ...(amount != null ? { amount } : {}) });
+    } catch (e) {
+      const ax = e as { response?: { data?: { error?: string } } };
+      toast.error(ax.response?.data?.error ?? 'Action failed');
+    }
+  }
+
+  async function leave() {
+    try {
+      await apiClient.post(`/poker/tables/${tableId}/leave`);
+      navigate('/games/poker');
+    } catch {
+      toast.error('Could not leave');
+    }
+  }
+
+  const secsLeft = table.actionDeadline ? Math.max(0, Math.ceil((table.actionDeadline - now) / 1000)) : null;
+
+  return (
+    <AppShell>
+      <div className="pkr-hero">
+        <div>
+          <div className="crumb"><Link to="/games/poker">HOME / POKER</Link><span className="crumb-sep">/</span><span>{table.name.toUpperCase()}</span></div>
+          <h1 className="h-title">{table.name}</h1>
+          <p className="h-subtitle fg-mono">{table.smallBlind}/{table.bigBlind} · hand #{table.handNumber} · {table.street}</p>
+        </div>
+        {iAmSeated && <button className="btn btn-ghost" onClick={leave}>Leave table</button>}
+      </div>
+
+      <div className="pkr-felt">
+        {/* Community board + pot */}
+        <div className="pkr-center">
+          <div className="pkr-pot fg-mono">POT {table.totalPot.toLocaleString()}</div>
+          <div className="pkr-board">
+            {[0, 1, 2, 3, 4].map((i) => <PlayingCard key={i} card={table.board[i] ?? null} />)}
+          </div>
+          {lastResult && (
+            <div className="pkr-result fg-mono">
+              {lastResult.showdown
+                ? lastResult.seats.filter((s) => s.won > 0).map((s) => `${s.username} +${s.won}${s.handName ? ` (${s.handName})` : ''}`).join(' · ')
+                : `${lastResult.seats.find((s) => s.won > 0)?.username ?? '—'} wins ${lastResult.potTotal}`}
+            </div>
+          )}
+        </div>
+
+        {/* Seats */}
+        {SEAT_POS.map((pos, i) => {
+          const seat = table.seats[i];
+          return <Seat key={i} pos={pos} seat={seat} table={table} now={now} mine={seat?.username === username} onSit={() => seat && seat.userId === null && setBuyInSeat(i)} />;
+        })}
+      </div>
+
+      {/* Action bar (my turn) */}
+      {isMyTurn && mySeatObj && (
+        <ActionBar table={table} seat={mySeatObj} onAct={act} secsLeft={secsLeft} />
+      )}
+      {iAmSeated && !isMyTurn && (
+        <div className="pkr-actionbar idle fg-mono">
+          {table.street === 'idle' || table.street === 'showdown' ? 'Waiting for the next hand…' : 'Waiting for your turn…'}
+        </div>
+      )}
+      {!iAmSeated && (
+        <div className="pkr-actionbar idle fg-mono">Tap an empty seat to sit down.</div>
+      )}
+
+      {/* My hole cards */}
+      {iAmSeated && myHole && myHole.length > 0 && (
+        <div className="pkr-myhand">
+          {myHole.map((c, i) => <PlayingCard key={i} card={c} size="lg" />)}
+        </div>
+      )}
+
+      {buyInSeat !== null && (
+        <BuyInModal table={table} seatIndex={buyInSeat} onClose={() => setBuyInSeat(null)} tableId={tableId} />
+      )}
+    </AppShell>
+  );
+}
+
+function Seat({
+  pos, seat, table, now, mine, onSit,
+}: {
+  pos: { left: string; top: string };
+  seat: PublicSeat | undefined;
+  table: PublicTableState;
+  now: number;
+  mine: boolean;
+  onSit: () => void;
+}) {
+  if (!seat || seat.userId === null) {
+    return (
+      <button className="pkr-seat empty" style={pos} onClick={onSit}>+ sit</button>
+    );
+  }
+  const isActing = table.actingSeat === seat.seatIndex;
+  const isButton = table.buttonIndex === seat.seatIndex;
+  const folded = seat.status === 'folded';
+  const secs = isActing && table.actionDeadline ? Math.max(0, Math.ceil((table.actionDeadline - now) / 1000)) : null;
+  return (
+    <div className={'pkr-seat' + (isActing ? ' acting' : '') + (folded ? ' folded' : '') + (mine ? ' mine' : '')} style={pos}>
+      <div className="pkr-seat-cards">
+        {seat.revealedCards
+          ? seat.revealedCards.map((c, i) => <PlayingCard key={i} card={c} />)
+          : seat.status !== 'empty' && seat.status !== 'sittingOut' && table.street !== 'idle' && table.street !== 'showdown' && !folded
+            ? <><PlayingCard /><PlayingCard /></>
+            : null}
+      </div>
+      <div className="pkr-seat-body">
+        <Avatar username={seat.username ?? '?'} avatarColor={seat.avatarColor} className="fg-ava s30" />
+        <div className="pkr-seat-meta">
+          <div className="pkr-seat-name">{seat.username}{seat.isBot && <span className="pkr-bot-tag">BOT</span>}</div>
+          <div className="pkr-seat-stack fg-mono">{seat.stack.toLocaleString()}</div>
+        </div>
+        {isButton && <span className="pkr-dealer">D</span>}
+        {seat.status === 'allin' && <span className="pkr-allin">ALL-IN</span>}
+      </div>
+      {seat.committedThisStreet > 0 && <div className="pkr-bet fg-mono">{seat.committedThisStreet.toLocaleString()}</div>}
+      {secs !== null && <div className="pkr-timer">{secs}</div>}
+    </div>
+  );
+}
+
+function ActionBar({
+  table, seat, onAct, secsLeft,
+}: {
+  table: PublicTableState;
+  seat: PublicSeat;
+  onAct: (type: 'fold' | 'check' | 'call' | 'raise', amount?: number) => void;
+  secsLeft: number | null;
+}) {
+  const la = legalActions({
+    stack: seat.stack,
+    currentBet: table.currentBet,
+    committedThisStreet: seat.committedThisStreet,
+    minRaise: table.minRaise,
+    bigBlind: table.bigBlind,
+  });
+  const [raiseTo, setRaiseTo] = useState(la.minRaiseTo);
+  // Keep the slider within the current legal range as state changes.
+  useEffect(() => {
+    setRaiseTo((v) => Math.max(la.minRaiseTo, Math.min(la.maxRaiseTo, v)));
+  }, [la.minRaiseTo, la.maxRaiseTo]);
+
+  const pot = table.totalPot;
+  const presets: { label: string; to: number }[] = [
+    { label: '½ pot', to: table.currentBet + Math.round(pot * 0.5) },
+    { label: '¾ pot', to: table.currentBet + Math.round(pot * 0.75) },
+    { label: 'Pot', to: table.currentBet + pot },
+    { label: 'All-in', to: la.maxRaiseTo },
+  ];
+  const clamp = (to: number) => Math.max(la.minRaiseTo, Math.min(la.maxRaiseTo, to));
+
+  return (
+    <div className="pkr-actionbar">
+      <div className="pkr-act-left">
+        <button className="btn btn-ghost" onClick={() => onAct('fold')}>Fold</button>
+        {la.canCheck ? (
+          <button className="btn btn-outline" onClick={() => onAct('check')}>Check</button>
+        ) : (
+          <button className="btn btn-outline" onClick={() => onAct('call')} disabled={!la.canCall}>
+            Call {la.callAmount.toLocaleString()}
+          </button>
+        )}
+      </div>
+      {la.canRaise && (
+        <div className="pkr-raise">
+          <div className="pkr-raise-presets">
+            {presets.map((p) => (
+              <button key={p.label} className="pkr-preset" onClick={() => setRaiseTo(clamp(p.to))} disabled={clamp(p.to) < la.minRaiseTo && p.to !== la.maxRaiseTo}>{p.label}</button>
+            ))}
+          </div>
+          <input
+            type="range"
+            className="pkr-slider"
+            min={la.minRaiseTo}
+            max={la.maxRaiseTo}
+            value={raiseTo}
+            onChange={(e) => setRaiseTo(Number(e.target.value))}
+          />
+          <button className="btn btn-primary" onClick={() => onAct('raise', raiseTo)}>
+            {raiseTo >= la.maxRaiseTo ? 'All-in' : `Raise to ${raiseTo.toLocaleString()}`}
+          </button>
+        </div>
+      )}
+      {secsLeft !== null && <div className="pkr-act-timer fg-mono">{secsLeft}s</div>}
+    </div>
+  );
+}
+
+function BuyInModal({ table, seatIndex, tableId, onClose }: { table: PublicTableState; seatIndex: number; tableId: number; onClose: () => void }) {
+  // Buy-in bounds come from the stakes (40–100× BB), matching the server.
+  const min = table.bigBlind * 40;
+  const max = table.bigBlind * 100;
+  const [amount, setAmount] = useState(max);
+  const [saving, setSaving] = useState(false);
+
+  async function sit() {
+    setSaving(true);
+    try {
+      await apiClient.post(`/poker/tables/${tableId}/sit`, { seatIndex, buyIn: amount });
+      sound.bet();
+      onClose();
+    } catch (e) {
+      const ax = e as { response?: { data?: { error?: string } } };
+      toast.error(ax.response?.data?.error ?? 'Could not sit');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fg-modal-shade" onClick={onClose}>
+      <div className="fg-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="fg-modal-head">
+          <div className="section-title">Buy in — seat {seatIndex + 1}</div>
+        </div>
+        <div className="fg-mono fg-dim">Blinds {table.smallBlind}/{table.bigBlind} · range {min}–{max}</div>
+        <input type="range" className="pkr-slider" min={min} max={max} step={table.bigBlind} value={amount} onChange={(e) => setAmount(Number(e.target.value))} />
+        <div className="pkr-buyin-amt fg-mono">{amount.toLocaleString()} chips</div>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+          <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary" disabled={saving} onClick={sit}>Sit down</button>
+        </div>
+      </div>
+    </div>
+  );
+}
