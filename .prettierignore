@@ -1,0 +1,5 @@
+**/dist/**
+**/node_modules/**
+apps/backend/public/**
+apps/backend/src/db/migrations/**
+pnpm-lock.yaml

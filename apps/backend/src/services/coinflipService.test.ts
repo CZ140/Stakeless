@@ -49,7 +49,7 @@ describe('resolveCoinflip', () => {
 
 describe('house edge (Monte Carlo)', () => {
   it('average return per unit staked converges to the RTP', () => {
-    const call: 'heads' = 'heads';
+    const call = 'heads' as const;
     const mult = coinflipMultiplier(); // 1.94
     const N = 300_000;
     let wins = 0;
