@@ -283,11 +283,11 @@ export function ProfilePage() {
 
       {/* Stat grid */}
       <div className="acc-stat-grid">
-        <StatCard label="BALANCE" value={data.balance.toLocaleString()} valSmall=" V" chipBg="rgba(0,224,130,0.15)" chipFg="var(--accent)" chip={<CoinIcon size={14} />}
+        <StatCard label="BALANCE" value={data.balance.toLocaleString()} valSmall=" coins" chipBg="rgba(0,224,130,0.15)" chipFg="var(--accent)" chip={<CoinIcon size={14} />}
           sub={data.todayNet !== 0 ? `${data.todayNet > 0 ? '+' : '−'}${Math.abs(data.todayNet).toLocaleString()} today` : 'no change today'} subCls={data.todayNet > 0 ? 'pos' : data.todayNet < 0 ? 'neg' : ''} />
         <StatCard label="RANK" value={`#${data.balanceRank}`} chipBg="rgba(212,168,87,0.2)" chipFg="var(--gold)" chip={<StarIco />} sub="by balance" />
-        <StatCard label="TOTAL WAGERED" value={data.totalWagered.toLocaleString()} valSmall=" V" chipBg="rgba(91,141,239,0.18)" chipFg="var(--blue)" chip={<DiamondIco />} sub="lifetime" />
-        <StatCard label="TOTAL PROFIT" value={`${profitPos ? '+' : '−'}${Math.abs(data.totalProfit).toLocaleString()}`} valSmall=" V" chipBg="rgba(33,208,122,0.18)" chipFg="var(--win)" chip={<TrophyIcon size={11} color="var(--win)" />} sub="net all time" subCls={profitPos ? 'pos' : 'neg'} />
+        <StatCard label="TOTAL WAGERED" value={data.totalWagered.toLocaleString()} valSmall=" coins" chipBg="rgba(91,141,239,0.18)" chipFg="var(--blue)" chip={<DiamondIco />} sub="lifetime" />
+        <StatCard label="TOTAL PROFIT" value={`${profitPos ? '+' : '−'}${Math.abs(data.totalProfit).toLocaleString()}`} valSmall=" coins" chipBg="rgba(33,208,122,0.18)" chipFg="var(--win)" chip={<TrophyIcon size={11} color="var(--win)" />} sub="net all time" subCls={profitPos ? 'pos' : 'neg'} />
         <StatCard label="GAMES PLAYED" value={data.gamesPlayed.toLocaleString()} chipBg="rgba(179,146,240,0.18)" chipFg="var(--purple)" chip={<DiamondIco />} sub={`${data.gamesToday} today`} />
         <StatCard label="WIN RATE" value={data.winRate.toFixed(1)} valSmall="%" chipBg="rgba(0,224,130,0.15)" chipFg="var(--accent)" chip={<ShieldIco />} sub="of rounds won" />
       </div>

@@ -162,7 +162,7 @@ export function AdminPage() {
         <StatCard
           label="COINS IN CIRCULATION"
           value={stats ? stats.coinsInCirculation.toLocaleString() : '—'}
-          valSmall=" V"
+          valSmall=" coins"
           chipBg="var(--gold-soft)" chipFg="var(--gold)" chip={<CoinIcon size={14} />}
           sub="across all balances"
         />
