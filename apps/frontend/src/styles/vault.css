@@ -1520,6 +1520,17 @@ body::before {
 /* GSI renders its own (light-themed) button into this slot; just centre it. */
 .google-signin { display: flex; justify-content: center; }
 .google-signin-btn { display: flex; justify-content: center; width: 100%; color-scheme: light; }
+/* GSI renders its button as inline DOM: size:large is only 40px tall with a full-pill
+   radius, which looks short and over-rounded next to the app's 48px / --r-md primary
+   button. Force it to match. Targets stable structural selectors (the ARIA role=button
+   and direct child wrappers), not GSI's hashed class names, so it survives GSI updates. */
+.google-signin-btn > div,
+.google-signin-btn [role='button'] {
+  height: 48px !important;
+  min-height: 48px !important;
+  border-radius: var(--r-md) !important;
+}
+.google-signin-btn [role='button'] > div { height: 48px !important; }
 
 .perks-strip {
   display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px;
