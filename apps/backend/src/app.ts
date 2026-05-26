@@ -1,4 +1,4 @@
-import express, { type Express } from 'express';
+import express, { type Express, type Request, type Response, type NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
@@ -79,6 +79,27 @@ export function createApp(): Express {
       res.sendFile(path.join(clientDir, 'index.html'));
     });
   }
+
+  // JSON 404 for anything unmatched. In production the SPA catch-all above has
+  // already served non-API GETs, so this only fires for unknown /api/* paths and
+  // non-GET misses; in dev/test it catches every unmatched request.
+  app.use((req: Request, res: Response) => {
+    res.status(404).json({ error: 'Not found', path: req.path });
+  });
+
+  // Central error handler — must be LAST and take 4 args for Express to treat it
+  // as an error handler. Without it, an escaped throw hits Express's default
+  // handler, which leaks a stack trace as HTML. We log the full error server-side
+  // and return a minimal JSON body, never exposing internals to the client.
+  app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+    console.error('[error]', err);
+    if (res.headersSent) return;
+    const status =
+      typeof (err as { status?: unknown })?.status === 'number'
+        ? (err as { status: number }).status
+        : 500;
+    res.status(status).json({ error: status === 500 ? 'Internal server error' : 'Request failed' });
+  });
 
   return app;
 }
