@@ -108,7 +108,7 @@ const pool = new Pool({
 ## Step 2 — Provision the database (~5 min)
 
 1. Create a free **Neon** project → copy the connection string (includes `?sslmode=require`).
-2. Apply the schema (you're on migration `0010`):
+2. Apply the schema (you're on migration `0011`):
    ```bash
    DATABASE_URL="<neon-url>" pnpm --filter backend db:migrate
    ```

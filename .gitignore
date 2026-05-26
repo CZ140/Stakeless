@@ -3,6 +3,9 @@ dist/
 .env
 *.local
 
+# Deploy build output: the Vite SPA is copied here at deploy time (see DEPLOY.md / Dockerfile)
+apps/backend/public/
+
 # Playwright MCP test artifacts
 .playwright-mcp/
 
