@@ -7,7 +7,7 @@ import { TierBadge } from '../components/vault/TierBadge';
 import { SearchIcon, XIcon, CheckIcon, BanIcon } from '../components/vault/icons';
 import { apiClient } from '../api/client';
 import { useFriendsStore } from '../stores/friendsStore';
-import type { FriendDTO, BlockedUserDTO, FriendRequestDTO, UserSearchResultDTO } from '@gambling/shared';
+import type { FriendDTO, BlockedUserDTO, FriendRequestDTO, UserSearchResultDTO, PokerTableSummary } from '@gambling/shared';
 
 type TabKey = 'friends' | 'requests' | 'add' | 'blocked';
 
@@ -30,6 +30,7 @@ function FriendsList() {
   const friends = useFriendsStore((s) => s.friends);
   const removeFriendByUserId = useFriendsStore((s) => s.removeFriendByUserId);
   const addBlocked = useFriendsStore((s) => s.addBlocked);
+  const [inviteFriend, setInviteFriend] = useState<FriendDTO | null>(null);
 
   async function remove(f: FriendDTO) {
     removeFriendByUserId(f.userId); // optimistic
@@ -62,35 +63,114 @@ function FriendsList() {
     );
   }
   return (
-    <div className="fg-list">
-      {friends.map((f) => (
-        <div className="fg-row" key={f.userId}>
-          <PresenceAvatar user={f} online={f.online} />
-          <div className="fg-row-meta">
-            <div className="fg-row-name">
-              <Link className="fg-link" to={`/profile/${f.username}`}>{f.username}</Link>
-              <TierBadge level={f.tierLevel} />
+    <>
+      <div className="fg-list">
+        {friends.map((f) => (
+          <div className="fg-row" key={f.userId}>
+            <PresenceAvatar user={f} online={f.online} />
+            <div className="fg-row-meta">
+              <div className="fg-row-name">
+                <Link className="fg-link" to={`/profile/${f.username}`}>{f.username}</Link>
+                <TierBadge level={f.tierLevel} />
+              </div>
+              <div className="fg-row-sub">
+                <span className={'fg-status' + (f.online ? ' online' : '')}>{f.online ? 'Online' : 'Offline'}</span>
+                <span className="fg-sep">·</span>
+                <span className="num">{f.balance.toLocaleString()}</span>
+                <span className="fg-coin">🪙</span>
+                <span className="fg-sep">·</span>
+                <span>joined {joinedLabel(f.since)}</span>
+              </div>
             </div>
-            <div className="fg-row-sub">
-              <span className={'fg-status' + (f.online ? ' online' : '')}>{f.online ? 'Online' : 'Offline'}</span>
-              <span className="fg-sep">·</span>
-              <span className="num">{f.balance.toLocaleString()}</span>
-              <span className="fg-coin">🪙</span>
-              <span className="fg-sep">·</span>
-              <span>joined {joinedLabel(f.since)}</span>
+            <div className="fg-row-actions">
+              <button className="btn btn-outline" style={{ padding: '7px 12px', fontSize: 12 }} onClick={() => setInviteFriend(f)} title={`Invite ${f.username} to a poker table you're seated at`}>
+                Invite to table
+              </button>
+              <button className="btn btn-ghost" style={{ padding: '7px 14px', fontSize: 12 }} onClick={() => remove(f)}>Remove</button>
+              <button className="btn btn-ghost fg-danger" style={{ padding: '7px 10px', fontSize: 12 }} onClick={() => block(f)} title={`Block ${f.username}`} aria-label={`Block ${f.username}`}>
+                <BanIcon size={13} />
+              </button>
             </div>
           </div>
-          <div className="fg-row-actions">
-            <Link className="btn btn-outline" to="/games/poker" style={{ padding: '7px 12px', fontSize: 12 }} title="Open a poker table, then invite them from there">
-              Invite to table
-            </Link>
-            <button className="btn btn-ghost" style={{ padding: '7px 14px', fontSize: 12 }} onClick={() => remove(f)}>Remove</button>
-            <button className="btn btn-ghost fg-danger" style={{ padding: '7px 10px', fontSize: 12 }} onClick={() => block(f)} title={`Block ${f.username}`} aria-label={`Block ${f.username}`}>
-              <BanIcon size={13} />
-            </button>
+        ))}
+      </div>
+      {inviteFriend && <TableInviteModal friend={inviteFriend} onClose={() => setInviteFriend(null)} />}
+    </>
+  );
+}
+
+// "Invite to table" from a friend row: a friend invite reuses the existing poker
+// invite endpoint, which requires the inviter to be SEATED. So we list the tables
+// this user is currently sitting at and let them pick one. If they're not seated
+// anywhere, we point them at the lobby to open a table first.
+function TableInviteModal({ friend, onClose }: { friend: FriendDTO; onClose: () => void }) {
+  const [tables, setTables] = useState<PokerTableSummary[] | null>(null);
+  const [invited, setInvited] = useState<Set<number>>(new Set());
+
+  useEffect(() => {
+    apiClient
+      .get<{ tables: PokerTableSummary[] }>('/poker/tables')
+      .then((r) => setTables(r.data.tables.filter((t) => t.iAmSeated)))
+      .catch(() => setTables([]));
+  }, []);
+
+  async function invite(tableId: number) {
+    setInvited((s) => new Set(s).add(tableId));
+    try {
+      await apiClient.post(`/poker/tables/${tableId}/invite`, { username: friend.username });
+      toast.success(`Invited ${friend.username}`);
+      onClose();
+    } catch (e) {
+      setInvited((s) => {
+        const n = new Set(s);
+        n.delete(tableId);
+        return n;
+      });
+      const ax = e as { response?: { data?: { error?: string } } };
+      toast.error(ax.response?.data?.error ?? 'Could not invite');
+    }
+  }
+
+  const seated = tables ?? [];
+  return (
+    <div className="fg-modal-shade" onClick={onClose}>
+      <div className="fg-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="fg-modal-head">
+          <div>
+            <div className="section-title">Invite {friend.username} to poker</div>
+            <div className="h-subtitle" style={{ marginTop: 6, fontSize: 13 }}>
+              Pick one of the tables you're seated at — they'll get a live invite to join.
+            </div>
           </div>
+          <button className="fg-icon-btn" onClick={onClose} aria-label="Close"><XIcon size={14} /></button>
         </div>
-      ))}
+        <div className="fg-picker-list" style={{ maxHeight: 320 }}>
+          {tables === null && <div className="fg-picker-empty">Loading your tables…</div>}
+          {tables !== null && seated.length === 0 && (
+            <div className="fg-picker-empty">
+              You're not seated at a poker table yet. <Link className="fg-link" to="/games/poker" onClick={onClose}>Open a table →</Link> then invite from there.
+            </div>
+          )}
+          {seated.map((t) => {
+            const sent = invited.has(t.id);
+            return (
+              <div className="fg-picker-row" key={t.id}>
+                <div className="fg-picker-meta">
+                  <div className="fg-picker-name">{t.name}</div>
+                  <div className="fg-row-sub">
+                    {t.smallBlind}/{t.bigBlind} · {t.seatedHumans + t.botCount}/{t.maxSeats} seats{t.type === 'private' ? ' · private' : ''}
+                  </div>
+                </div>
+                {sent ? (
+                  <span className="tag fg-picker-tag">Invited</span>
+                ) : (
+                  <button className="btn btn-primary" style={{ padding: '6px 14px', fontSize: 12 }} onClick={() => invite(t.id)}>Invite</button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
