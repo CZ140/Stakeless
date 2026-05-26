@@ -26,8 +26,23 @@ export function createApp(): Express {
   // cookies are set and express-rate-limit sees the real client IP.
   app.set('trust proxy', 1);
 
-  // Security headers first
-  app.use(helmet());
+  // Security headers. Helmet's default CSP is strict (script-src 'self'), which
+  // blocks the Google Identity Services "Sign in with Google" widget. Extend three
+  // directives so GSI can load its client script, render its button iframe, and
+  // call its endpoints; every other directive keeps helmet's secure defaults.
+  // These only permit specific accounts.google.com GSI paths, so they're harmless
+  // when Google sign-in is disabled.
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          scriptSrc: ["'self'", 'https://accounts.google.com/gsi/client'],
+          connectSrc: ["'self'", 'https://accounts.google.com/gsi/'],
+          frameSrc: ["'self'", 'https://accounts.google.com/gsi/'],
+        },
+      },
+    })
+  );
 
   // CORS — driven by FRONTEND_URL (comma-separated for multiple origins). Defaults
   // to the Vite dev server. Moot under a single-origin deploy (no cross-origin
