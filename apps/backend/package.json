@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "typecheck": "tsc --noEmit",
@@ -16,6 +17,7 @@
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^16.0.0",
+    "drizzle-kit": "^0.27.0",
     "drizzle-orm": "^0.45.0",
     "express": "^4.18.0",
     "express-rate-limit": "^8.2.1",
@@ -24,6 +26,7 @@
     "nodemailer": "^8.0.1",
     "pg": "^8.11.0",
     "socket.io": "^4.8.3",
+    "tsx": "^4.0.0",
     "zod": "^3.22.0"
   },
   "devDependencies": {
@@ -35,9 +38,7 @@
     "@types/nodemailer": "^7.0.11",
     "@types/pg": "^8.11.0",
     "@types/supertest": "^7.2.0",
-    "drizzle-kit": "^0.27.0",
     "supertest": "^7.2.2",
-    "tsx": "^4.0.0",
     "vitest": "^4.0.18"
   }
 }

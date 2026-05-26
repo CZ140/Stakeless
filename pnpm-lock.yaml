@@ -32,6 +32,9 @@ importers:
       dotenv:
         specifier: ^16.0.0
         version: 16.6.1
+      drizzle-kit:
+        specifier: ^0.27.0
+        version: 0.27.2
       drizzle-orm:
         specifier: ^0.45.0
         version: 0.45.1(@types/pg@8.16.0)(pg@8.19.0)
@@ -56,6 +59,9 @@ importers:
       socket.io:
         specifier: ^4.8.3
         version: 4.8.3
+      tsx:
+        specifier: ^4.0.0
+        version: 4.21.0
       zod:
         specifier: ^3.22.0
         version: 3.25.76
@@ -84,15 +90,9 @@ importers:
       '@types/supertest':
         specifier: ^7.2.0
         version: 7.2.0
-      drizzle-kit:
-        specifier: ^0.27.0
-        version: 0.27.2
       supertest:
         specifier: ^7.2.2
         version: 7.2.2
-      tsx:
-        specifier: ^4.0.0
-        version: 4.21.0
       vitest:
         specifier: ^4.0.18
         version: 4.0.18(@types/node@22.19.13)(tsx@4.21.0)
