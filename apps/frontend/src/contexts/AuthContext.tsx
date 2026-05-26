@@ -4,6 +4,7 @@ import {
   useState,
   useEffect,
   useCallback,
+  useMemo,
   useRef,
   type ReactNode,
 } from 'react';
@@ -156,11 +157,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [],
   );
 
-  return (
-    <AuthContext.Provider value={{ ...state, signIn, signOut, updateLocalProfile }}>
-      {children}
-    </AuthContext.Provider>
+  // Memoize so the context value identity only changes when state or one of the
+  // (stable) callbacks does — otherwise every AuthProvider render hands consumers
+  // a fresh object and re-renders the whole tree under it.
+  const value = useMemo(
+    () => ({ ...state, signIn, signOut, updateLocalProfile }),
+    [state, signIn, signOut, updateLocalProfile],
   );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth(): AuthContextValue {

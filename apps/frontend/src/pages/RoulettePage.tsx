@@ -154,7 +154,7 @@ export function RoulettePage() {
       </div>
 
       {error && (
-        <div className="notice loss" style={{ marginBottom: 16, textAlign: 'left' }}>{error}</div>
+        <div className="notice loss" role="alert" style={{ marginBottom: 16, textAlign: 'left' }}>{error}</div>
       )}
 
       <div className="game-layout">

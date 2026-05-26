@@ -232,7 +232,7 @@ export function PlinkoPage() {
         </div>
       </div>
 
-      {error && <div className="notice loss" style={{ marginBottom: 16, textAlign: 'left' }}>{error}</div>}
+      {error && <div className="notice loss" role="alert" style={{ marginBottom: 16, textAlign: 'left' }}>{error}</div>}
 
       <div className="game-layout">
         <div className="game-stage" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14, background: 'linear-gradient(180deg, var(--bg-inset), #050810)' }}>

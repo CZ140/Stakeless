@@ -293,7 +293,7 @@ export function ChickenPage() {
         </div>
       </div>
 
-      {error && <div className="notice loss" style={{ marginBottom: 16, textAlign: 'left' }}>{error}</div>}
+      {error && <div className="notice loss" role="alert" style={{ marginBottom: 16, textAlign: 'left' }}>{error}</div>}
 
       <div className="game-layout">
         <div className="game-stage chicken-stage" ref={stageRef}>
