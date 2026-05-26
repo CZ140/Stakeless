@@ -283,6 +283,28 @@ function AddFriendTab() {
     }
   }
 
+  async function block(target: UserSearchResultDTO) {
+    if (!window.confirm(`Block ${target.username}? They won't be able to send you requests or find you in search.`)) return;
+    // Blocked users are hidden from search, so drop the row optimistically.
+    setResults((rs) => rs.filter((r) => r.userId !== target.userId));
+    useFriendsStore.getState().addBlocked({
+      userId: target.userId,
+      username: target.username,
+      avatarColor: target.avatarColor,
+      avatarImage: target.avatarImage,
+      tierLevel: target.tierLevel,
+      since: new Date().toISOString(),
+    });
+    try {
+      await apiClient.post(`/friends/${target.userId}/block`);
+      toast.success(`Blocked ${target.username}`);
+    } catch {
+      useFriendsStore.getState().removeBlocked(target.userId);
+      setResults((rs) => [...rs, target].sort((a, b) => a.username.localeCompare(b.username))); // revert
+      toast.error('Could not block user');
+    }
+  }
+
   return (
     <div className="fg-add">
       <div className="fg-search">
@@ -310,6 +332,9 @@ function AddFriendTab() {
                 {r.relationship === 'outgoing' && <span className="tag">⌛ Pending</span>}
                 {r.relationship === 'incoming' && <button className="btn btn-primary" style={{ padding: '7px 16px', fontSize: 12 }} onClick={() => add(r)}>Accept</button>}
                 {r.relationship === 'friends' && <span className="tag accent"><CheckIcon size={11} /> Friends</span>}
+                <button className="btn btn-ghost fg-danger" style={{ padding: '7px 10px', fontSize: 12 }} onClick={() => block(r)} title={`Block ${r.username}`} aria-label={`Block ${r.username}`}>
+                  <BanIcon size={13} />
+                </button>
               </div>
             </div>
           ))}
