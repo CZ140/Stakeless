@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import gsap from 'gsap';
 import {
@@ -132,7 +133,7 @@ export function ChickenPage() {
   const {
     betAmount, difficulty, phase, sessionId, lane, multiplier, maxLanes, crossed, deadLane, result, recent,
     setBetAmount, setDifficulty, startRound, applyAdvance, applyDeath, applyCashout, restoreSession, reset,
-  } = useChickenStore();
+  } = useChickenStore(useShallow((s) => ({ betAmount: s.betAmount, difficulty: s.difficulty, phase: s.phase, sessionId: s.sessionId, lane: s.lane, multiplier: s.multiplier, maxLanes: s.maxLanes, crossed: s.crossed, deadLane: s.deadLane, result: s.result, recent: s.recent, setBetAmount: s.setBetAmount, setDifficulty: s.setDifficulty, startRound: s.startRound, applyAdvance: s.applyAdvance, applyDeath: s.applyDeath, applyCashout: s.applyCashout, restoreSession: s.restoreSession, reset: s.reset })));
   const { muted, toggleMute } = useAudioStore();
   const balance = useBalanceStore((s) => s.balance);
   const [error, setError] = useState<string | null>(null);
@@ -258,7 +259,7 @@ export function ChickenPage() {
   let primaryDisabled = busy;
   if (isActive) {
     if (lane > 0) {
-      primaryLabel = `Cash out · ${Math.floor(betAmount * multiplier).toLocaleString()} V`;
+      primaryLabel = `Cash out · ${Math.floor(betAmount * multiplier).toLocaleString()} coins`;
       onPrimary = () => { void handleCashout(); };
       primaryDisabled = busy;
     } else {
@@ -293,7 +294,7 @@ export function ChickenPage() {
         </div>
       </div>
 
-      {error && <div className="notice loss" style={{ marginBottom: 16, textAlign: 'left' }}>{error}</div>}
+      {error && <div className="notice loss" role="alert" style={{ marginBottom: 16, textAlign: 'left' }}>{error}</div>}
 
       <div className="game-layout">
         <div className="game-stage chicken-stage" ref={stageRef}>

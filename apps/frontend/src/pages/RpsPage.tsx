@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import { useEffect, useRef, useState } from 'react';
 import gsap from 'gsap';
 import { RPS, RPS_CHOICES, rpsWinMultiplier, type RpsChoice } from '@gambling/shared';
@@ -26,7 +27,7 @@ const FIST = '✊'; // closed fist shown while shaking, before the reveal
 const COUNT = ['Rock…', 'Paper…', 'Scissors…'];
 
 export function RpsPage() {
-  const { betAmount, choice, playing, lastResult, setBetAmount, setChoice, setPlaying, setLastResult } = useRpsStore();
+  const { betAmount, choice, playing, lastResult, setBetAmount, setChoice, setPlaying, setLastResult } = useRpsStore(useShallow((s) => ({ betAmount: s.betAmount, choice: s.choice, playing: s.playing, lastResult: s.lastResult, setBetAmount: s.setBetAmount, setChoice: s.setChoice, setPlaying: s.setPlaying, setLastResult: s.setLastResult })));
   const { muted, toggleMute } = useAudioStore();
   const balance = useBalanceStore((s) => s.balance);
   const [error, setError] = useState<string | null>(null);
@@ -110,9 +111,9 @@ export function RpsPage() {
 
   const resultText = (() => {
     if (!showResult) return playing ? 'Rock, paper, scissors…' : 'Pick your throw and shoot';
-    if (r.outcome === 'win') return `${THROW_LABEL[r.choice]} beats ${r.house} — won +${r.profit.toLocaleString()} V`;
+    if (r.outcome === 'win') return `${THROW_LABEL[r.choice]} beats ${r.house} — won +${r.profit.toLocaleString()} coins`;
     if (r.outcome === 'tie') return `Tie — both threw ${r.house} · stake returned`;
-    return `${THROW_LABEL[r.house]} beats ${r.choice} — lost ${betAmount.toLocaleString()} V`;
+    return `${THROW_LABEL[r.house]} beats ${r.choice} — lost ${betAmount.toLocaleString()} coins`;
   })();
   const resultColor = showResult ? (r.outcome === 'win' ? 'var(--win)' : r.outcome === 'loss' ? 'var(--loss)' : 'var(--text-secondary)') : 'var(--text-muted)';
 
@@ -132,7 +133,7 @@ export function RpsPage() {
         </div>
       </div>
 
-      {error && <div className="notice loss" style={{ marginBottom: 16, textAlign: 'left' }}>{error}</div>}
+      {error && <div className="notice loss" role="alert" style={{ marginBottom: 16, textAlign: 'left' }}>{error}</div>}
 
       <div className="game-layout">
         <div className="game-stage">

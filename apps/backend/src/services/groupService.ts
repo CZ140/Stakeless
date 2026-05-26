@@ -6,7 +6,7 @@
 // for that group and enforces it with roleCan()/canKick() from @gambling/shared.
 // A role sent by the client is never trusted. Non-members cannot read a group,
 // its membership, or its leaderboard.
-import { and, eq, inArray, desc, asc, sql } from 'drizzle-orm';
+import { and, eq, inArray, desc, sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { users, groups, groupMembers, groupInvites } from '../db/schema.js';
 import { roleCan, canKick, SOCIAL_LIMITS } from '@gambling/shared';

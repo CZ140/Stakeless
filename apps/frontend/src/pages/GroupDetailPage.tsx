@@ -10,7 +10,6 @@ import {
   PencilIcon,
   KebabIcon,
   TransferIcon,
-  RefreshIcon,
   SearchIcon,
   ArrowUpIcon,
   ArrowDownIcon,

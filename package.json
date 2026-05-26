@@ -5,10 +5,22 @@
     "dev": "concurrently --kill-others-on-fail --names \"backend,frontend\" -c \"blue,green\" \"pnpm --filter backend dev\" \"pnpm --filter frontend dev\"",
     "db:migrate": "pnpm --filter backend db:migrate",
     "db:generate": "pnpm --filter backend db:generate",
-    "typecheck": "pnpm --filter backend typecheck && pnpm --filter frontend typecheck && pnpm --filter shared typecheck"
+    "typecheck": "pnpm --filter backend typecheck && pnpm --filter frontend typecheck && pnpm --filter shared typecheck",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write \"**/*.{ts,tsx,js,mjs,json,css,md}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,mjs,json,css,md}\""
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "concurrently": "^9.0.0",
-    "typescript": "^5.0.0"
+    "eslint": "^9.39.4",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-react-refresh": "^0.5.2",
+    "globals": "^17.6.0",
+    "prettier": "^3.8.3",
+    "typescript": "^5.0.0",
+    "typescript-eslint": "^8.60.0"
   }
 }

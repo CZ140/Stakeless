@@ -162,7 +162,7 @@ export function AdminPage() {
         <StatCard
           label="COINS IN CIRCULATION"
           value={stats ? stats.coinsInCirculation.toLocaleString() : '—'}
-          valSmall=" V"
+          valSmall=" coins"
           chipBg="var(--gold-soft)" chipFg="var(--gold)" chip={<CoinIcon size={14} />}
           sub="across all balances"
         />
@@ -221,7 +221,7 @@ export function AdminPage() {
                       </div>
                     </div>
                   </td>
-                  <td className="res">{player.balance.toLocaleString()}<small> V</small></td>
+                  <td className="res">{player.balance.toLocaleString()}<small> coins</small></td>
                   <td className="mult" style={{ color: 'var(--text-secondary)' }}>{player.totalWagered.toLocaleString()}</td>
                   <td>
                     <div className="tags">
@@ -298,7 +298,7 @@ export function AdminPage() {
                         <td className="mult" style={{ color: 'var(--text-secondary)' }}>{round.betAmount.toLocaleString()}</td>
                         <td className="time">{new Date(round.createdAt).toLocaleString()}</td>
                         <td className={'res ' + (pos ? 'win' : 'loss')}>
-                          {pos ? '+' : '−'}{Math.abs(round.profit).toLocaleString()}<small> V</small>
+                          {pos ? '+' : '−'}{Math.abs(round.profit).toLocaleString()}<small> coins</small>
                         </td>
                       </tr>
                     );

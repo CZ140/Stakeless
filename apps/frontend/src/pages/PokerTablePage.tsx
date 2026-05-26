@@ -11,7 +11,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { usePokerStore } from '../stores/pokerStore';
 import { useFriendsStore } from '../stores/friendsStore';
 import { XIcon } from '../components/vault/icons';
-import { legalActions, evaluateHand, HAND_CATEGORY, POKER_CHAT_MAX_LEN, type PublicTableState, type PrivateHand, type PokerHandResult, type PublicSeat, type PokerChatMessage, type Card } from '@gambling/shared';
+import { legalActions, evaluateHand, HAND_CATEGORY, POKER, POKER_CHAT_MAX_LEN, type PublicTableState, type PrivateHand, type PokerHandResult, type PublicSeat, type PokerChatMessage, type Card } from '@gambling/shared';
 
 // Friendly rank labels for the "your hand" readout.
 const RANK_NAME: Record<number, string> = {
@@ -54,16 +54,32 @@ function describeHand(hole: Card[], board: Card[]): string {
   }
 }
 
-// Fixed seat anchors around the felt (percent of the table box). Seat 0 sits at
-// the bottom (the usual hero position); the rest fan out clockwise.
-const SEAT_POS = [
-  { left: '50%', top: '90%' },
-  { left: '11%', top: '66%' },
-  { left: '15%', top: '20%' },
-  { left: '50%', top: '7%' },
-  { left: '85%', top: '20%' },
-  { left: '89%', top: '66%' },
+const clamp01 = (n: number): number => Math.max(0, Math.min(1, n));
+
+// Fixed seat anchors around the felt (percent of the felt box). Seat 0 sits at the
+// bottom (the usual hero position); the rest fan out clockwise.
+const SEAT_POS: React.CSSProperties[] = [
+  { left: '50%', top: '92%' },
+  { left: '88%', top: '70%' },
+  { left: '88%', top: '28%' },
+  { left: '50%', top: '12%' },
+  { left: '12%', top: '28%' },
+  { left: '12%', top: '70%' },
 ];
+
+// Where each seat's "bet this street" chip pill nudges toward the pot.
+const BET_POS: React.CSSProperties[] = [
+  { left: '50%', top: '-26px', transform: 'translateX(-50%)' },
+  { left: '-14px', top: '50%', transform: 'translateY(-50%) translateX(-100%)' },
+  { left: '-14px', top: '50%', transform: 'translateY(-50%) translateX(-100%)' },
+  { left: '50%', bottom: '-26px', transform: 'translateX(-50%)' },
+  { right: '-14px', top: '50%', transform: 'translateY(-50%) translateX(100%)' },
+  { right: '-14px', top: '50%', transform: 'translateY(-50%) translateX(100%)' },
+];
+
+function fmtTime(ts: number): string {
+  return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
 
 export function PokerTablePage() {
   const { id } = useParams<{ id: string }>();
@@ -219,88 +235,120 @@ export function PokerTablePage() {
   }
 
   const secsLeft = table.actionDeadline ? Math.max(0, Math.ceil((table.actionDeadline - now) / 1000)) : null;
+  const actFrac = table.actionDeadline ? clamp01((table.actionDeadline - now) / POKER.TURN_MS) : 0;
+  const occupied = table.seats.filter((s) => s.userId !== null).length;
 
   return (
     <AppShell>
-      <div className="pkr-hero">
-        <div>
-          <div className="crumb"><Link to="/games/poker">HOME / POKER</Link><span className="crumb-sep">/</span><span>{table.name.toUpperCase()}</span></div>
+      <div className="pkr-head">
+        <div className="pkr-head-left">
+          <div className="crumb"><Link to="/games/poker">HOME / POKER</Link></div>
           <h1 className="h-title">{table.name}</h1>
-          <p className="h-subtitle fg-mono">{table.smallBlind}/{table.bigBlind} · hand #{table.handNumber} · {table.street}</p>
+          <div className="pkr-head-meta">
+            <span className="stake">{table.smallBlind}/{table.bigBlind}</span>
+            <span className="hand">Hand #{table.handNumber}</span>
+            <span className="sep">·</span>
+            <span className="street">{table.street}</span>
+          </div>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button className="btn btn-outline" onClick={() => setShowHistory(true)}>History</button>
-          {iAmSeated && <button className="btn btn-outline" onClick={() => setInviting(true)}>+ Invite</button>}
-          {iAmSeated && <button className="btn btn-ghost" onClick={leave}>Leave table</button>}
+        <div className="pkr-head-right">
+          <button className="btn btn-ghost" onClick={() => setShowHistory(true)}>History</button>
+          {iAmSeated && <button className="btn btn-ghost" onClick={() => setInviting(true)}>Invite</button>}
+          {iAmSeated && <button className="btn btn-outline" onClick={leave}>Leave table</button>}
         </div>
       </div>
 
-      <div className="pkr-felt">
-        {/* Community board + pot */}
-        <div className="pkr-center">
-          <div className="pkr-pot fg-mono">POT {table.totalPot.toLocaleString()}</div>
-          <div className="pkr-board">
-            {[0, 1, 2, 3, 4].map((i) => <PlayingCard key={i} card={table.board[i] ?? null} />)}
+      <div className="pkr-table-wrap">
+        <div>
+          <div className="pkr-felt-frame">
+            <div className="pkr-felt">
+              <div className="pkr-felt-mark">STAKELESS · NO REAL STAKES · TEXAS HOLD'EM</div>
+
+              <div className="pkr-center">
+                {lastResult ? <ResultBanner result={lastResult} /> : <Pot amount={table.totalPot} />}
+                <Board board={table.board} />
+              </div>
+
+              {SEAT_POS.map((pos, i) => {
+                const seat = table.seats[i];
+                return (
+                  <Seat
+                    key={i}
+                    pos={pos}
+                    betPos={BET_POS[i]!}
+                    seat={seat}
+                    table={table}
+                    now={now}
+                    mine={!!seat && seat.userId !== null && seat.username === username}
+                    iAmSeated={iAmSeated}
+                    onSit={() => setBuyInSeat(i)}
+                    onAddBot={() => addBot(i)}
+                    onRemoveBot={() => removeBot(i)}
+                  />
+                );
+              })}
+            </div>
           </div>
-          {lastResult && (
-            <div className="pkr-result fg-mono">
-              {lastResult.showdown
-                ? lastResult.seats.filter((s) => s.won > 0).map((s) => `${s.username} +${s.won}${s.handName ? ` (${s.handName})` : ''}`).join(' · ')
-                : `${lastResult.seats.find((s) => s.won > 0)?.username ?? '—'} wins ${lastResult.potTotal}`}
+
+          {/* My hole cards + a plain-English readout of my current best hand */}
+          {iAmSeated && myHole && myHole.length > 0 && (
+            <div className="pkr-hero">
+              <div className="pkr-hero-left">
+                <div className="pkr-fan">
+                  {myHole.map((c, i) => <PlayingCard key={i} card={c} size="lg" />)}
+                </div>
+                <div className="pkr-hero-meta">
+                  <div className="pkr-hero-name">{username}</div>
+                  <div className="pkr-hero-stack"><span className="lbl">Stack</span>{(mySeatObj?.stack ?? 0).toLocaleString()}</div>
+                </div>
+              </div>
+              <div className="pkr-hero-read">
+                <span className="pkr-hero-read-lbl">You're holding</span>
+                <span className="pkr-hero-read-val">
+                  {mySeatObj?.status === 'folded'
+                    ? 'Folded'
+                    : table.street === 'idle'
+                      ? 'Waiting for next hand'
+                      : describeHand(myHole, table.board)}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Action bar (my turn) / idle status strip */}
+          {isMyTurn && mySeatObj ? (
+            <ActionBar table={table} seat={mySeatObj} onAct={act} secsLeft={secsLeft} frac={actFrac} />
+          ) : (
+            <div className="pkr-actionbar idle">
+              <div className="who">
+                <span className="ring" />
+                {!iAmSeated
+                  ? 'Tap an empty seat to sit down.'
+                  : table.street === 'idle' || table.street === 'showdown'
+                    ? 'Waiting for the next hand…'
+                    : 'Waiting for your turn…'}
+              </div>
+              {canReveal && <button className="btn btn-outline" onClick={reveal}>Show cards</button>}
             </div>
           )}
         </div>
 
-        {/* Seats */}
-        {SEAT_POS.map((pos, i) => {
-          const seat = table.seats[i];
-          return (
-            <Seat
-              key={i}
-              pos={pos}
-              seat={seat}
-              table={table}
-              now={now}
-              mine={seat?.username === username}
-              iAmSeated={iAmSeated}
-              onSit={() => setBuyInSeat(i)}
-              onAddBot={() => addBot(i)}
-              onRemoveBot={() => removeBot(i)}
-            />
-          );
-        })}
+        <div className="pkr-rail">
+          <div className="pkr-railcard">
+            <h5>Table info</h5>
+            <div className="pkr-railcard-rows">
+              <div className="row"><span>Players</span><span className="v">{occupied}/{table.maxSeats}</span></div>
+              <div className="row"><span>Hand</span><span className="v">#{table.handNumber}</span></div>
+              <div className="row"><span>Blinds</span><span className="v gold">{table.smallBlind}/{table.bigBlind}</span></div>
+              <div className="row"><span>Pot</span><span className="v gold">{table.totalPot.toLocaleString()}</span></div>
+            </div>
+          </div>
+          <ChatPanel tableId={tableId} username={username} />
+        </div>
       </div>
 
-      {/* Action bar (my turn) */}
-      {isMyTurn && mySeatObj && (
-        <ActionBar table={table} seat={mySeatObj} onAct={act} secsLeft={secsLeft} />
-      )}
-      {iAmSeated && !isMyTurn && (
-        <div className="pkr-actionbar idle fg-mono">
-          {canReveal && <button className="btn btn-outline" onClick={reveal}>Show cards</button>}
-          <span>{table.street === 'idle' || table.street === 'showdown' ? 'Waiting for the next hand…' : 'Waiting for your turn…'}</span>
-        </div>
-      )}
-      {!iAmSeated && (
-        <div className="pkr-actionbar idle fg-mono">Tap an empty seat to sit down.</div>
-      )}
-
-      {/* My hole cards + a plain-English readout of my current best hand */}
-      {iAmSeated && myHole && myHole.length > 0 && (
-        <div className="pkr-myhand">
-          {table.street !== 'idle' && mySeatObj?.status !== 'folded' && (
-            <div className="pkr-handname fg-mono">{describeHand(myHole, table.board)}</div>
-          )}
-          <div className="pkr-myhand-cards">
-            {myHole.map((c, i) => <PlayingCard key={i} card={c} size="lg" />)}
-          </div>
-        </div>
-      )}
-
-      <ChatPanel tableId={tableId} username={username} />
-
       {buyInSeat !== null && (
-        <BuyInModal table={table} seatIndex={buyInSeat} onClose={() => setBuyInSeat(null)} tableId={tableId} />
+        <BuyInModal table={table} seatIndex={buyInSeat} setSeatIndex={setBuyInSeat} onClose={() => setBuyInSeat(null)} tableId={tableId} />
       )}
       {inviting && <InviteModal table={table} tableId={tableId} onClose={() => setInviting(false)} />}
       {showHistory && <HistoryModal onClose={() => setShowHistory(false)} />}
@@ -308,61 +356,249 @@ export function PokerTablePage() {
   );
 }
 
-// Recent finished hands at this table (in-memory, last ~30). Backlog arrives on
-// subscribe (poker:handhistory); live hands are appended as poker:result fires.
-function HistoryModal({ onClose }: { onClose: () => void }) {
-  const history = usePokerStore((s) => s.history);
+// Stylized gold chip-stack used in the pot.
+function ChipStack() {
+  const fill = '#D4A857', dark = '#7a5a25', light = '#F5CB6C';
   return (
-    <div className="fg-modal-shade" onClick={onClose}>
-      <div className="fg-modal" onClick={(e) => e.stopPropagation()}>
-        <div className="fg-modal-head">
-          <div className="section-title">Hand history</div>
-          <button className="fg-icon-btn" onClick={onClose} aria-label="Close"><XIcon size={14} /></button>
-        </div>
-        <div className="pkr-hist-list">
-          {history.length === 0 ? (
-            <div className="fg-picker-empty">No hands yet — play a few and they'll show up here.</div>
-          ) : (
-            history.map((h) => <HandRow key={h.handNumber} h={h} />)
-          )}
-        </div>
+    <svg width={36} height={36} viewBox="0 0 40 40" style={{ display: 'block' }} aria-hidden="true">
+      <ellipse cx="20" cy="34" rx="14" ry="2.5" fill="rgba(0,0,0,0.5)" />
+      {[24, 18, 12].map((y, i) => (
+        <g key={i}>
+          <ellipse cx="20" cy={y + 4} rx="13" ry="3.4" fill={dark} />
+          <ellipse cx="20" cy={y} rx="13" ry="3.4" fill={fill} />
+          <ellipse cx="20" cy={y} rx="13" ry="3.4" fill="none" stroke={dark} strokeWidth="0.6" />
+          {[0, 60, 120, 180, 240, 300].map((deg) => {
+            const rad = (deg * Math.PI) / 180;
+            return (
+              <rect key={deg} x={20 + Math.cos(rad) * 11 - 0.5} y={y - 1.6} width="1" height="3.2" fill={light}
+                transform={`rotate(${deg + 90} 20 ${y})`} opacity="0.85" />
+            );
+          })}
+        </g>
+      ))}
+      <ellipse cx="20" cy="8" rx="13" ry="3.6" fill={fill} />
+      <ellipse cx="20" cy="8" rx="13" ry="3.6" fill="none" stroke={dark} strokeWidth="0.6" />
+      <ellipse cx="20" cy="8" rx="9" ry="2.4" fill="none" stroke={light} strokeWidth="0.5" strokeDasharray="1.4 1" />
+    </svg>
+  );
+}
+
+function Pot({ amount }: { amount: number }) {
+  return (
+    <div className="pkr-pot">
+      <div className="pkr-pot-stack"><ChipStack /></div>
+      <div className="pkr-pot-amt">
+        <span className="label">Pot</span>
+        <span className="val">{amount.toLocaleString()}</span>
       </div>
     </div>
   );
 }
 
-function HandRow({ h }: { h: PokerHandResult }) {
-  const winners = h.seats.filter((s) => s.won > 0);
-  const shown = h.seats.filter((s) => s.holeCards && s.holeCards.length > 0);
+function Board({ board }: { board: Card[] }) {
   return (
-    <div className="pkr-hist-row">
-      <div className="pkr-hist-top fg-mono">
-        <span>Hand #{h.handNumber}</span>
-        <span className="pkr-hist-pot">POT {h.potTotal.toLocaleString()}{h.showdown ? '' : ' · no showdown'}</span>
-      </div>
-      <div className="pkr-hist-board">
-        {h.board.length > 0
-          ? h.board.map((c, i) => <PlayingCard key={i} card={c} />)
-          : <span className="fg-dim" style={{ fontSize: 12 }}>(folded preflop)</span>}
-      </div>
-      <div className="pkr-hist-win">
-        {winners.length > 0
-          ? winners.map((w) => (
-              <span className="pkr-hist-winner" key={w.seatIndex}>
-                {w.username} <span className="pkr-hist-amt">+{w.won.toLocaleString()}</span>
-                {w.handName && <span className="pkr-hist-hand"> · {w.handName}</span>}
-              </span>
-            ))
-          : <span className="fg-dim">—</span>}
-      </div>
-      {h.showdown && shown.length > 0 && (
-        <div className="pkr-hist-shown">
-          {shown.map((s) => (
-            <span className="pkr-hist-show" key={s.seatIndex}>
-              <span className="pkr-hist-show-name">{s.username}</span>
-              {s.holeCards!.map((c, i) => <PlayingCard key={i} card={c} />)}
+    <div className="pkr-board">
+      {[0, 1, 2, 3, 4].map((i) =>
+        board[i] ? <PlayingCard key={i} card={board[i]} /> : <div key={i} className="pkr-card-slot" />,
+      )}
+    </div>
+  );
+}
+
+function ResultBanner({ result }: { result: PokerHandResult }) {
+  const winners = result.seats.filter((s) => s.won > 0);
+  if (winners.length === 0) return <div className="pkr-result"><span className="who">Hand complete</span></div>;
+  const primary = winners[0]!;
+  const multi = winners.length > 1;
+  return (
+    <div className="pkr-result">
+      <span className="who">{multi ? 'Split pot' : `${primary.username} wins`}</span>
+      <span className="amt">{(multi ? result.potTotal : primary.won).toLocaleString()}</span>
+      {result.showdown && !multi && primary.handName && <span className="hand">{primary.handName}</span>}
+    </div>
+  );
+}
+
+// A countdown ring around the acting player's avatar; `frac` is the fraction of the
+// turn timer remaining (1 → full ring, 0 → empty), driven by the live state clock.
+function TimerRing({ frac }: { frac: number }) {
+  return (
+    <svg className="pkr-seat-timer" viewBox="0 0 50 50" aria-hidden="true">
+      <circle className="track" cx="25" cy="25" r="22" />
+      <circle className="run" cx="25" cy="25" r="22" style={{ strokeDashoffset: 138 * (1 - frac) }} />
+    </svg>
+  );
+}
+
+function Seat({
+  pos, betPos, seat, table, now, mine, iAmSeated, onSit, onAddBot, onRemoveBot,
+}: {
+  pos: React.CSSProperties;
+  betPos: React.CSSProperties;
+  seat: PublicSeat | undefined;
+  table: PublicTableState;
+  now: number;
+  mine: boolean;
+  iAmSeated: boolean;
+  onSit: () => void;
+  onAddBot: () => void;
+  onRemoveBot: () => void;
+}) {
+  if (!seat || seat.userId === null) {
+    // Empty seat: sit yourself, and (once you're seated) add a bot here.
+    return (
+      <div className="pkr-seat empty" style={pos}>
+        <div className="pkr-seat-plate">
+          <button className="pkr-seat-sit" onClick={onSit}>
+            <span className="pkr-seat-sit-plus">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
             </span>
-          ))}
+            <span>Sit here</span>
+          </button>
+          {iAmSeated && <button className="pkr-seat-botadd" onClick={onAddBot}>+ Bot</button>}
+        </div>
+      </div>
+    );
+  }
+
+  const isActing = table.actingSeat === seat.seatIndex;
+  const isButton = table.buttonIndex === seat.seatIndex;
+  const folded = seat.status === 'folded';
+  const allin = seat.status === 'allin';
+  // Backs peek out during a live hand for everyone except me (I see my own cards
+  // in the hero strip) and folded/empty seats; revealed cards show at showdown.
+  const showBacks = !mine && !folded && seat.status !== 'empty' && seat.status !== 'sittingOut'
+    && table.street !== 'idle' && table.street !== 'showdown';
+  const frac = isActing && table.actionDeadline ? clamp01((table.actionDeadline - now) / POKER.TURN_MS) : null;
+  const cls = ['pkr-seat', isActing && 'acting', folded && 'folded', mine && 'mine', allin && 'allin']
+    .filter(Boolean).join(' ');
+
+  return (
+    <div className={cls} style={pos}>
+      {seat.isBot && iAmSeated && (
+        <button className="pkr-seat-remove" title="Remove bot" onClick={onRemoveBot}>×</button>
+      )}
+      {(seat.revealedCards || showBacks) && (
+        <div className="pkr-seat-cards">
+          {seat.revealedCards
+            ? seat.revealedCards.map((c, i) => <PlayingCard key={i} card={c} />)
+            : <><PlayingCard /><PlayingCard /></>}
+        </div>
+      )}
+      <div className="pkr-seat-plate">
+        <Avatar username={seat.username ?? '?'} avatarColor={seat.avatarColor} className="pkr-seat-ava" />
+        {frac !== null && <TimerRing frac={frac} />}
+        <div className="pkr-seat-meta">
+          <div className="pkr-seat-name">
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{seat.username}</span>
+            {seat.isBot && <span className="pkr-bot-tag">BOT</span>}
+            {allin && <span className="pkr-allin">ALL-IN</span>}
+          </div>
+          <div className="pkr-seat-stack"><span className="coin" />{seat.stack.toLocaleString()}</div>
+        </div>
+        {isButton && <span className="pkr-dealer">D</span>}
+      </div>
+      {seat.committedThisStreet > 0 && (
+        <div className="pkr-seat-bet" style={betPos}>
+          <span className="stack" />
+          {seat.committedThisStreet.toLocaleString()}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ActionBar({
+  table, seat, onAct, secsLeft, frac,
+}: {
+  table: PublicTableState;
+  seat: PublicSeat;
+  onAct: (type: 'fold' | 'check' | 'call' | 'raise', amount?: number) => void;
+  secsLeft: number | null;
+  frac: number;
+}) {
+  const la = legalActions({
+    stack: seat.stack,
+    currentBet: table.currentBet,
+    committedThisStreet: seat.committedThisStreet,
+    minRaise: table.minRaise,
+    bigBlind: table.bigBlind,
+  });
+  const [raiseTo, setRaiseTo] = useState(la.minRaiseTo);
+  // Keep the slider within the current legal range as state changes.
+  useEffect(() => {
+    setRaiseTo((v) => Math.max(la.minRaiseTo, Math.min(la.maxRaiseTo, v)));
+  }, [la.minRaiseTo, la.maxRaiseTo]);
+
+  const pot = table.totalPot;
+  const presets: { label: string; to: number }[] = [
+    { label: '½ pot', to: table.currentBet + Math.round(pot * 0.5) },
+    { label: '¾ pot', to: table.currentBet + Math.round(pot * 0.75) },
+    { label: 'Pot', to: table.currentBet + pot },
+    { label: 'All-in', to: la.maxRaiseTo },
+  ];
+  const clampTo = (to: number) => Math.max(la.minRaiseTo, Math.min(la.maxRaiseTo, to));
+  const pct = la.maxRaiseTo > la.minRaiseTo ? ((raiseTo - la.minRaiseTo) / (la.maxRaiseTo - la.minRaiseTo)) * 100 : 100;
+
+  return (
+    <div className="pkr-actionbar">
+      <div className="pkr-actionbar-left">
+        <div className="pkr-actionbar-fold">
+          <button className="pkr-actionbtn fold" onClick={() => onAct('fold')}>Fold</button>
+          {la.canCheck ? (
+            <button className="pkr-actionbtn call" onClick={() => onAct('check')}>Check</button>
+          ) : (
+            <button className="pkr-actionbtn call" onClick={() => onAct('call')} disabled={!la.canCall}>
+              Call <span className="amt">{la.callAmount.toLocaleString()}</span>
+            </button>
+          )}
+        </div>
+        {secsLeft !== null && (
+          <div className="pkr-actionbar-timer">
+            <span className="num">{secsLeft}s</span>
+            <span>to act</span>
+            <span className="bar"><i style={{ width: `${Math.round(frac * 100)}%` }} /></span>
+          </div>
+        )}
+      </div>
+
+      {la.canRaise && (
+        <div className="pkr-raise">
+          <div className="pkr-raise-head">
+            <div className="pkr-raise-presets">
+              {presets.map((p) => {
+                const to = clampTo(p.to);
+                return (
+                  <button
+                    key={p.label}
+                    className={raiseTo === to ? 'active' : ''}
+                    onClick={() => setRaiseTo(to)}
+                    disabled={clampTo(p.to) < la.minRaiseTo && p.to !== la.maxRaiseTo}
+                  >
+                    {p.label}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="pkr-raise-amt">
+              <span className="lbl">Raise to</span>
+              <input value={raiseTo.toLocaleString()} readOnly />
+            </div>
+          </div>
+          <input
+            type="range"
+            className="pkr-raise-slider"
+            min={la.minRaiseTo}
+            max={la.maxRaiseTo}
+            value={raiseTo}
+            onChange={(e) => setRaiseTo(Number(e.target.value))}
+            style={{ background: `linear-gradient(90deg, var(--gold) 0%, var(--gold) ${pct}%, var(--bg-elevated) ${pct}%)` }}
+          />
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <button className="pkr-actionbtn raise" onClick={() => onAct('raise', raiseTo)}>
+              {raiseTo >= la.maxRaiseTo ? 'All-in' : <>Raise to <span className="amt">{raiseTo.toLocaleString()}</span></>}
+            </button>
+          </div>
         </div>
       )}
     </div>
@@ -392,18 +628,25 @@ function ChatPanel({ tableId, username }: { tableId: number; username: string | 
 
   return (
     <div className="pkr-chat">
-      <div className="pkr-chat-head fg-mono">Table chat</div>
-      <div className="pkr-chat-msgs" ref={listRef}>
+      <div className="pkr-chat-head">
+        <h4><span className="live" />Table chat</h4>
+      </div>
+      <div className="pkr-chat-list" ref={listRef}>
         {chat.length === 0 ? (
-          <div className="pkr-chat-empty fg-dim">No messages yet — say hi 👋</div>
+          <div className="pkr-chat-empty">No messages yet — say hi 👋</div>
         ) : (
-          chat.map((m) => (
-            <div className={'pkr-chat-msg' + (m.username === username ? ' mine' : '')} key={m.id}>
-              <Avatar username={m.username} avatarColor={m.avatarColor} className="fg-ava s22" />
-              <span className="pkr-chat-name">{m.username}</span>
-              <span className="pkr-chat-text">{m.text}</span>
-            </div>
-          ))
+          chat.map((m) => {
+            const mine = m.username === username;
+            return (
+              <div className={'pkr-msg' + (mine ? ' mine' : '')} key={m.id}>
+                {!mine && <Avatar username={m.username} avatarColor={m.avatarColor} className="pkr-msg-ava" />}
+                <div className="pkr-msg-body">
+                  <div className="pkr-msg-name"><span>{m.username}</span><span className="time">{fmtTime(m.ts)}</span></div>
+                  <div className="pkr-msg-text">{m.text}</div>
+                </div>
+              </div>
+            );
+          })
         )}
       </div>
       <form className="pkr-chat-input" onSubmit={send}>
@@ -423,8 +666,10 @@ function ChatPanel({ tableId, username }: { tableId: number; username: string | 
 function InviteModal({ table, tableId, onClose }: { table: PublicTableState; tableId: number; onClose: () => void }) {
   const friends = useFriendsStore((s) => s.friends);
   const [invited, setInvited] = useState<Set<number>>(new Set());
+  const [q, setQ] = useState('');
   // Friends already seated here can't be invited again.
   const seatedNames = new Set(table.seats.filter((s) => s.username).map((s) => s.username));
+  const filtered = friends.filter((f) => f.username.toLowerCase().includes(q.toLowerCase()));
 
   async function invite(userId: number, username: string) {
     setInvited((s) => new Set(s).add(userId));
@@ -443,168 +688,140 @@ function InviteModal({ table, tableId, onClose }: { table: PublicTableState; tab
   }
 
   return (
-    <div className="fg-modal-shade" onClick={onClose}>
-      <div className="fg-modal" onClick={(e) => e.stopPropagation()}>
-        <div className="fg-modal-head">
+    <div className="pkr-modal-shade" onClick={onClose}>
+      <div className="pkr-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="pkr-modal-head">
           <div>
-            <div className="section-title">Invite friends to {table.name}</div>
-            <div className="h-subtitle" style={{ marginTop: 6, fontSize: 13 }}>
-              Only friends can be invited. <Link className="fg-link" to="/friends" onClick={onClose}>Add more friends →</Link>
+            <span className="eyebrow">Friends</span>
+            <h3>Invite to {table.name}</h3>
+            <p>Only friends can be invited. <Link className="fg-link" to="/friends" onClick={onClose}>Add more friends →</Link></p>
+          </div>
+          <button className="pkr-modal-close" onClick={onClose} aria-label="Close"><XIcon size={14} /></button>
+        </div>
+        <div className="pkr-modal-body">
+          <div className="pkr-invite-search">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" /></svg>
+            <input placeholder="Search friends" value={q} onChange={(e) => setQ(e.target.value)} />
+          </div>
+          <div className="pkr-invite-list">
+            {filtered.length === 0 ? (
+              <div className="pkr-invite-empty">{friends.length === 0 ? 'No friends yet — add some on the Friends page.' : 'No matches.'}</div>
+            ) : (
+              filtered.map((f) => {
+                const at = seatedNames.has(f.username);
+                const sent = invited.has(f.userId);
+                return (
+                  <div className="pkr-invite-row" key={f.userId}>
+                    <Avatar username={f.username} avatarColor={f.avatarColor} avatarImage={f.avatarImage} className="fg-ava" />
+                    <div className="pkr-invite-meta">
+                      <div className="pkr-invite-name">{f.username}</div>
+                      <div className="pkr-invite-sub">{at ? 'AT TABLE' : sent ? 'INVITED' : 'FRIEND'}</div>
+                    </div>
+                    {at ? (
+                      <span className="pkr-invite-btn sent">At table</span>
+                    ) : (
+                      <button className={'pkr-invite-btn' + (sent ? ' sent' : '')} onClick={() => !sent && invite(f.userId, f.username)}>
+                        {sent ? 'Invited' : 'Invite'}
+                      </button>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Recent finished hands at this table (in-memory, last ~30). Backlog arrives on
+// subscribe (poker:handhistory); live hands are appended as poker:result fires.
+function HistoryModal({ onClose }: { onClose: () => void }) {
+  const history = usePokerStore((s) => s.history);
+  return (
+    <div className="pkr-modal-shade" onClick={onClose}>
+      <div className="pkr-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="pkr-modal-head">
+          <div>
+            <span className="eyebrow">Hand history</span>
+            <h3>Recent hands</h3>
+            <p>Last {history.length} hand{history.length === 1 ? '' : 's'} at this table</p>
+          </div>
+          <button className="pkr-modal-close" onClick={onClose} aria-label="Close"><XIcon size={14} /></button>
+        </div>
+        <div className="pkr-modal-body">
+          {history.length === 0 ? (
+            <div className="pkr-history-empty">No hands yet — play a few and they'll show up here.</div>
+          ) : (
+            <div className="pkr-history-list">
+              {history.map((h) => <HandRow key={h.handNumber} h={h} />)}
             </div>
-          </div>
-          <button className="fg-icon-btn" onClick={onClose} aria-label="Close"><XIcon size={14} /></button>
-        </div>
-        <div className="fg-picker-list" style={{ maxHeight: 320 }}>
-          {friends.length === 0 && <div className="fg-picker-empty">No friends yet — add some on the Friends page.</div>}
-          {friends.map((f) => {
-            const here = seatedNames.has(f.username);
-            const sent = invited.has(f.userId);
-            return (
-              <div className="fg-picker-row" key={f.userId}>
-                <Avatar username={f.username} avatarColor={f.avatarColor} avatarImage={f.avatarImage} className="fg-ava s30" />
-                <div className="fg-picker-meta"><div className="fg-picker-name">{f.username}</div></div>
-                {here ? (
-                  <span className="tag fg-picker-tag">At table</span>
-                ) : sent ? (
-                  <span className="tag fg-picker-tag">Invited</span>
-                ) : (
-                  <button className="btn btn-primary" style={{ padding: '6px 14px', fontSize: 12 }} onClick={() => invite(f.userId, f.username)}>Invite</button>
-                )}
-              </div>
-            );
-          })}
+          )}
         </div>
       </div>
     </div>
   );
 }
 
-function Seat({
-  pos, seat, table, now, mine, iAmSeated, onSit, onAddBot, onRemoveBot,
-}: {
-  pos: { left: string; top: string };
-  seat: PublicSeat | undefined;
-  table: PublicTableState;
-  now: number;
-  mine: boolean;
-  iAmSeated: boolean;
-  onSit: () => void;
-  onAddBot: () => void;
-  onRemoveBot: () => void;
-}) {
-  if (!seat || seat.userId === null) {
-    // Empty seat: sit yourself, and (once you're seated) add a bot here.
-    return (
-      <div className="pkr-seat empty" style={pos}>
-        <button className="pkr-seat-add" onClick={onSit}>＋ Sit</button>
-        {iAmSeated && <button className="pkr-seat-add bot" onClick={onAddBot}>＋ Bot</button>}
-      </div>
-    );
-  }
-  const isActing = table.actingSeat === seat.seatIndex;
-  const isButton = table.buttonIndex === seat.seatIndex;
-  const folded = seat.status === 'folded';
-  const secs = isActing && table.actionDeadline ? Math.max(0, Math.ceil((table.actionDeadline - now) / 1000)) : null;
+function HandRow({ h }: { h: PokerHandResult }) {
+  const winners = h.seats.filter((s) => s.won > 0);
+  const shown = h.seats.filter((s) => s.holeCards && s.holeCards.length > 0);
+  const primary = winners[0];
   return (
-    <div className={'pkr-seat' + (isActing ? ' acting' : '') + (folded ? ' folded' : '') + (mine ? ' mine' : '')} style={pos}>
-      {seat.isBot && iAmSeated && (
-        <button className="pkr-seat-remove" title="Remove bot" onClick={onRemoveBot}>×</button>
-      )}
-      <div className="pkr-seat-cards">
-        {seat.revealedCards
-          ? seat.revealedCards.map((c, i) => <PlayingCard key={i} card={c} />)
-          : seat.status !== 'empty' && seat.status !== 'sittingOut' && table.street !== 'idle' && table.street !== 'showdown' && !folded
-            ? <><PlayingCard /><PlayingCard /></>
-            : null}
+    <div className="pkr-history-row">
+      <div className="h-num">HAND<strong>#{h.handNumber}</strong></div>
+      <div className="h-board">
+        {h.board.length > 0
+          ? h.board.map((c, i) => <PlayingCard key={i} card={c} size="sm" />)
+          : <span className="fg-dim" style={{ fontSize: 11 }}>folded preflop</span>}
       </div>
-      <div className="pkr-seat-body">
-        <Avatar username={seat.username ?? '?'} avatarColor={seat.avatarColor} className="fg-ava s30" />
-        <div className="pkr-seat-meta">
-          <div className="pkr-seat-name">{seat.username}{seat.isBot && <span className="pkr-bot-tag">BOT</span>}</div>
-          <div className="pkr-seat-stack fg-mono">{seat.stack.toLocaleString()}</div>
+      <div className="h-info">
+        <div className="h-winner">
+          {primary ? (
+            <>
+              <span>{primary.username}</span>
+              <span className="amt">+{primary.won.toLocaleString()}</span>
+              {winners.length > 1 && <span className="fg-dim">+{winners.length - 1} more</span>}
+            </>
+          ) : (
+            <span className="fg-dim">—</span>
+          )}
         </div>
-        {isButton && <span className="pkr-dealer">D</span>}
-        {seat.status === 'allin' && <span className="pkr-allin">ALL-IN</span>}
+        <div className="h-hand">{primary?.handName ?? (h.showdown ? 'Showdown' : 'Uncalled')}</div>
       </div>
-      {seat.committedThisStreet > 0 && <div className="pkr-bet fg-mono">{seat.committedThisStreet.toLocaleString()}</div>}
-      {secs !== null && <div className="pkr-timer">{secs}</div>}
-    </div>
-  );
-}
-
-function ActionBar({
-  table, seat, onAct, secsLeft,
-}: {
-  table: PublicTableState;
-  seat: PublicSeat;
-  onAct: (type: 'fold' | 'check' | 'call' | 'raise', amount?: number) => void;
-  secsLeft: number | null;
-}) {
-  const la = legalActions({
-    stack: seat.stack,
-    currentBet: table.currentBet,
-    committedThisStreet: seat.committedThisStreet,
-    minRaise: table.minRaise,
-    bigBlind: table.bigBlind,
-  });
-  const [raiseTo, setRaiseTo] = useState(la.minRaiseTo);
-  // Keep the slider within the current legal range as state changes.
-  useEffect(() => {
-    setRaiseTo((v) => Math.max(la.minRaiseTo, Math.min(la.maxRaiseTo, v)));
-  }, [la.minRaiseTo, la.maxRaiseTo]);
-
-  const pot = table.totalPot;
-  const presets: { label: string; to: number }[] = [
-    { label: '½ pot', to: table.currentBet + Math.round(pot * 0.5) },
-    { label: '¾ pot', to: table.currentBet + Math.round(pot * 0.75) },
-    { label: 'Pot', to: table.currentBet + pot },
-    { label: 'All-in', to: la.maxRaiseTo },
-  ];
-  const clamp = (to: number) => Math.max(la.minRaiseTo, Math.min(la.maxRaiseTo, to));
-
-  return (
-    <div className="pkr-actionbar">
-      <div className="pkr-act-left">
-        <button className="btn btn-ghost" onClick={() => onAct('fold')}>Fold</button>
-        {la.canCheck ? (
-          <button className="btn btn-outline" onClick={() => onAct('check')}>Check</button>
-        ) : (
-          <button className="btn btn-outline" onClick={() => onAct('call')} disabled={!la.canCall}>
-            Call {la.callAmount.toLocaleString()}
-          </button>
-        )}
-      </div>
-      {la.canRaise && (
-        <div className="pkr-raise">
-          <div className="pkr-raise-presets">
-            {presets.map((p) => (
-              <button key={p.label} className="pkr-preset" onClick={() => setRaiseTo(clamp(p.to))} disabled={clamp(p.to) < la.minRaiseTo && p.to !== la.maxRaiseTo}>{p.label}</button>
-            ))}
-          </div>
-          <input
-            type="range"
-            className="pkr-slider"
-            min={la.minRaiseTo}
-            max={la.maxRaiseTo}
-            value={raiseTo}
-            onChange={(e) => setRaiseTo(Number(e.target.value))}
-          />
-          <button className="btn btn-primary" onClick={() => onAct('raise', raiseTo)}>
-            {raiseTo >= la.maxRaiseTo ? 'All-in' : `Raise to ${raiseTo.toLocaleString()}`}
-          </button>
+      <div className="h-pot"><span className="lbl">Pot</span>{h.potTotal.toLocaleString()}</div>
+      {h.showdown && shown.length > 0 && (
+        <div className="h-shown">
+          {shown.map((s) => (
+            <span className="h-show" key={s.seatIndex}>
+              <span className="h-show-name">{s.username}</span>
+              {s.holeCards!.map((c, i) => <PlayingCard key={i} card={c} size="sm" />)}
+            </span>
+          ))}
         </div>
       )}
-      {secsLeft !== null && <div className="pkr-act-timer fg-mono">{secsLeft}s</div>}
     </div>
   );
 }
 
-function BuyInModal({ table, seatIndex, tableId, onClose }: { table: PublicTableState; seatIndex: number; tableId: number; onClose: () => void }) {
+function BuyInModal({ table, seatIndex, setSeatIndex, tableId, onClose }: { table: PublicTableState; seatIndex: number; setSeatIndex: (i: number) => void; tableId: number; onClose: () => void }) {
   // Buy-in bounds come from the stakes (40–100× BB), matching the server.
-  const min = table.bigBlind * 40;
-  const max = table.bigBlind * 100;
+  const min = table.bigBlind * POKER.MIN_BUYIN_BB;
+  const max = table.bigBlind * POKER.MAX_BUYIN_BB;
   const [amount, setAmount] = useState(max);
   const [saving, setSaving] = useState(false);
+  const bb = table.bigBlind;
+  const span = max - min;
+  const step = (n: number) => Math.round(n / bb) * bb;
+  const presets: { v: number; label: string }[] = [
+    { v: min, label: 'Min' },
+    { v: step(min + span / 3), label: '' },
+    { v: step(min + (2 * span) / 3), label: '' },
+    { v: max, label: 'Max' },
+  ];
+  const takenIdx = new Set(table.seats.filter((s) => s.userId !== null).map((s) => s.seatIndex));
+  const pct = ((amount - min) / (max - min)) * 100;
 
   async function sit() {
     setSaving(true);
@@ -621,17 +838,62 @@ function BuyInModal({ table, seatIndex, tableId, onClose }: { table: PublicTable
   }
 
   return (
-    <div className="fg-modal-shade" onClick={onClose}>
-      <div className="fg-modal" onClick={(e) => e.stopPropagation()}>
-        <div className="fg-modal-head">
-          <div className="section-title">Buy in — seat {seatIndex + 1}</div>
+    <div className="pkr-modal-shade" onClick={onClose}>
+      <div className="pkr-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="pkr-modal-head">
+          <div>
+            <span className="eyebrow">Sit down</span>
+            <h3>Buy in to {table.name}</h3>
+            <p>No-Limit Hold'em · {table.smallBlind}/{table.bigBlind} · {table.maxSeats} seats</p>
+          </div>
+          <button className="pkr-modal-close" onClick={onClose} aria-label="Close"><XIcon size={14} /></button>
         </div>
-        <div className="fg-mono fg-dim">Blinds {table.smallBlind}/{table.bigBlind} · range {min}–{max}</div>
-        <input type="range" className="pkr-slider" min={min} max={max} step={table.bigBlind} value={amount} onChange={(e) => setAmount(Number(e.target.value))} />
-        <div className="pkr-buyin-amt fg-mono">{amount.toLocaleString()} chips</div>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+        <div className="pkr-modal-body">
+          <div>
+            <label className="label">Choose a seat</label>
+            <div className="pkr-buyin-seats">
+              {Array.from({ length: table.maxSeats }).map((_, i) => {
+                const taken = takenIdx.has(i);
+                const active = seatIndex === i && !taken;
+                const cls = ['pkr-buyin-seat', taken && 'taken', active && 'active'].filter(Boolean).join(' ');
+                return (
+                  <button key={i} className={cls} disabled={taken} onClick={() => !taken && setSeatIndex(i)}>
+                    <span className="n">{i + 1}</span>
+                    <span>{taken ? 'TAKEN' : active ? 'SELECTED' : 'OPEN'}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div>
+            <label className="label">Buy-in amount</label>
+            <div className="pkr-buyin-amount">
+              <div className="pkr-buyin-readout">
+                <span className="big">{amount.toLocaleString()}</span>
+                <span className="range">MIN {min.toLocaleString()} · MAX {max.toLocaleString()}</span>
+              </div>
+              <input
+                type="range"
+                className="pkr-raise-slider"
+                min={min}
+                max={max}
+                step={bb}
+                value={amount}
+                onChange={(e) => setAmount(Number(e.target.value))}
+                style={{ background: `linear-gradient(90deg, var(--gold) 0%, var(--gold) ${pct}%, var(--bg-elevated) ${pct}%)` }}
+              />
+              <div className="pkr-buyin-presets">
+                {presets.map((p, i) => (
+                  <button key={i} onClick={() => setAmount(p.v)}>{p.label || p.v.toLocaleString()}</button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="pkr-modal-foot">
           <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary" disabled={saving} onClick={sit}>Sit down</button>
+          <button className="btn btn-primary" disabled={saving} onClick={sit}>Sit &amp; buy {amount.toLocaleString()}</button>
         </div>
       </div>
     </div>

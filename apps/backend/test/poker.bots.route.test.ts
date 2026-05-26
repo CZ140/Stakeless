@@ -83,7 +83,7 @@ describe('Poker — optional bots', () => {
   });
 
   it('auto-acts for a human who runs out of time', async () => {
-    const { a, id } = await seatWithBots([1]);
+    const { id } = await seatWithBots([1]);
     const eng = tableManager._engine(id)!;
     expect(eng.actingIndex).toBe(0); // human (heads-up SB) acts first
     await tableManager.timeoutCurrentActor(id);

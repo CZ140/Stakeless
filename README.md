@@ -1,6 +1,6 @@
 # Stakeless
 
-A full-stack, real-time **virtual casino** built with TypeScript end to end. Players sign up, get a balance of play-money coins, and gamble across four original games with live balance updates, a global leaderboard, a tier-progression loyalty system, and an admin console.
+A full-stack, real-time **virtual casino** built with TypeScript end to end. Players sign up, get a balance of play-money coins, and gamble across twelve original games plus live multiplayer poker — with live balance updates, a global leaderboard, a tier-progression loyalty system, friends/groups, and an admin console.
 
 > **Stakeless plays for fun, not for funds.** All currency is virtual. There are no deposits, no withdrawals, and no real money anywhere in the system — the name is the point. This is a portfolio / engineering project demonstrating real-time full-stack architecture, not a gambling product.
 
@@ -14,11 +14,11 @@ Screenshots: drop images into a `docs/` folder and uncomment.
 
 ## Highlights
 
-- **Four hand-built games**, each with server-authoritative logic and cryptographically secure RNG: **Roulette**, **Blackjack** (multi-hand, split & double), **Mines**, and **Plinko**.
+- **Twelve hand-built games**, each with server-authoritative logic and cryptographically secure RNG: **Roulette**, **Blackjack** (multi-hand, split & double), **Mines**, **Plinko**, **Dice**, **Slots**, **Crash**, **Coin Flip**, **Hi-Lo**, **Pump**, **Chicken Road**, and **Rock-Paper-Scissors** — plus real-time multiplayer **Texas Hold'em poker** (bots, private/invite tables, table chat, hand history).
 - **Server-authoritative & cheat-resistant** — the client never decides outcomes. RNG runs on the server via Node's `crypto.randomInt`; in Mines the bomb grid is generated and stored server-side and *never* sent to the browser during a live round.
 - **Financial integrity by design** — coin balances are stored as `BIGINT` integers (no floating-point money) and every wager runs through a `SELECT … FOR UPDATE` row lock inside a transaction, making concurrent double-spend impossible.
 - **Real-time everything** — Socket.IO pushes balance changes and broadcasts a live leaderboard to every connected client.
-- **Complete auth suite** — email/password with verification & password reset, **Sign in with Google** (GSI ID-token flow), short-lived JWT access tokens + rotating refresh cookies, and token-version revocation.
+- **Complete auth suite** — email/password (with password reset), **Sign in with Google** (GSI ID-token flow), short-lived JWT access tokens + rotating httpOnly refresh cookies.
 - **Loyalty progression** — six wager-based tiers (Bronze → Obsidian) with one-time level-up rewards and tier-scaled daily bonuses.
 - **Admin console** — platform stats, player management, ban/unban, and an audit log, all behind a database-verified role check.
 - **Tested** — 100+ unit tests covering game math and wallet logic, plus real-database integration tests driven through the HTTP layer with Supertest.
@@ -38,7 +38,7 @@ Screenshots: drop images into a `docs/` folder and uncomment.
 | **Frontend** | React 19, Vite 6, React Router 7 |
 | **State / realtime** | Zustand, `socket.io-client` |
 | **Animation** | GSAP (roulette wheel physics), Framer Motion, `sonner` toasts |
-| **Email** | Nodemailer (verification & password-reset mail) |
+| **Email** | Nodemailer (password-reset mail; optional — logs the link to console when SMTP is unset) |
 | **Testing** | Vitest, Supertest |
 
 ---
@@ -51,8 +51,17 @@ Screenshots: drop images into a `docs/` folder and uncomment.
 | **Blackjack** | Server-dealt shoe; dealer hole card hidden until settlement | Multiple pre-deal hands, hit / stand / **double** / **split**, natural blackjack payouts, resumable sessions |
 | **Mines** | Server generates and stores the bomb grid; positions never leave the server mid-round | 5×5 grid, 1–24 mines, escalating multiplier, cash-out at any time, refresh-safe sessions |
 | **Plinko** | Binomial drop simulation (`rollPlinkoBucket`) — true Plinko odds, not a uniform pick | 8–16 rows, four risk profiles (low → expert) |
+| **Dice** | `crypto` roll-under/over against an adjustable target | Instant settle, live win-chance slider, 97% RTP |
+| **Slots** | 3×3 grid over 5 paylines (`spinGrid`) | Exact 97% RTP from a closed-form payline model |
+| **Crash** | Hidden, server-decided crash point; client never sees it | Live rising curve, manual + auto cash-out over Socket.IO, 97% RTP for any strategy |
+| **Coin Flip** | Single fair 50/50 toss | Instant settle, 1.94× on a win |
+| **Hi-Lo** | I.i.d. 52-card draws — guess higher / lower | Compounding ladder, a tie loses, cash out any time |
+| **Pump** | Hypergeometric balloon with hidden hazards | 4 difficulties; house edge applied once → 97% RTP at every cash-out |
+| **Chicken Road** | Hypergeometric lane crossing with hidden cars | 4 difficulties, rising risk, ceilings up to ×3.17M |
+| **Rock-Paper-Scissors** | House throws uniformly at random | Win 1.91×, tie = push, 97% RTP |
+| **Poker** | Real-time multiplayer Texas Hold'em; in-memory engine | Bots, public/private + invite tables, table chat, hand history, crash-safe seat refunds |
 
-Every round follows the same money pipeline:
+Every single-player round follows the same money pipeline:
 
 ```
 validate (Zod) → deductBet (locked tx) → resolve outcome (server RNG)

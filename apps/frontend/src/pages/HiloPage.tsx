@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import gsap from 'gsap';
 import {
@@ -48,7 +49,7 @@ export function HiloPage() {
   const {
     betAmount, phase, sessionId, currentCard, history, streak, multiplier, result,
     setBetAmount, startRound, applyWin, applyBust, applyCashout, restoreSession, reset,
-  } = useHiloStore();
+  } = useHiloStore(useShallow((s) => ({ betAmount: s.betAmount, phase: s.phase, sessionId: s.sessionId, currentCard: s.currentCard, history: s.history, streak: s.streak, multiplier: s.multiplier, result: s.result, setBetAmount: s.setBetAmount, startRound: s.startRound, applyWin: s.applyWin, applyBust: s.applyBust, applyCashout: s.applyCashout, restoreSession: s.restoreSession, reset: s.reset })));
   const { muted, toggleMute } = useAudioStore();
   const balance = useBalanceStore((s) => s.balance);
   const [error, setError] = useState<string | null>(null);
@@ -178,7 +179,7 @@ export function HiloPage() {
   let primaryDisabled = busy;
   if (isActive) {
     if (streak > 0) {
-      primaryLabel = `Cash out · ${Math.floor(betAmount * multiplier).toLocaleString()} V`;
+      primaryLabel = `Cash out · ${Math.floor(betAmount * multiplier).toLocaleString()} coins`;
       onPrimary = () => { void handleCashout(); };
       primaryDisabled = busy;
     } else {
@@ -208,7 +209,7 @@ export function HiloPage() {
         </div>
       </div>
 
-      {error && <div className="notice loss" style={{ marginBottom: 16, textAlign: 'left' }}>{error}</div>}
+      {error && <div className="notice loss" role="alert" style={{ marginBottom: 16, textAlign: 'left' }}>{error}</div>}
 
       <div className="game-layout">
         <div className="game-stage">
@@ -239,8 +240,8 @@ export function HiloPage() {
               {isBetting && 'Place a bet to draw your first card'}
               {isActive && (streak > 0 ? 'Higher or lower? Cash out any time.' : 'Will the next card be higher or lower?')}
               {phase === 'result' && result && (result.won
-                ? `Cashed out ${result.payout.toLocaleString()} V · ${result.streak} in a row`
-                : `Busted on ${currentCard ? rankLabel(currentCard.rank) : '—'} — lost ${betAmount.toLocaleString()} V`)}
+                ? `Cashed out ${result.payout.toLocaleString()} coins · ${result.streak} in a row`
+                : `Busted on ${currentCard ? rankLabel(currentCard.rank) : '—'} — lost ${betAmount.toLocaleString()} coins`)}
             </div>
 
             {/* Higher / Lower */}

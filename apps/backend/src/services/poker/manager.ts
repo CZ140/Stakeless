@@ -3,7 +3,7 @@
 // between users.balance and seat stacks atomically, and persists each human's
 // stack at hand end. The realtime + bot layer (P4) attaches via `hooks` and calls
 // startNextHandIfReady() on a delay; nothing here touches sockets directly.
-import { eq, and, inArray, sql } from 'drizzle-orm';
+import { eq, and, sql } from 'drizzle-orm';
 import { db } from '../../db/index.js';
 import { users, pokerTables, pokerSeats, pokerInvites, groupMembers } from '../../db/schema.js';
 import { PokerTable } from './table.js';

@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AppShell } from '../components/vault/AppShell';
 import { RouletteWheel } from '../components/RouletteWheel';
@@ -31,7 +32,7 @@ export function RoulettePage() {
     placedChips, selectedChip, setSelectedChip, placeChip,
     undoLast, clearAll, halfBet, doubleBet, rebet,
     gamePhase, setGamePhase, addToHistory, history,
-  } = useRouletteStore();
+  } = useRouletteStore(useShallow((s) => ({ placedChips: s.placedChips, selectedChip: s.selectedChip, setSelectedChip: s.setSelectedChip, placeChip: s.placeChip, undoLast: s.undoLast, clearAll: s.clearAll, halfBet: s.halfBet, doubleBet: s.doubleBet, rebet: s.rebet, gamePhase: s.gamePhase, setGamePhase: s.setGamePhase, addToHistory: s.addToHistory, history: s.history })));
   const balance = useBalanceStore((s) => s.balance);
   const { muted, toggleMute } = useAudioStore();
   const stageRef = useRef<HTMLDivElement>(null);
@@ -127,7 +128,7 @@ export function RoulettePage() {
     }
   }
 
-  const spinLabel = isSpinning ? 'Spinning…' : isResult ? 'Play again' : totalBet > 0 ? `Spin · ${totalBet} V` : 'Place a bet';
+  const spinLabel = isSpinning ? 'Spinning…' : isResult ? 'Play again' : totalBet > 0 ? `Spin · ${totalBet} coins` : 'Place a bet';
 
   // 3 rows × 12 columns of numbers (European layout: top row 3,6,…,36).
   const numberRows = [0, 1, 2].map((row) => Array.from({ length: 12 }, (_, col) => col * 3 + (3 - row)));
@@ -154,7 +155,7 @@ export function RoulettePage() {
       </div>
 
       {error && (
-        <div className="notice loss" style={{ marginBottom: 16, textAlign: 'left' }}>{error}</div>
+        <div className="notice loss" role="alert" style={{ marginBottom: 16, textAlign: 'left' }}>{error}</div>
       )}
 
       <div className="game-layout">
@@ -286,7 +287,7 @@ export function RoulettePage() {
             </div>
 
             <div className="bet-summary">
-              <div className="row"><span>Total wager</span><span className="mono">{totalBet} V</span></div>
+              <div className="row"><span>Total wager</span><span className="mono">{totalBet} coins</span></div>
               <div className="row"><span>Bets placed</span><span className="mono">{placedChips.length}</span></div>
             </div>
 

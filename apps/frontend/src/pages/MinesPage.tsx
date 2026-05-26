@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AppShell } from '../components/vault/AppShell';
@@ -85,7 +86,7 @@ export function MinesPage() {
   const {
     betAmount, mineCount, gamePhase, sessionId, revealed, tilesRevealed, multiplier, isMuted, result, mineGrid,
     setBetAmount, setMineCount, startRound, revealTile, setResult, restoreSession, resetToConfig, toggleMute,
-  } = useMinesStore();
+  } = useMinesStore(useShallow((s) => ({ betAmount: s.betAmount, mineCount: s.mineCount, gamePhase: s.gamePhase, sessionId: s.sessionId, revealed: s.revealed, tilesRevealed: s.tilesRevealed, multiplier: s.multiplier, isMuted: s.isMuted, result: s.result, mineGrid: s.mineGrid, setBetAmount: s.setBetAmount, setMineCount: s.setMineCount, startRound: s.startRound, revealTile: s.revealTile, setResult: s.setResult, restoreSession: s.restoreSession, resetToConfig: s.resetToConfig, toggleMute: s.toggleMute })));
 
   const { playWin, playLoss } = useGameSounds(isMuted);
   const [showHowTo, setShowHowTo] = useState(false);
@@ -176,7 +177,7 @@ export function MinesPage() {
   let primaryDisabled = false;
   if (isActivePhase) {
     if (tilesRevealed > 0) {
-      primaryLabel = `Cash out · ${(betAmount * multiplier).toFixed(0)} V`;
+      primaryLabel = `Cash out · ${(betAmount * multiplier).toFixed(0)} coins`;
       onPrimary = () => { void handleCashOut(); };
       primaryDisabled = isLoading;
     } else {
@@ -204,7 +205,7 @@ export function MinesPage() {
         </div>
       </div>
 
-      {error && <div className="notice loss" style={{ marginBottom: 16, textAlign: 'left' }}>{error}</div>}
+      {error && <div className="notice loss" role="alert" style={{ marginBottom: 16, textAlign: 'left' }}>{error}</div>}
 
       <div className="game-layout">
         <div className="game-stage">
@@ -256,7 +257,7 @@ export function MinesPage() {
 
             {isResultPhase && result && (
               <div className={'notice ' + (result.won ? 'win' : 'loss')} style={{ minWidth: 260 }}>
-                {result.won ? `Cashed out for ${result.payout} V` : `💥 Hit a mine — lost ${betAmount} V`}
+                {result.won ? `Cashed out for ${result.payout} coins` : `💥 Hit a mine — lost ${betAmount} coins`}
               </div>
             )}
           </div>

@@ -113,8 +113,8 @@ function PnlChart({ daily, tab }: { daily: DailyRow[]; tab: ChartTab }) {
           const v = values[i]!;
           const pct = (Math.abs(v) / max) * (tab === 'pnl' ? 48 : 92);
           const label = tab === 'pnl'
-            ? `${d.date} · ${v >= 0 ? '+' : ''}${v.toLocaleString()} V`
-            : tab === 'wagered' ? `${d.date} · ${v.toLocaleString()} V` : `${d.date} · ${v} games`;
+            ? `${d.date} · ${v >= 0 ? '+' : ''}${v.toLocaleString()} coins`
+            : tab === 'wagered' ? `${d.date} · ${v.toLocaleString()} coins` : `${d.date} · ${v} games`;
           if (tab === 'pnl') {
             return (
               <div className="bar-col" key={i}>
@@ -247,7 +247,7 @@ export function ProfilePage() {
         <div className="tier-progress">
           {tier.next ? (
             <>
-              <div className="pct">{tier.wagered.toLocaleString()}<small> / {tier.next.minWagered.toLocaleString()} V</small></div>
+              <div className="pct">{tier.wagered.toLocaleString()}<small> / {tier.next.minWagered.toLocaleString()} coins</small></div>
               <div className="sub">TO {tier.next.name.toUpperCase()} · WAGERED</div>
             </>
           ) : (
@@ -283,11 +283,11 @@ export function ProfilePage() {
 
       {/* Stat grid */}
       <div className="acc-stat-grid">
-        <StatCard label="BALANCE" value={data.balance.toLocaleString()} valSmall=" V" chipBg="rgba(0,224,130,0.15)" chipFg="var(--accent)" chip={<CoinIcon size={14} />}
+        <StatCard label="BALANCE" value={data.balance.toLocaleString()} valSmall=" coins" chipBg="rgba(0,224,130,0.15)" chipFg="var(--accent)" chip={<CoinIcon size={14} />}
           sub={data.todayNet !== 0 ? `${data.todayNet > 0 ? '+' : '−'}${Math.abs(data.todayNet).toLocaleString()} today` : 'no change today'} subCls={data.todayNet > 0 ? 'pos' : data.todayNet < 0 ? 'neg' : ''} />
         <StatCard label="RANK" value={`#${data.balanceRank}`} chipBg="rgba(212,168,87,0.2)" chipFg="var(--gold)" chip={<StarIco />} sub="by balance" />
-        <StatCard label="TOTAL WAGERED" value={data.totalWagered.toLocaleString()} valSmall=" V" chipBg="rgba(91,141,239,0.18)" chipFg="var(--blue)" chip={<DiamondIco />} sub="lifetime" />
-        <StatCard label="TOTAL PROFIT" value={`${profitPos ? '+' : '−'}${Math.abs(data.totalProfit).toLocaleString()}`} valSmall=" V" chipBg="rgba(33,208,122,0.18)" chipFg="var(--win)" chip={<TrophyIcon size={11} color="var(--win)" />} sub="net all time" subCls={profitPos ? 'pos' : 'neg'} />
+        <StatCard label="TOTAL WAGERED" value={data.totalWagered.toLocaleString()} valSmall=" coins" chipBg="rgba(91,141,239,0.18)" chipFg="var(--blue)" chip={<DiamondIco />} sub="lifetime" />
+        <StatCard label="TOTAL PROFIT" value={`${profitPos ? '+' : '−'}${Math.abs(data.totalProfit).toLocaleString()}`} valSmall=" coins" chipBg="rgba(33,208,122,0.18)" chipFg="var(--win)" chip={<TrophyIcon size={11} color="var(--win)" />} sub="net all time" subCls={profitPos ? 'pos' : 'neg'} />
         <StatCard label="GAMES PLAYED" value={data.gamesPlayed.toLocaleString()} chipBg="rgba(179,146,240,0.18)" chipFg="var(--purple)" chip={<DiamondIco />} sub={`${data.gamesToday} today`} />
         <StatCard label="WIN RATE" value={data.winRate.toFixed(1)} valSmall="%" chipBg="rgba(0,224,130,0.15)" chipFg="var(--accent)" chip={<ShieldIco />} sub="of rounds won" />
       </div>
@@ -298,7 +298,7 @@ export function ProfilePage() {
           <div className="panel-head">
             <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
               <h3>Profit / Loss</h3>
-              <span className="net">NET 30D <strong className={net30 < 0 ? 'neg' : ''}>{net30 >= 0 ? '+' : '−'}{Math.abs(net30).toLocaleString()} V</strong></span>
+              <span className="net">NET 30D <strong className={net30 < 0 ? 'neg' : ''}>{net30 >= 0 ? '+' : '−'}{Math.abs(net30).toLocaleString()} coins</strong></span>
             </div>
             <div className="seg">
               {([['pnl', 'P/L'], ['wagered', 'WAGERED'], ['games', 'GAMES']] as [ChartTab, string][]).map(([k, l]) => (
@@ -340,7 +340,7 @@ export function ProfilePage() {
           {data.biggestWin && (
             <div className="biggest">
               <div className="lab">Biggest win</div>
-              <div className="val">+{data.biggestWin.net.toLocaleString()} V</div>
+              <div className="val">+{data.biggestWin.net.toLocaleString()} coins</div>
               <div className="ctx">
                 on <strong>{GAME_LABEL[data.biggestWin.gameType] ?? data.biggestWin.gameType}</strong>
                 {' · '}{(Number.isInteger(data.biggestWin.multiplier) ? data.biggestWin.multiplier : data.biggestWin.multiplier.toFixed(1))}× multiplier
@@ -388,7 +388,7 @@ export function ProfilePage() {
                       <td className="time">{relTime(r.createdAt)}</td>
                       <td className="mult">{showMult ? `${Number.isInteger(r.multiplier) ? r.multiplier : r.multiplier.toFixed(2)}×` : '—'}</td>
                       <td className={'res ' + (r.net > 0 ? 'win' : r.net < 0 ? 'loss' : '')}>
-                        {r.net > 0 ? '+' : r.net < 0 ? '−' : ''}{Math.abs(r.net).toLocaleString()}<small> V</small>
+                        {r.net > 0 ? '+' : r.net < 0 ? '−' : ''}{Math.abs(r.net).toLocaleString()}<small> coins</small>
                       </td>
                     </tr>
                   );

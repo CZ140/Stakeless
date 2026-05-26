@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import { useEffect, useRef, useState } from 'react';
 import gsap from 'gsap';
 import { crashMultiplierAt, crashTimeToReachMs } from '@gambling/shared';
@@ -105,7 +106,7 @@ export function CrashPage() {
   const {
     betAmount, autoEnabled, autoValue, phase, lastResult, history,
     setBetAmount, setAutoEnabled, setAutoValue, startRunning, settle, resetToIdle,
-  } = useCrashStore();
+  } = useCrashStore(useShallow((s) => ({ betAmount: s.betAmount, autoEnabled: s.autoEnabled, autoValue: s.autoValue, phase: s.phase, lastResult: s.lastResult, history: s.history, setBetAmount: s.setBetAmount, setAutoEnabled: s.setAutoEnabled, setAutoValue: s.setAutoValue, startRunning: s.startRunning, settle: s.settle, resetToIdle: s.resetToIdle })));
   const { muted, toggleMute } = useAudioStore();
   const balance = useBalanceStore((s) => s.balance);
   const [error, setError] = useState<string | null>(null);
@@ -313,7 +314,7 @@ export function CrashPage() {
         </div>
       </div>
 
-      {error && <div className="notice loss" style={{ marginBottom: 16, textAlign: 'left' }}>{error}</div>}
+      {error && <div className="notice loss" role="alert" style={{ marginBottom: 16, textAlign: 'left' }}>{error}</div>}
 
       <div className="game-layout">
         <div className="game-stage">

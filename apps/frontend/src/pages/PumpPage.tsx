@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import gsap from 'gsap';
 import {
@@ -55,7 +56,7 @@ export function PumpPage() {
   const {
     betAmount, difficulty, phase, sessionId, pumps, multiplier, maxPumps, maxedOut, result,
     setBetAmount, setDifficulty, startRound, applyInflate, applyPop, applyCashout, restoreSession, reset,
-  } = usePumpStore();
+  } = usePumpStore(useShallow((s) => ({ betAmount: s.betAmount, difficulty: s.difficulty, phase: s.phase, sessionId: s.sessionId, pumps: s.pumps, multiplier: s.multiplier, maxPumps: s.maxPumps, maxedOut: s.maxedOut, result: s.result, setBetAmount: s.setBetAmount, setDifficulty: s.setDifficulty, startRound: s.startRound, applyInflate: s.applyInflate, applyPop: s.applyPop, applyCashout: s.applyCashout, restoreSession: s.restoreSession, reset: s.reset })));
   const { muted, toggleMute } = useAudioStore();
   const balance = useBalanceStore((s) => s.balance);
   const [error, setError] = useState<string | null>(null);
@@ -179,7 +180,7 @@ export function PumpPage() {
   let primaryDisabled = busy;
   if (isActive) {
     if (pumps > 0) {
-      primaryLabel = `Cash out · ${Math.floor(betAmount * multiplier).toLocaleString()} V`;
+      primaryLabel = `Cash out · ${Math.floor(betAmount * multiplier).toLocaleString()} coins`;
       onPrimary = () => { void handleCashout(); };
       primaryDisabled = busy;
     } else {
@@ -209,7 +210,7 @@ export function PumpPage() {
         </div>
       </div>
 
-      {error && <div className="notice loss" style={{ marginBottom: 16, textAlign: 'left' }}>{error}</div>}
+      {error && <div className="notice loss" role="alert" style={{ marginBottom: 16, textAlign: 'left' }}>{error}</div>}
 
       <div className="game-layout">
         <div className="game-stage">
@@ -240,8 +241,8 @@ export function PumpPage() {
               {isActive && !maxedOut && (pumps > 0 ? 'Pump for more — or cash out before it pops.' : 'Pump the balloon to start climbing.')}
               {isActive && maxedOut && 'Balloon maxed — cash out now!'}
               {phase === 'result' && result && (result.won
-                ? `Cashed out ${result.payout.toLocaleString()} V · ${result.pumps} pump${result.pumps === 1 ? '' : 's'}`
-                : `💥 Popped on pump ${result.pumps + 1} — lost ${betAmount.toLocaleString()} V`)}
+                ? `Cashed out ${result.payout.toLocaleString()} coins · ${result.pumps} pump${result.pumps === 1 ? '' : 's'}`
+                : `💥 Popped on pump ${result.pumps + 1} — lost ${betAmount.toLocaleString()} coins`)}
             </div>
 
             <div className="pump-actions">

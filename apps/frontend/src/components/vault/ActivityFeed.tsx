@@ -190,7 +190,7 @@ export function ActivityFeed({ username, limit = 8, refreshKey = 0 }: Props) {
         const net = row.net;
         const resClass = net > 0 ? 'win' : net < 0 ? 'loss' : 'flat';
         const resText =
-          (net > 0 ? '+' : net < 0 ? '−' : '') + Math.abs(net).toLocaleString('en-US') + ' V';
+          (net > 0 ? '+' : net < 0 ? '−' : '') + Math.abs(net).toLocaleString('en-US') + ' coins';
         return (
           <div className="activity-row" key={row.id}>
             <div className="ico">{Icon && <Icon size={14} />}</div>

@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import { useEffect, useRef, useState } from 'react';
 import gsap from 'gsap';
 import { coinflipMultiplier, COINFLIP, type CoinSide } from '@gambling/shared';
@@ -24,7 +25,7 @@ export function CoinflipPage() {
   const {
     betAmount, call, flipping, lastResult,
     setBetAmount, setCall, setFlipping, setLastResult,
-  } = useCoinflipStore();
+  } = useCoinflipStore(useShallow((s) => ({ betAmount: s.betAmount, call: s.call, flipping: s.flipping, lastResult: s.lastResult, setBetAmount: s.setBetAmount, setCall: s.setCall, setFlipping: s.setFlipping, setLastResult: s.setLastResult })));
   const { muted, toggleMute } = useAudioStore();
   const balance = useBalanceStore((s) => s.balance);
   const [error, setError] = useState<string | null>(null);
@@ -117,7 +118,7 @@ export function CoinflipPage() {
         </div>
       </div>
 
-      {error && <div className="notice loss" style={{ marginBottom: 16, textAlign: 'left' }}>{error}</div>}
+      {error && <div className="notice loss" role="alert" style={{ marginBottom: 16, textAlign: 'left' }}>{error}</div>}
 
       <div className="game-layout">
         <div className="game-stage">

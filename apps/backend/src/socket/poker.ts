@@ -13,6 +13,14 @@ const NEXT_HAND_DELAY_MS = 5000; // also the post-hand window to voluntarily rev
 const BOT_MIN_MS = 800;
 const BOT_MAX_MS = 1900;
 
+// Timers fire detached from any request, so a rejected manager promise would
+// otherwise surface as an unhandledRejection and could crash the whole process —
+// taking down every live table. Log and swallow instead: a single botched action
+// must not kill the server.
+function logTimerError(what: string, tableId: number): (err: unknown) => void {
+  return (err) => console.error(`[poker] ${what} failed for table ${tableId}:`, err);
+}
+
 // Per-table timers + the current human turn deadline (epoch ms).
 const turnTimers = new Map<number, ReturnType<typeof setTimeout>>();
 const nextHandTimers = new Map<number, ReturnType<typeof setTimeout>>();
@@ -52,7 +60,7 @@ export function attachPokerRealtime(io: Server): void {
       turnTimers.set(
         tableId,
         setTimeout(() => {
-          void tableManager.runBotAction(tableId);
+          tableManager.runBotAction(tableId).catch(logTimerError('runBotAction', tableId));
         }, delay),
       );
     } else {
@@ -60,7 +68,7 @@ export function attachPokerRealtime(io: Server): void {
       turnTimers.set(
         tableId,
         setTimeout(() => {
-          void tableManager.timeoutCurrentActor(tableId);
+          tableManager.timeoutCurrentActor(tableId).catch(logTimerError('timeoutCurrentActor', tableId));
         }, POKER.TURN_MS),
       );
     }
@@ -80,7 +88,7 @@ export function attachPokerRealtime(io: Server): void {
       nextHandTimers.set(
         tableId,
         setTimeout(() => {
-          void tableManager.startNextHandIfReady(tableId);
+          tableManager.startNextHandIfReady(tableId).catch(logTimerError('startNextHandIfReady', tableId));
         }, NEXT_HAND_DELAY_MS),
       );
     },
