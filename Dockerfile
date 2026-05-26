@@ -3,7 +3,10 @@
 # having no build output). Designed for a single always-on instance (the poker
 # manager holds live hand state in memory and cannot be horizontally scaled).
 FROM node:20-slim
-RUN corepack enable && corepack prepare pnpm@latest --activate
+# Pin pnpm to the version that generated pnpm-lock.yaml (lockfileVersion 9.0).
+# `pnpm@latest` is a moving target — pnpm 11+ requires Node 22.13+ and breaks on
+# this Node 20 base (imports node:sqlite). 10.30.3 runs fine on Node 20.
+RUN corepack enable && corepack prepare pnpm@10.30.3 --activate
 WORKDIR /app
 
 # Optional: bake the Google sign-in client ID into the SPA at build time.

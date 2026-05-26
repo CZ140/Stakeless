@@ -1,6 +1,7 @@
 {
   "name": "gambling-website",
   "private": true,
+  "packageManager": "pnpm@10.30.3",
   "scripts": {
     "dev": "concurrently --kill-others-on-fail --names \"backend,frontend\" -c \"blue,green\" \"pnpm --filter backend dev\" \"pnpm --filter frontend dev\"",
     "db:migrate": "pnpm --filter backend db:migrate",
