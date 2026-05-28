@@ -26,12 +26,18 @@ export function createApp(): Express {
   // cookies are set and express-rate-limit sees the real client IP.
   app.set('trust proxy', 1);
 
-  // Security headers. Helmet's default CSP is strict (script-src 'self'), which
-  // blocks the Google Identity Services "Sign in with Google" widget. Extend three
-  // directives so GSI can load its client script, render its button iframe, and
-  // call its endpoints; every other directive keeps helmet's secure defaults.
-  // These only permit specific accounts.google.com GSI paths, so they're harmless
-  // when Google sign-in is disabled.
+  // Security headers. Two helmet defaults break Google Identity Services and have
+  // to be relaxed:
+  //   1. CSP `script-src 'self'` blocks the GSI client script, its button iframe,
+  //      and its endpoints — extend three directives to allow accounts.google.com/gsi/*.
+  //   2. `Cross-Origin-Opener-Policy: same-origin` severs the opener<->popup link
+  //      for the Google sign-in popup, so the popup's final relay page (the one at
+  //      accounts.google.com/gsi/* whose only job is window.opener.postMessage(idToken))
+  //      can't deliver the credential back and the popup just hangs. Switch to
+  //      `same-origin-allow-popups`, which still isolates the main document from
+  //      same-origin cross-window attacks but lets cross-origin popups talk back.
+  // All other helmet defaults are preserved; both relaxations are harmless when
+  // Google sign-in is disabled.
   app.use(
     helmet({
       contentSecurityPolicy: {
@@ -41,6 +47,7 @@ export function createApp(): Express {
           frameSrc: ["'self'", 'https://accounts.google.com/gsi/'],
         },
       },
+      crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
     })
   );
 
