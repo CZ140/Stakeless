@@ -11,13 +11,14 @@ export const authLimiter = rateLimit({
   message: { error: 'Too many attempts. Try again in 15 minutes.' },
 });
 
-// gameLimiter — 120 POST requests per minute per IP on all POST /api/games/* routes (ANTI-01).
+// gameLimiter — POST cap per minute per IP on all POST /api/games/* routes (ANTI-01).
 // The 100ms clickInterval is the hard anti-bot guard (≤10 req/s); this per-minute
-// cap is a secondary sustained-rate ceiling. 30/min was too low for Plinko's
-// rapid multi-ball play (it 429'd normal spamming); 120/min keeps it bounded.
+// cap is just a far-off backstop against a runaway script. Raised to 1000/min so it
+// never bites real play — Plinko's auto mode (up to 500 balls at ~170ms ≈ 350/min)
+// used to trip the old 120/min cap after ~20s.
 export const gameLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 120,
+  max: 1000,
   standardHeaders: true,
   legacyHeaders: false,
   // Integration tests make many game POSTs from one IP within a minute; the
