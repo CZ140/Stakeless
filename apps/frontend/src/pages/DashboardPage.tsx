@@ -11,20 +11,22 @@ import { ActivityFeed } from '../components/vault/ActivityFeed';
 // Live games. `rtp` is each game's real return-to-player (RNG games are tuned to
 // 97%; Slots 97.06%; Roulette 97.30% from the single-zero 2.70% edge; Blackjack
 // ~99.5% under basic strategy). No fabricated "players online" counts.
+// Ordered by popularity — the marquee classics lead, with the newer/niche games
+// trailing.
 const GAMES: GameCardData[] = [
+  { id: 'blackjack', name: 'Blackjack', route: '/games/blackjack', tag: 'Strategy', rtp: '99.5%' },
   { id: 'roulette', name: 'Roulette', route: '/games/roulette', tag: 'Classic', rtp: '97.3%' },
-  { id: 'crash', name: 'Crash', route: '/games/crash', tag: 'Live', rtp: '97.0%' },
   { id: 'plinko', name: 'Plinko', route: '/games/plinko', tag: 'Fast', rtp: '97.0%' },
-  { id: 'slots', name: 'Slots', route: '/games/slots', tag: 'Spin', rtp: '97.1%' },
-  { id: 'mines', name: 'Mines', route: '/games/mines', tag: 'Risk', rtp: '97.0%' },
+  { id: 'poker', name: 'Poker', route: '/games/poker', tag: 'Multiplayer', rtp: 'No rake' },
+  { id: 'crash', name: 'Crash', route: '/games/crash', tag: 'Live', rtp: '97.0%' },
   { id: 'dice', name: 'Dice', route: '/games/dice', tag: 'Pure RNG', rtp: '97.0%' },
-  { id: 'flip', name: 'Coin Flip', route: '/games/flip', tag: 'Coin toss', rtp: '97.0%' },
   { id: 'hilo', name: 'Hi-Lo', route: '/games/hilo', tag: 'Card ladder', rtp: '97.0%' },
+  { id: 'mines', name: 'Mines', route: '/games/mines', tag: 'Risk', rtp: '97.0%' },
+  { id: 'slots', name: 'Slots', route: '/games/slots', tag: 'Spin', rtp: '97.1%' },
+  { id: 'flip', name: 'Coin Flip', route: '/games/flip', tag: 'Coin toss', rtp: '97.0%' },
   { id: 'pump', name: 'Pump', route: '/games/pump', tag: 'Balloon', rtp: '97.0%' },
   { id: 'chicken', name: 'Chicken', route: '/games/chicken', tag: 'Cross the road', rtp: '97.0%' },
   { id: 'rps', name: 'Rock·Paper·Scissors', route: '/games/rps', tag: '3-way duel', rtp: '97.0%' },
-  { id: 'blackjack', name: 'Blackjack', route: '/games/blackjack', tag: 'Strategy', rtp: '99.5%' },
-  { id: 'poker', name: 'Poker', route: '/games/poker', tag: 'Multiplayer', rtp: 'No rake' },
 ];
 
 // Planned games (THE_NEXT_STEP lineup) — the whole lineup is now live, so this is
