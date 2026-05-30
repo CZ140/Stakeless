@@ -18,9 +18,81 @@ import { apiClient } from '../api/client';
 // A snappy back-out overshoot for cards settling into place.
 const CARD_EASE: [number, number, number, number] = [0.34, 1.56, 0.64, 1];
 
+// Deal-sequence timing (seconds). A card flies in from the shoe (FLY_S), then
+// flips face-up (FLIP_S). STEP_S is the gap between successive cards being dealt
+// — it drives the one-card-at-a-time rhythm. DECK_* is the shoe offset cards
+// fly in from (upper-right of the felt).
+const FLY_S = 0.34;
+const FLIP_S = 0.34;
+const STEP_S = 0.42;
+const DECK_DX = 90;
+const DECK_DY = -46;
+
 const SUIT_SYMBOLS: Record<string, string> = { hearts: '♥', diamonds: '♦', spades: '♠', clubs: '♣' };
 const RED_SUITS = new Set(['hearts', 'diamonds']);
 const CHIP_VALUES = [10, 50, 100, 500];
+
+// ─── Deal-order bookkeeping ───────────────────────────────────────────────────
+// Each card on the table gets a stable key. Player keys carry card identity so a
+// hit/double's new card is detected as "new"; dealer keys are positional so the
+// hole card persists in place across the player_turn → settle flip (no remount).
+
+function playerKey(h: number, i: number, c: Card): string {
+  return `p${h}-${i}-${c.suit[0]}${c.rank}`;
+}
+function dealerKey(i: number): string {
+  return `d${i}`;
+}
+
+function dealerCountForView(view: BJSessionView): number {
+  return view.phase === 'settled' && view.dealer.hand ? view.dealer.hand.length : 2;
+}
+
+// All card keys currently on the table for a backend view — used to pre-seed the
+// "already seen" set when resuming a session so it doesn't replay the whole deal.
+function keysForView(view: BJSessionView): string[] {
+  const keys: string[] = [];
+  view.hands.forEach((h, hi) => h.cards.forEach((c, ci) => keys.push(playerKey(hi, ci, c))));
+  const dCount = dealerCountForView(view);
+  for (let i = 0; i < dCount; i++) keys.push(dealerKey(i));
+  return keys;
+}
+
+interface CardMeta {
+  isNew: boolean; // first time on the table → plays the fly-in entrance
+  delay: number; // seconds before this card is dealt (staggers new cards)
+}
+
+// Walk the table in canonical casino order (round-robin: each player hand, then
+// dealer; repeat) and assign each new card an increasing deal delay so they land
+// one at a time. Cards already seen render in place with no entrance.
+function buildDealMeta(
+  handCards: Card[][],
+  dealerCount: number,
+  seen: Set<string>,
+  reduced: boolean,
+): Map<string, CardMeta> {
+  const meta = new Map<string, CardMeta>();
+  const rounds = Math.max(2, dealerCount, ...handCards.map((c) => c.length), 0);
+  let newRank = 0;
+  for (let r = 0; r < rounds; r++) {
+    for (let h = 0; h < handCards.length; h++) {
+      const c = handCards[h]?.[r];
+      if (!c) continue;
+      const key = playerKey(h, r, c);
+      const isNew = !seen.has(key);
+      meta.set(key, { isNew, delay: isNew && !reduced ? newRank * STEP_S : 0 });
+      if (isNew) newRank++;
+    }
+    if (r < dealerCount) {
+      const key = dealerKey(r);
+      const isNew = !seen.has(key);
+      meta.set(key, { isNew, delay: isNew && !reduced ? newRank * STEP_S : 0 });
+      if (isNew) newRank++;
+    }
+  }
+  return meta;
+}
 
 // ─── Cards ──────────────────────────────────────────────────────────────────────
 
@@ -43,23 +115,62 @@ function CardFace({ card }: { card: Card | 'facedown' }) {
   );
 }
 
-// A card that deals in from the shoe (top-right) with a staggered, overshooting
-// settle — or flips in 3D on reveal. Plays a deal/flip cue timed to its stagger.
-function DealtCard({ card, flip = false, index = 0 }: { card: Card | 'facedown'; flip?: boolean; index?: number }) {
+// A two-faced card. New cards fly in from the shoe face-down then flip up after
+// they land. `faceUp` is reactive: a card that arrives face-down (the dealer's
+// hole) flips over later when faceUp turns true. Deal/flip cues play in step.
+function DealtCard({
+  card,
+  faceUp,
+  isNew = false,
+  delay = 0,
+}: {
+  card: Card | null;
+  faceUp: boolean;
+  isNew?: boolean;
+  delay?: number;
+}) {
   const reduced = prefersReducedMotion();
+
+  // Entrance cues for a freshly-dealt card: a deal thunk as it flies, a flip cue
+  // as it turns over (only if it lands face-up).
   useEffect(() => {
-    const id = window.setTimeout(() => (flip ? sound.cardFlip() : sound.cardDeal()), reduced ? 0 : index * 90);
-    return () => window.clearTimeout(id);
+    if (!isNew) return;
+    const timers: number[] = [];
+    timers.push(window.setTimeout(() => sound.cardDeal(), reduced ? 0 : delay * 1000));
+    if (faceUp) timers.push(window.setTimeout(() => sound.cardFlip(), reduced ? 0 : (delay + FLY_S) * 1000));
+    return () => timers.forEach((t) => window.clearTimeout(t));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // A later reveal of an already-placed card (the dealer flipping its hole card).
+  const prevFaceUp = useRef(faceUp);
+  useEffect(() => {
+    if (!prevFaceUp.current && faceUp && !isNew) sound.cardFlip();
+    prevFaceUp.current = faceUp;
+  }, [faceUp, isNew]);
+
+  const animate = !reduced && isNew;
+  const flipDelay = isNew ? (reduced ? 0 : delay + FLY_S) : 0;
+
   return (
     <motion.div
-      initial={flip ? { rotateY: 90, opacity: 0 } : { opacity: 0, y: -52, x: 64, rotate: 9 }}
-      animate={{ rotateY: 0, opacity: 1, y: 0, x: 0, rotate: 0 }}
-      transition={{ duration: reduced ? 0 : 0.42, ease: CARD_EASE, delay: reduced ? 0 : index * 0.09 }}
-      style={{ transformStyle: 'preserve-3d' }}
+      className="bj-card-fly"
+      initial={animate ? { opacity: 0, x: DECK_DX, y: DECK_DY } : false}
+      animate={{ opacity: 1, x: 0, y: 0 }}
+      transition={{ duration: reduced ? 0 : FLY_S, ease: CARD_EASE, delay: animate ? delay : 0 }}
     >
-      <CardFace card={card} />
+      <motion.div
+        className="bj-card-3d"
+        initial={animate ? { rotateY: 180 } : false}
+        animate={{ rotateY: faceUp ? 0 : 180 }}
+        transition={{ duration: reduced ? 0 : FLIP_S, ease: 'easeInOut', delay: flipDelay }}
+        style={{ transformStyle: 'preserve-3d' }}
+      >
+        <div className="bj-face bj-front">{card ? <CardFace card={card} /> : <div className="playing-card" />}</div>
+        <div className="bj-face bj-back">
+          <div className="playing-card back" />
+        </div>
+      </motion.div>
     </motion.div>
   );
 }
@@ -82,15 +193,29 @@ function handNet(h: BJHandView): number {
 }
 
 // A single player hand (cards + footer with value / bet / outcome).
-function PlayerHand({ hand, index, active, settled }: { hand: BJHandView; index: number; active: boolean; settled: boolean }) {
+function PlayerHand({
+  hand,
+  index,
+  active,
+  settled,
+  meta,
+}: {
+  hand: BJHandView;
+  index: number;
+  active: boolean;
+  settled: boolean;
+  meta: Map<string, CardMeta>;
+}) {
   const badge = settled ? outcomeBadge(hand.outcome) : null;
   const valClass = hand.status === 'bust' ? 'bust' : hand.status === 'blackjack' ? 'bj' : '';
   return (
     <div className={`bj-hand${active ? ' active' : ''}${settled ? ' done' : ''}`}>
       <div className="cards-row">
-        {hand.cards.map((c, i) => (
-          <DealtCard key={`${index}-${i}-${c.suit}-${c.rank}`} card={c} index={i} />
-        ))}
+        {hand.cards.map((c, i) => {
+          const key = playerKey(index, i, c);
+          const m = meta.get(key);
+          return <DealtCard key={key} card={c} faceUp isNew={m?.isNew} delay={m?.delay} />;
+        })}
       </div>
       <div className="bj-hand-foot">
         <span className={`bj-val ${valClass}`}>{hand.value}</span>
@@ -106,6 +231,11 @@ export function BlackjackPage() {
   const { muted, toggleMute } = useAudioStore();
   const balance = useBalanceStore((s) => s.balance);
   const feltRef = useRef<HTMLDivElement>(null);
+  const reduced = prefersReducedMotion();
+
+  // Card keys that have already been dealt onto the table. Drives which cards
+  // play their fly-in entrance; cleared at the start of each fresh deal.
+  const seenKeysRef = useRef<Set<string>>(new Set());
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -115,33 +245,53 @@ export function BlackjackPage() {
   const isPlayerTurn = phase === 'player_turn';
   const isSettled = phase === 'settled';
 
-  // Resume an open hand on mount.
+  // Resume an open hand on mount. Pre-seed the seen set so the resumed table
+  // renders in place instead of replaying the whole deal animation.
   useEffect(() => {
     apiClient
       .get<{ session: BJSessionView | null }>('/games/blackjack/active-session')
       .then((res) => {
-        if (res.data.session) store.applyView(res.data.session);
+        if (res.data.session) {
+          keysForView(res.data.session).forEach((k) => seenKeysRef.current.add(k));
+          store.applyView(res.data.session);
+        }
       })
       .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function celebrateSettle(view: BJSessionView) {
+  // Card layout for the current phase + per-card deal metadata (new? + delay).
+  const handCards: Card[][] = isBetting ? [] : hands.map((h) => h.cards);
+  const dealerCount = isBetting ? 0 : isSettled && dealer.hand ? dealer.hand.length : 2;
+  const dealMeta = buildDealMeta(handCards, dealerCount, seenKeysRef.current, reduced);
+  const currentKeys = [...dealMeta.keys()];
+
+  // Once a render has placed a card, mark it seen so it won't re-animate.
+  useEffect(() => {
+    for (const k of currentKeys) seenKeysRef.current.add(k);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentKeys.join('|')]);
+
+  // Hold the win flourish until the deal/dealer-draw animation has played out.
+  function celebrateSettle(view: BJSessionView, newCount: number) {
     if (view.phase !== 'settled') return;
     const net = view.hands.reduce((s, h) => s + handNet(h), 0);
     const stake = view.hands.reduce((s, h) => s + h.bet * (h.isDoubled ? 2 : 1), 0);
-    // The dealer's hole card flips first; let the win flourish land just after.
+    const revealMs = reduced ? 0 : (Math.max(0, newCount - 1) * STEP_S + FLY_S + FLIP_S) * 1000 + 140;
     window.setTimeout(() => {
       if (net > 0) celebrate(winTier(net, stake), { shakeEl: feltRef.current, originEl: feltRef.current });
       else if (net < 0) celebrate('none');
       // net === 0 (push): no sound.
-    }, prefersReducedMotion() ? 0 : 420);
+    }, revealMs);
   }
 
   function applySettled(view: BJSessionView) {
+    // Count cards about to be revealed (new draws, or the whole deal on an
+    // immediate blackjack) before applyView marks them seen.
+    const newCount = keysForView(view).filter((k) => !seenKeysRef.current.has(k)).length;
     store.applyView(view);
     if (view.newBalance !== undefined) useBalanceStore.getState().setBalance(view.newBalance);
-    celebrateSettle(view);
+    celebrateSettle(view, newCount);
   }
 
   async function handleDeal() {
@@ -149,6 +299,7 @@ export function BlackjackPage() {
     sound.unlock();
     sound.chip();
     setError(null);
+    seenKeysRef.current.clear(); // fresh hand → animate the full deal
     localStorage.setItem('lastBet_blackjack', String(betAmount));
     setIsLoading(true);
     try {
@@ -184,14 +335,11 @@ export function BlackjackPage() {
     }
   }
 
-  // Dealer cards to render per phase.
-  const dealerCards: (Card | 'facedown')[] = isBetting
-    ? ['facedown', 'facedown']
-    : isSettled && dealer.hand
-      ? dealer.hand
-      : dealer.upCard
-        ? [dealer.upCard, 'facedown']
-        : ['facedown', 'facedown'];
+  function handlePlayAgain() {
+    seenKeysRef.current.clear();
+    store.reset();
+  }
+
   const dealerTotal = isSettled && dealer.value !== null ? String(dealer.value) : isBetting ? '—' : '?';
 
   const activeBet = hands[activeHandIndex]?.bet ?? betAmount;
@@ -224,6 +372,7 @@ export function BlackjackPage() {
         <div className="game-stage" style={{ padding: 14 }}>
           <div className="felt" ref={feltRef}>
             <div className="felt-label">STAKELESS · BLACKJACK</div>
+            <div className="bj-deck" aria-hidden />
 
             {/* Dealer */}
             <div className="hand-row">
@@ -232,9 +381,20 @@ export function BlackjackPage() {
                 <span className="total">{dealerTotal}</span>
               </div>
               <div className="cards-row">
-                {dealerCards.map((c, i) => (
-                  <DealtCard key={`dealer-${phase}-${i}`} card={c} index={i} flip={isSettled && i === 1} />
-                ))}
+                {isBetting ? (
+                  <>
+                    <CardFace card="facedown" />
+                    <CardFace card="facedown" />
+                  </>
+                ) : (
+                  Array.from({ length: dealerCount }).map((_, i) => {
+                    const key = dealerKey(i);
+                    const m = dealMeta.get(key);
+                    const card = isSettled && dealer.hand ? dealer.hand[i] ?? null : i === 0 ? dealer.upCard : null;
+                    const faceUp = isSettled ? true : i === 0;
+                    return <DealtCard key={key} card={card} faceUp={faceUp} isNew={m?.isNew} delay={m?.delay} />;
+                  })
+                )}
               </div>
             </div>
 
@@ -278,6 +438,7 @@ export function BlackjackPage() {
                       index={i}
                       active={isPlayerTurn && i === activeHandIndex}
                       settled={isSettled}
+                      meta={dealMeta}
                     />
                   ))}
             </div>
@@ -390,7 +551,7 @@ export function BlackjackPage() {
                     <span className={`mono bj-net ${netClass}`}>{netTotal > 0 ? '+' : netTotal < 0 ? '−' : ''}{Math.abs(netTotal).toLocaleString()} coins</span>
                   </div>
                 </div>
-                <button className="btn btn-primary place-bet" onClick={store.reset} type="button">
+                <button className="btn btn-primary place-bet" onClick={handlePlayAgain} type="button">
                   Play again
                 </button>
               </>

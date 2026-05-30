@@ -1142,6 +1142,27 @@ body::before {
 .playing-card.black { color: #0a0f15; }
 .action-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 
+/* ── Blackjack deal animation: two-faced flip card + shoe ──────────────────── */
+/* The shoe in the felt's upper-right corner — visual origin of the deal. */
+.bj-deck {
+  position: absolute; top: 16px; right: 16px; z-index: 1;
+  width: 56px; height: 80px; border-radius: 8px;
+  background: repeating-linear-gradient(45deg, var(--accent) 0 6px, #00a560 6px 12px);
+  border: 1px solid rgba(0,0,0,0.3);
+  box-shadow:
+    0 6px 16px rgba(0,0,0,0.45),
+    3px 3px 0 -1px #0a3d2a, 4px 4px 0 -1px rgba(0,0,0,0.3),
+    6px 6px 0 -2px #0a3d2a, 7px 7px 0 -2px rgba(0,0,0,0.3);
+  opacity: 0.85; pointer-events: none;
+}
+/* Flip wrapper: front sits in flow (sizes the card), back overlays it rotated. */
+.bj-card-fly { position: relative; flex-shrink: 0; perspective: 800px; }
+.bj-card-3d { position: relative; }
+.bj-face { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+.bj-front { position: relative; }
+.bj-back { position: absolute; inset: 0; transform: rotateY(180deg); }
+.bj-back .playing-card { width: 100%; height: 100%; }
+
 /* ============================================================
    Leaderboard
    ============================================================ */
