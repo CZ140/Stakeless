@@ -18,10 +18,10 @@ import { apiClient } from '../api/client';
 // A snappy back-out overshoot for cards settling into place.
 const CARD_EASE: [number, number, number, number] = [0.34, 1.56, 0.64, 1];
 
-// Deal-sequence timing (seconds). A card flies in from the shoe (FLY_S), then
-// flips face-up (FLIP_S). STEP_S is the gap between successive cards being dealt
-// — it drives the one-card-at-a-time rhythm. DECK_* is the shoe offset cards
-// fly in from (upper-right of the felt).
+// Deal-sequence timing (seconds). A card flies in (FLY_S) from the upper-right,
+// then flips face-up (FLIP_S). STEP_S is the gap between successive cards being
+// dealt — it drives the one-card-at-a-time rhythm. DECK_* is the entrance offset
+// the card travels from.
 const FLY_S = 0.34;
 const FLIP_S = 0.34;
 const STEP_S = 0.42;
@@ -239,6 +239,9 @@ export function BlackjackPage() {
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Gates the result display (banner, outcome badges, dealer total, win flourish)
+  // until the dealer's hole card has flipped and all cards have finished dealing.
+  const [resultRevealed, setResultRevealed] = useState(false);
 
   const { betAmount, handCount, phase, sessionId, hands, activeHandIndex, dealer, canSplit, canDouble } = store;
   const isBetting = phase === 'betting';
@@ -252,8 +255,10 @@ export function BlackjackPage() {
       .get<{ session: BJSessionView | null }>('/games/blackjack/active-session')
       .then((res) => {
         if (res.data.session) {
-          keysForView(res.data.session).forEach((k) => seenKeysRef.current.add(k));
-          store.applyView(res.data.session);
+          const view = res.data.session;
+          keysForView(view).forEach((k) => seenKeysRef.current.add(k));
+          store.applyView(view);
+          if (view.phase === 'settled') setResultRevealed(true); // resumed, no replay
         }
       })
       .catch(() => {});
@@ -272,13 +277,16 @@ export function BlackjackPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentKeys.join('|')]);
 
-  // Hold the win flourish until the deal/dealer-draw animation has played out.
-  function celebrateSettle(view: BJSessionView, newCount: number) {
+  // Reveal the result (banner, badges, win flourish) only once the dealer's hole
+  // card has flipped and every drawn card has finished dealing — otherwise the
+  // outcome would be spoiled before the cards land.
+  function scheduleSettleReveal(view: BJSessionView, newCount: number) {
     if (view.phase !== 'settled') return;
     const net = view.hands.reduce((s, h) => s + handNet(h), 0);
     const stake = view.hands.reduce((s, h) => s + h.bet * (h.isDoubled ? 2 : 1), 0);
     const revealMs = reduced ? 0 : (Math.max(0, newCount - 1) * STEP_S + FLY_S + FLIP_S) * 1000 + 140;
     window.setTimeout(() => {
+      setResultRevealed(true);
       if (net > 0) celebrate(winTier(net, stake), { shakeEl: feltRef.current, originEl: feltRef.current });
       else if (net < 0) celebrate('none');
       // net === 0 (push): no sound.
@@ -289,9 +297,10 @@ export function BlackjackPage() {
     // Count cards about to be revealed (new draws, or the whole deal on an
     // immediate blackjack) before applyView marks them seen.
     const newCount = keysForView(view).filter((k) => !seenKeysRef.current.has(k)).length;
+    setResultRevealed(false); // keep the outcome hidden while the cards deal/flip
     store.applyView(view);
     if (view.newBalance !== undefined) useBalanceStore.getState().setBalance(view.newBalance);
-    celebrateSettle(view, newCount);
+    scheduleSettleReveal(view, newCount);
   }
 
   async function handleDeal() {
@@ -300,6 +309,7 @@ export function BlackjackPage() {
     sound.chip();
     setError(null);
     seenKeysRef.current.clear(); // fresh hand → animate the full deal
+    setResultRevealed(false);
     localStorage.setItem('lastBet_blackjack', String(betAmount));
     setIsLoading(true);
     try {
@@ -337,10 +347,14 @@ export function BlackjackPage() {
 
   function handlePlayAgain() {
     seenKeysRef.current.clear();
+    setResultRevealed(false);
     store.reset();
   }
 
-  const dealerTotal = isSettled && dealer.value !== null ? String(dealer.value) : isBetting ? '—' : '?';
+  // The outcome is settled on the backend, but only shown once the deal/draw
+  // animation has finished playing out.
+  const showResult = isSettled && resultRevealed;
+  const dealerTotal = showResult && dealer.value !== null ? String(dealer.value) : isBetting ? '—' : '?';
 
   const activeBet = hands[activeHandIndex]?.bet ?? betAmount;
   const totalStake = betAmount * handCount;
@@ -372,7 +386,6 @@ export function BlackjackPage() {
         <div className="game-stage" style={{ padding: 14 }}>
           <div className="felt" ref={feltRef}>
             <div className="felt-label">STAKELESS · BLACKJACK</div>
-            <div className="bj-deck" aria-hidden />
 
             {/* Dealer */}
             <div className="hand-row">
@@ -400,7 +413,7 @@ export function BlackjackPage() {
 
             {/* Settlement banner */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 32 }}>
-              {isSettled && (
+              {showResult && (
                 <div
                   style={{
                     padding: '8px 22px', borderRadius: 8,
@@ -437,7 +450,7 @@ export function BlackjackPage() {
                       hand={h}
                       index={i}
                       active={isPlayerTurn && i === activeHandIndex}
-                      settled={isSettled}
+                      settled={showResult}
                       meta={dealMeta}
                     />
                   ))}
@@ -533,7 +546,15 @@ export function BlackjackPage() {
               </>
             )}
 
-            {isSettled && (
+            {isSettled && !resultRevealed && (
+              <div className="card-inset" style={{ padding: 16, textAlign: 'center' }}>
+                <span className="mono" style={{ color: 'var(--text-muted)', fontSize: 12, letterSpacing: '0.16em' }}>
+                  DEALER PLAYING…
+                </span>
+              </div>
+            )}
+
+            {showResult && (
               <>
                 <div className="bet-summary">
                   {hands.map((h, i) => {
