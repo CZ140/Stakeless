@@ -76,6 +76,8 @@ export function AdminPage() {
   const [playerHistory, setPlayerHistory] = useState<HistoryRound[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [toast, setToast] = useState<{ msg: string; kind: 'win' | 'loss' } | null>(null);
+  const [grantAmount, setGrantAmount] = useState('');
+  const [isGranting, setIsGranting] = useState(false);
 
   useEffect(() => {
     apiClient
@@ -128,6 +130,43 @@ export function AdminPage() {
       );
     } catch {
       showToast('Action failed. Please try again.', 'loss');
+    }
+  }
+
+  // Add (sign +1) or claw back (sign −1) coins for the selected player. The
+  // amount field holds an unsigned magnitude; the sign comes from which button
+  // was pressed. Mirrors the backend cap (|amount| ≤ 1,000,000) so the user gets
+  // an inline message instead of a 400.
+  async function handleGrant(sign: 1 | -1) {
+    if (!selectedPlayer || isGranting) return;
+    const magnitude = Math.floor(Number(grantAmount));
+    if (!Number.isFinite(magnitude) || magnitude <= 0) {
+      showToast('Enter a positive whole number of coins.', 'loss');
+      return;
+    }
+    if (magnitude > 1_000_000) {
+      showToast('Amount must be 1,000,000 or less.', 'loss');
+      return;
+    }
+    const amount = sign * magnitude;
+    setIsGranting(true);
+    try {
+      const res = await apiClient.post<{ ok: boolean; newBalance: number }>(
+        '/admin/players/' + selectedPlayer.id + '/grant',
+        { amount },
+      );
+      const newBalance = res.data.newBalance;
+      setSelectedPlayer(prev => (prev ? { ...prev, balance: newBalance } : prev));
+      setSearchResults(prev => prev.map(p => (p.id === selectedPlayer.id ? { ...p, balance: newBalance } : p)));
+      showToast(
+        `${sign > 0 ? 'Added' : 'Removed'} ${magnitude.toLocaleString()} coins ${sign > 0 ? 'to' : 'from'} ${selectedPlayer.username} — new balance ${newBalance.toLocaleString()}.`,
+        sign > 0 ? 'win' : 'loss',
+      );
+      setGrantAmount('');
+    } catch {
+      showToast('Balance update failed. Please try again.', 'loss');
+    } finally {
+      setIsGranting(false);
     }
   }
 
@@ -253,6 +292,40 @@ export function AdminPage() {
 
       {/* Player inspector — shown when a player is selected */}
       {selectedPlayer && (
+        <>
+        {/* Balance adjustment — production-safe replacement for the dev console
+            cheat. Add or claw back coins; every action is audit-logged server-side. */}
+        <div className="panel" style={{ marginBottom: 14 }}>
+          <div className="panel-head">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <h3>Adjust Balance</h3>
+              <span className="tag muted">{selectedPlayer.username.toUpperCase()}</span>
+            </div>
+            <span className="net">{selectedPlayer.balance.toLocaleString()} coins</span>
+          </div>
+          <form className="admin-search" onSubmit={e => e.preventDefault()}>
+            <input
+              className="input"
+              type="number"
+              min={1}
+              max={1000000}
+              step={1}
+              value={grantAmount}
+              onChange={e => setGrantAmount(e.target.value)}
+              placeholder="Amount of coins…"
+            />
+            <button type="button" className="btn btn-primary" disabled={isGranting} onClick={() => void handleGrant(1)}>
+              <CoinIcon size={15} /> Add
+            </button>
+            <button type="button" className="admin-btn ban" disabled={isGranting} onClick={() => void handleGrant(-1)}>
+              Remove
+            </button>
+          </form>
+          <div className="sub" style={{ marginTop: 10, color: 'var(--text-secondary)', fontSize: 12 }}>
+            Adds to or claws back from the player's balance. Max 1,000,000 per action; logged to the admin audit trail.
+          </div>
+        </div>
+
         <div className="panel">
           <div className="panel-head">
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -312,6 +385,7 @@ export function AdminPage() {
             </>
           )}
         </div>
+        </>
       )}
 
       {toast && (
