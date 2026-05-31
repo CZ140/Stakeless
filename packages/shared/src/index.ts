@@ -14,6 +14,21 @@ export {
 } from './tiers.js';
 export type { Tier } from './tiers.js';
 
+// Economy rewards — daily-bonus streak math + rakeback, shared by the backend
+// (crediting + persistence in walletService) and the frontend (previews,
+// countdowns, claimable readouts). See rewards.ts for the model.
+export {
+  BONUS_COOLDOWN_MS,
+  STREAK_RESET_MS,
+  MAX_STREAK_MULTIPLIER,
+  streakMultiplier,
+  streakBonusAmount,
+  nextStreak,
+  RAKEBACK_RATE,
+  rakebackAvailable,
+  rakebackWagerConsumed,
+} from './rewards.js';
+
 // Slots — 3×3 grid, 5 paylines. Paytable, RNG-to-symbol mapping, and line
 // evaluation shared by backend (settlement) and frontend (paytable + win
 // highlighting). See slots.ts for the model and the exact-RTP derivation.

@@ -2,19 +2,19 @@ import { Router, type IRouter } from 'express';
 import { randomInt } from 'node:crypto';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { validateBet } from '../middleware/validateBet.js';
-import { claimDailyBonus, deductBet, settleBet } from '../services/walletService.js';
+import { claimDailyBonus, claimRakeback, deductBet, settleBet } from '../services/walletService.js';
 
 export const walletRouter: IRouter = Router();
 
 // POST /api/wallet/bonus
 // Requires a valid Bearer token (requireAuth middleware).
-// Returns 200 { newBalance, nextClaimAt, amount } on success.
+// Returns 200 { newBalance, nextClaimAt, amount, streak } on success.
 // Returns 429 { error, msUntilNext } if the 24h cooldown has not elapsed.
 // Returns 500 on unexpected errors.
 walletRouter.post('/bonus', requireAuth, async (req, res) => {
   try {
-    const { newBalance, nextClaimAt, amount } = await claimDailyBonus(req.user!.id);
-    res.json({ newBalance, nextClaimAt, amount });
+    const { newBalance, nextClaimAt, amount, streak } = await claimDailyBonus(req.user!.id);
+    res.json({ newBalance, nextClaimAt, amount, streak });
   } catch (err: unknown) {
     const code = (err as { code?: string }).code;
     if (code === 'BONUS_NOT_READY') {
@@ -23,6 +23,27 @@ walletRouter.post('/bonus', requireAuth, async (req, res) => {
       return;
     }
     console.error('[wallet] bonus error:', err);
+    res.status(500).json({ error: 'An unexpected error occurred' });
+  }
+});
+
+// POST /api/wallet/rakeback
+// Requires a valid Bearer token (requireAuth middleware). Credits a fraction of
+// the wager accrued since the last claim — no cooldown, claim any time.
+// Returns 200 { newBalance, amount } on success.
+// Returns 409 { error } when less than a whole coin of rakeback has accrued.
+// Returns 500 on unexpected errors.
+walletRouter.post('/rakeback', requireAuth, async (req, res) => {
+  try {
+    const { newBalance, amount } = await claimRakeback(req.user!.id);
+    res.json({ newBalance, amount });
+  } catch (err: unknown) {
+    const code = (err as { code?: string }).code;
+    if (code === 'NO_RAKEBACK') {
+      res.status(409).json({ error: 'No rakeback available yet' });
+      return;
+    }
+    console.error('[wallet] rakeback error:', err);
     res.status(500).json({ error: 'An unexpected error occurred' });
   }
 });

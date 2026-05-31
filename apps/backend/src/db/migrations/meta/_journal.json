@@ -85,6 +85,13 @@
       "when": 1779815353549,
       "tag": "0011_pale_zzzax",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1780248707579,
+      "tag": "0012_clever_anthem",
+      "breakpoints": true
     }
   ]
 }

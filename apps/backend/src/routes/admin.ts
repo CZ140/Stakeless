@@ -6,6 +6,7 @@ import {
   getPlayerHistory,
   banUser,
   unbanUser,
+  grantBalance,
   logAdminAction,
 } from '../services/adminService.js';
 
@@ -78,6 +79,28 @@ adminRouter.post('/players/:id/unban', async (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     console.error('[admin] unban error:', err);
+    res.status(500).json({ error: 'An unexpected error occurred' });
+  }
+});
+
+// POST /api/admin/players/:id/grant — grant/adjust balance (ADMIN-06)
+// Body: { amount: number } — positive tops up, negative claws back. The
+// production-safe replacement for the dev-only /api/dev/add-balance cheat.
+adminRouter.post('/players/:id/grant', async (req, res) => {
+  const targetId = Number(req.params.id);
+  const amount = Number((req.body as { amount?: unknown }).amount);
+  if (!Number.isFinite(targetId)) { res.status(400).json({ error: 'Invalid id' }); return; }
+  if (!Number.isInteger(amount) || amount === 0 || Math.abs(amount) > 1_000_000) {
+    res.status(400).json({ error: 'amount must be a non-zero integer with |amount| ≤ 1,000,000' });
+    return;
+  }
+  try {
+    const { newBalance } = await grantBalance(targetId, amount);
+    await logAdminAction(req.user!.id, 'grant_balance', targetId, `granted ${amount} coins → ${newBalance}`);
+    res.json({ ok: true, newBalance });
+  } catch (err) {
+    if ((err as { code?: string }).code === 'NOT_FOUND') { res.status(404).json({ error: 'Player not found' }); return; }
+    console.error('[admin] grant error:', err);
     res.status(500).json({ error: 'An unexpected error occurred' });
   }
 });
