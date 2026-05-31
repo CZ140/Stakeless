@@ -135,14 +135,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signOut = useCallback(async () => {
-    try {
-      await axios.post('/api/auth/logout', {}, { withCredentials: true });
-    } catch {
-      // Ignore errors — clear local state regardless
-    }
+    // Clear local session synchronously FIRST so the UI reflects sign-out
+    // immediately (ProtectedRoute redirects, balance clears) without waiting on
+    // the network — a slow/unreachable logout request must never strand the user
+    // on an authenticated page. The server-side cookie revocation runs in the
+    // background; if it fails the worst case is a stale refresh cookie, which the
+    // next refresh/login replaces.
     setAccessToken(null);
     setState({ ...LOGGED_OUT, isLoading: false, sessionExpired: false });
     useBalanceStore.getState().clearBalance();
+    try {
+      await axios.post('/api/auth/logout', {}, { withCredentials: true });
+    } catch {
+      // Ignore — local state is already cleared.
+    }
   }, []);
 
   const updateLocalProfile = useCallback(

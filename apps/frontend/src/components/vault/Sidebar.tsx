@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { BrandMark } from './BrandMark';
 import {
@@ -53,7 +53,17 @@ const games: NavEntry[] = [
 
 export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const { username, signOut } = useAuth();
+  const navigate = useNavigate();
   const connected = useSocketStatus();
+
+  // Clear the session, then send the user to /login. signOut clears local auth
+  // state synchronously, so the explicit navigate guarantees a redirect even
+  // from the public pages (leaderboard, profile) that aren't behind ProtectedRoute.
+  const handleSignOut = () => {
+    onNavigate?.();
+    void signOut();
+    navigate('/login', { replace: true });
+  };
   const incomingCount = useFriendsStore((s) => s.incoming.length);
   const account: NavEntry[] = [
     { to: '/leaderboard', label: 'Leaderboard', Icon: LeaderboardIcon },
@@ -99,7 +109,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         <div className="nav-section" style={{ marginTop: 8 }}>
           Support
         </div>
-        <button type="button" className="nav-item" onClick={() => { onNavigate?.(); void signOut(); }} style={{ width: '100%', textAlign: 'left' }}>
+        <button type="button" className="nav-item" onClick={handleSignOut} style={{ width: '100%', textAlign: 'left' }}>
           <LogoutIcon size={18} />
           <span>Sign out</span>
         </button>
