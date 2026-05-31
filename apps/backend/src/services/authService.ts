@@ -6,6 +6,7 @@ import { generateOpaqueToken, hashToken, signAccessToken } from './tokenService.
 import { sendPasswordResetEmail } from './emailService.js';
 import type { GoogleProfile } from './googleAuthService.js';
 import { env } from '../env.js';
+import { rakebackAvailable } from '@gambling/shared';
 
 // Mint a fresh access + refresh token pair for a user and stamp lastLoginAt.
 // Shared by the password and Google sign-in paths.
@@ -216,6 +217,8 @@ export async function getProfile(userId: number) {
     avatarColor: users.avatarColor,
     avatarImage: users.avatarImage,
     lastBonusClaimedAt: users.lastBonusClaimedAt,
+    bonusStreak: users.bonusStreak,
+    rakebackClaimedWagered: users.rakebackClaimedWagered,
     createdAt: users.createdAt,
     lastLoginAt: users.lastLoginAt,
   }).from(users)
@@ -236,6 +239,10 @@ export async function getProfile(userId: number) {
     avatarColor: user.avatarColor,
     avatarImage: user.avatarImage,
     dailyBonusTimestamp: user.lastBonusClaimedAt?.toISOString() ?? null,
+    // Current consecutive-day bonus streak, and coins of rakeback claimable right
+    // now — the frontend renders both without needing a second round-trip.
+    bonusStreak: user.bonusStreak,
+    rakebackAvailable: rakebackAvailable(user.totalWagered, user.rakebackClaimedWagered),
     createdAt: user.createdAt.toISOString(),
     lastLoginAt: user.lastLoginAt?.toISOString() ?? null,
   };

@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { AppShell } from '../components/vault/AppShell';
 import { LiveTicker } from '../components/vault/LiveTicker';
 import { VaultDailyBonus } from '../components/vault/VaultDailyBonus';
+import { VaultRakeback } from '../components/vault/VaultRakeback';
 import { VaultGameCard, type GameCardData } from '../components/vault/VaultGameCard';
 import { ActivityFeed } from '../components/vault/ActivityFeed';
 
@@ -39,6 +40,8 @@ interface MeResponse {
   username?: string;
   balance: number;
   dailyBonusTimestamp: string | null;
+  bonusStreak: number;
+  rakebackAvailable: number;
 }
 
 function timeOfDay(): string {
@@ -85,7 +88,11 @@ export function DashboardPage() {
 
       <LiveTicker />
 
-      <VaultDailyBonus dailyBonusTimestamp={profile?.dailyBonusTimestamp ?? null} />
+      <VaultDailyBonus
+        dailyBonusTimestamp={profile?.dailyBonusTimestamp ?? null}
+        bonusStreak={profile?.bonusStreak ?? 0}
+      />
+      <VaultRakeback rakebackAvailable={profile?.rakebackAvailable ?? 0} />
 
       <div className="section-head">
         <h3>

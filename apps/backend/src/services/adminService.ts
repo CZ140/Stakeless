@@ -91,3 +91,30 @@ export async function banUser(targetUserId: number): Promise<void> {
 export async function unbanUser(targetUserId: number): Promise<void> {
   await db.update(users).set({ isBanned: false }).where(eq(users.id, targetUserId));
 }
+
+// ─── Grant / adjust balance (ADMIN-06) ───────────────────────────────────────
+// The production-safe replacement for the dev-only /api/dev/add-balance cheat:
+// admin-gated (requireAdmin) and audit-logged by the route. A positive amount
+// tops up; a negative amount claws back (e.g. correcting an exploit), clamped so
+// balance never goes negative. SELECT FOR UPDATE matches walletService's money
+// discipline so a concurrent bet/settle can't race the write.
+export async function grantBalance(
+  targetUserId: number,
+  amount: number,
+): Promise<{ newBalance: number }> {
+  return db.transaction(async (tx) => {
+    const [user] = await tx
+      .select({ balance: users.balance })
+      .from(users)
+      .where(eq(users.id, targetUserId))
+      .for('update');
+
+    if (!user) {
+      throw Object.assign(new Error('User not found'), { code: 'NOT_FOUND' });
+    }
+
+    const newBalance = Math.max(0, user.balance + amount);
+    await tx.update(users).set({ balance: newBalance }).where(eq(users.id, targetUserId));
+    return { newBalance };
+  });
+}

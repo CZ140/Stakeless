@@ -37,6 +37,14 @@ export const users = pgTable('users', {
   // tier-up reward fires exactly once when a player crosses each threshold.
   tierLevel: integer('tier_level').notNull().default(0),
   lastBonusClaimedAt: timestamp('last_bonus_claimed_at'),
+  // Consecutive-day daily-bonus streak. Bumped on each on-time claim, reset to 1
+  // if a claim lapses past STREAK_RESET_MS; scales the credited bonus (see
+  // rewards.ts / claimDailyBonus).
+  bonusStreak: integer('bonus_streak').notNull().default(0),
+  // Watermark for rakeback: the lifetime-wagered figure already rebated. Claimable
+  // rakeback = (total_wagered − this) × RAKEBACK_RATE; advanced on each claim so a
+  // coin of wager is only ever rebated once.
+  rakebackClaimedWagered: bigint('rakeback_claimed_wagered', { mode: 'number' }).notNull().default(0),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   lastLoginAt: timestamp('last_login_at'),
   tokenVersion: integer('token_version').notNull().default(0),
