@@ -319,6 +319,9 @@ body::before {
   cursor: pointer;
 }
 .icon-btn:hover { color: var(--text); border-color: var(--border-strong); }
+/* Animations toggle: accent when on, dimmed when reduced. */
+.icon-btn.motion-toggle:not(.is-off) { color: var(--accent); border-color: rgba(0,224,130,0.3); }
+.icon-btn.motion-toggle.is-off { color: var(--text-muted); }
 .icon-btn .badge {
   position: absolute; top: -4px; right: -4px;
   background: var(--loss);
@@ -1956,8 +1959,10 @@ body::before {
 
 /* Phone-width refinements. */
 @media (max-width: 600px) {
-  /* Top bar: keep balance + avatar, drop placeholder icons + name label. */
+  /* Top bar: keep balance + avatar, drop placeholder icons + name label. The
+     animations toggle is functional (reduce-motion is common on phones) → keep it. */
   .header .icon-btn { display: none; }
+  .header .icon-btn.motion-toggle { display: grid; }
   .user-pill .name { display: none; }
   .user-pill { padding: 4px; }
 
