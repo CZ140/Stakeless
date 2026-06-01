@@ -154,6 +154,20 @@ export function PokerLobbyPage() {
   function refresh() {
     apiClient.get<{ tables: PokerTableSummary[] }>('/poker/tables').then((r) => usePokerStore.getState().setLobby(r.data.tables)).catch(() => {});
   }
+
+  // Owner closes their own (private) table from the lobby. Refunds every seated
+  // player server-side and kicks anyone currently at it.
+  async function closeTable(id: number, name: string) {
+    if (!window.confirm(`Close “${name}”? Everyone seated is cashed out and refunded.`)) return;
+    try {
+      await apiClient.delete(`/poker/tables/${id}`);
+      toast.success('Table closed');
+      refresh();
+    } catch (e) {
+      const ax = e as { response?: { data?: { error?: string } } };
+      toast.error(ax.response?.data?.error ?? 'Could not close table');
+    }
+  }
   useEffect(() => {
     refresh();
     const t = setInterval(refresh, 5000); // light polling of the lobby
@@ -185,7 +199,21 @@ export function PokerLobbyPage() {
         </div>
       ) : (
         <div className="pkr-lobby-grid">
-          {lobby.map((t) => <TableCard key={t.id} t={t} onJoin={() => navigate(`/games/poker/${t.id}`)} />)}
+          {lobby.map((t) => (
+            <div key={t.id} className="pkr-tablecard-wrap">
+              <TableCard t={t} onJoin={() => navigate(`/games/poker/${t.id}`)} />
+              {t.isOwner && (
+                <button
+                  className="pkr-tablecard-del"
+                  title="Close table"
+                  aria-label={`Close ${t.name}`}
+                  onClick={() => closeTable(t.id, t.name)}
+                >
+                  <XIcon size={12} />
+                </button>
+              )}
+            </div>
+          ))}
         </div>
       )}
     </AppShell>

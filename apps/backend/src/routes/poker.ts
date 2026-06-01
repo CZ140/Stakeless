@@ -96,6 +96,24 @@ pokerRouter.get('/tables/:id', requireAuth, async (req, res) => {
   }
 });
 
+// DELETE /api/poker/tables/:id — owner closes their private table. Refunds every
+// seated player and kicks the room (a public table has no owner → 403).
+pokerRouter.delete('/tables/:id', requireAuth, async (req, res) => {
+  const id = parseId(req.params.id);
+  if (id === null) {
+    res.status(400).json({ error: 'Invalid table id' });
+    return;
+  }
+  try {
+    const result = await tableManager.deleteTable(id, { actorId: req.user!.id, requireOwner: true });
+    res.json({ deleted: true, ...result });
+  } catch (err) {
+    if (handlePokerError(err, res)) return;
+    console.error('[poker] delete error:', err);
+    res.status(500).json({ error: 'An unexpected error occurred' });
+  }
+});
+
 const sitSchema = z.object({
   seatIndex: z.number().int().min(0).max(5),
   buyIn: z.number().int().positive(),

@@ -39,12 +39,15 @@ export interface ManagerHooks {
   onHandResult?: (tableId: number) => void;
   onActorChanged?: (tableId: number) => void;
   onHandEnded?: (tableId: number) => void; // schedule the next hand (with a delay)
+  onTableClosed?: (tableId: number) => void; // table deleted: drop timers + kick the room
 }
 
 interface TableMeta {
   botTarget: number;
   maxBuyIn: number;
   bigBlind: number;
+  ownerId: number | null;
+  type: 'public' | 'private';
 }
 
 class TableManager {
@@ -99,7 +102,7 @@ class TableManager {
   private async buildEngine(tableId: number): Promise<PokerTable> {
     const [cfg] = await db.select().from(pokerTables).where(eq(pokerTables.id, tableId));
     if (!cfg) throw err('NOT_FOUND', 'Table not found');
-    this.meta.set(tableId, { botTarget: cfg.botTarget, maxBuyIn: cfg.maxBuyIn, bigBlind: cfg.bigBlind });
+    this.meta.set(tableId, { botTarget: cfg.botTarget, maxBuyIn: cfg.maxBuyIn, bigBlind: cfg.bigBlind, ownerId: cfg.ownerId, type: cfg.type as 'public' | 'private' });
     const eng = new PokerTable({
       id: cfg.id,
       name: cfg.name,
@@ -231,14 +234,17 @@ class TableManager {
         handInProgress: eng ? eng.isHandInProgress() : false,
         iAmSeated: mySeatTableIds.has(t.id),
         groupId: t.groupId ?? null,
+        isOwner: t.ownerId != null && t.ownerId === userId,
       };
     });
   }
 
-  async getView(userId: number, tableId: number): Promise<{ table: PublicTableState; hand: PrivateHand | null }> {
+  async getView(userId: number, tableId: number): Promise<{ table: PublicTableState; hand: PrivateHand | null; isOwner: boolean }> {
     await this.assertCanAccess(userId, tableId); // private tables: owner / group / invited only
     const eng = await this.loadEngine(tableId);
-    return { table: eng.toPublicState(), hand: eng.privateHandFor(userId) };
+    const meta = this.meta.get(tableId);
+    const isOwner = meta?.ownerId != null && meta.ownerId === userId;
+    return { table: eng.toPublicState(), hand: eng.privateHandFor(userId), isOwner };
   }
 
   // ─── Sit / leave (money) ─────────────────────────────────────────────────────
@@ -298,7 +304,8 @@ class TableManager {
     const stack = seat.stack;
     await this.cashOut(userId, tableId, stack);
     eng.removeSeat(seat.seatIndex);
-    this.hooks.onStateChange?.(tableId);
+    // Last human gone from an ad-hoc private table → tear it down; else just push state.
+    if (!(await this.purgeIfAbandoned(tableId, eng))) this.hooks.onStateChange?.(tableId);
     return { cashedOut: stack };
   }
 
@@ -332,6 +339,105 @@ class TableManager {
       const chips = seats.reduce((sum, s) => sum + s.stack, 0);
       this.engines.clear();
       return { seats: seats.length, chips };
+    });
+  }
+
+  // ─── Table teardown ───────────────────────────────────────────────────────────
+  // Drop all in-memory state for a removed table and notify the realtime layer so
+  // it clears the table's timers and kicks anyone in the room.
+  private dropTableState(tableId: number): void {
+    this.engines.delete(tableId);
+    this.meta.delete(tableId);
+    clearHistory(tableId);
+    clearChat(tableId);
+    this.hooks.onTableClosed?.(tableId);
+  }
+
+  // Auto-teardown for ad-hoc PRIVATE tables once the last human leaves. Public
+  // tables are permanent "house" tables and are never auto-removed. Bots left
+  // behind are house chips, so there's nothing to refund — the seat rows were
+  // already cashed out by the leave/settle path that calls this. The CALLER MUST
+  // already hold the table lock (this never re-enters withLock). No-op (returns
+  // false) when a human remains or the table isn't private.
+  private async purgeIfAbandoned(tableId: number, eng: PokerTable): Promise<boolean> {
+    if (this.hasHuman(eng)) return false;
+    if (this.meta.get(tableId)?.type !== 'private') return false;
+    await db.delete(pokerTables).where(eq(pokerTables.id, tableId)); // seats/invites cascade
+    this.dropTableState(tableId);
+    return true;
+  }
+
+  // Permanently delete a table (owner-close or admin janitor). Refunds every
+  // seated human's parked stack — the persisted stack is the pre-hand snapshot, so
+  // an in-progress hand is effectively refunded too (same model as refundAllSeats)
+  // — then deletes the row (poker_seats + poker_invites cascade) and drops all
+  // in-memory state. Runs under the table lock so it can't interleave with an
+  // in-flight act/timer. With requireOwner, only the owner of a PRIVATE table may
+  // delete it (public tables have no owner → rejected).
+  deleteTable(tableId: number, opts: { actorId?: number; requireOwner?: boolean } = {}): Promise<{ refunded: number; chips: number }> {
+    return this.withLock(tableId, () => this.deleteTableLocked(tableId, opts));
+  }
+  private async deleteTableLocked(tableId: number, opts: { actorId?: number; requireOwner?: boolean }): Promise<{ refunded: number; chips: number }> {
+    const [cfg] = await db.select().from(pokerTables).where(eq(pokerTables.id, tableId));
+    if (!cfg) throw err('NOT_FOUND', 'Table not found');
+    if (opts.requireOwner && (cfg.type !== 'private' || cfg.ownerId !== opts.actorId)) {
+      throw err('NOT_AUTHORIZED', 'Only the table owner can close this table');
+    }
+    const result = await db.transaction(async (tx) => {
+      const seats = await tx
+        .select({ userId: pokerSeats.userId, stack: pokerSeats.stack })
+        .from(pokerSeats)
+        .where(eq(pokerSeats.tableId, tableId));
+      const byUser = new Map<number, number>();
+      for (const s of seats) byUser.set(s.userId, (byUser.get(s.userId) ?? 0) + s.stack);
+      for (const [uid, amount] of byUser) {
+        await tx.update(users).set({ balance: sql`${users.balance} + ${amount}` }).where(eq(users.id, uid));
+      }
+      await tx.delete(pokerTables).where(eq(pokerTables.id, tableId)); // poker_seats + poker_invites cascade
+      return { refunded: byUser.size, chips: seats.reduce((sum, s) => sum + s.stack, 0) };
+    });
+    this.dropTableState(tableId);
+    return result;
+  }
+
+  // Admin lobby: every table (ignores private-visibility gating), with live seat
+  // counts and the owner's username, for the admin console's table janitor.
+  async adminListTables(): Promise<
+    Array<{ id: number; name: string; type: 'public' | 'private'; smallBlind: number; bigBlind: number; maxSeats: number; seatedHumans: number; botCount: number; handInProgress: boolean; ownerName: string | null; createdAt: string }>
+  > {
+    const rows = await db
+      .select({
+        id: pokerTables.id,
+        name: pokerTables.name,
+        type: pokerTables.type,
+        smallBlind: pokerTables.smallBlind,
+        bigBlind: pokerTables.bigBlind,
+        maxSeats: pokerTables.maxSeats,
+        createdAt: pokerTables.createdAt,
+        ownerName: users.username,
+      })
+      .from(pokerTables)
+      .leftJoin(users, eq(pokerTables.ownerId, users.id));
+    const seatCounts = await db
+      .select({ tableId: pokerSeats.tableId, n: sql<number>`count(*)`.mapWith(Number) })
+      .from(pokerSeats)
+      .groupBy(pokerSeats.tableId);
+    const countByTable = new Map(seatCounts.map((c) => [c.tableId, c.n]));
+    return rows.map((t) => {
+      const eng = this.engines.get(t.id);
+      return {
+        id: t.id,
+        name: t.name,
+        type: t.type as 'public' | 'private',
+        smallBlind: t.smallBlind,
+        bigBlind: t.bigBlind,
+        maxSeats: t.maxSeats,
+        seatedHumans: countByTable.get(t.id) ?? 0,
+        botCount: eng ? eng.occupiedSeats().filter((s) => s.isBot).length : 0,
+        handInProgress: eng ? eng.isHandInProgress() : false,
+        ownerName: t.ownerName ?? null,
+        createdAt: t.createdAt.toISOString(),
+      };
     });
   }
 
@@ -563,8 +669,10 @@ class TableManager {
     }
     this.hooks.onHandResult?.(tableId);
     this.hooks.onStateChange?.(tableId);
-    // Only keep the game going while a human is present.
+    // Only keep the game going while a human is present; an emptied private table
+    // is torn down (its bots are house chips, so nothing to refund).
     if (this.hasHuman(eng)) this.hooks.onHandEnded?.(tableId);
+    else await this.purgeIfAbandoned(tableId, eng);
   }
 
   // Test helper: drop all in-memory engines + their chat/history (the DB is

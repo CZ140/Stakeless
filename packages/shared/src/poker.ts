@@ -408,6 +408,7 @@ export interface PokerTableSummary {
   handInProgress: boolean;
   iAmSeated: boolean;
   groupId: number | null;
+  isOwner: boolean; // I created this (private) table → I can close it
 }
 
 export const POKER = {

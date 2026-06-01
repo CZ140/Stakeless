@@ -93,6 +93,7 @@ export function PokerTablePage() {
 
   const [buyInSeat, setBuyInSeat] = useState<number | null>(null);
   const [inviting, setInviting] = useState(false);
+  const [isOwner, setIsOwner] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [now, setNow] = useState(Date.now());
   const prevStreetCards = useRef(0);
@@ -104,10 +105,11 @@ export function PokerTablePage() {
       return;
     }
     apiClient
-      .get<{ table: PublicTableState; hand: PrivateHand | null }>(`/poker/tables/${tableId}`)
+      .get<{ table: PublicTableState; hand: PrivateHand | null; isOwner: boolean }>(`/poker/tables/${tableId}`)
       .then((r) => {
         usePokerStore.getState().setTable(r.data.table);
         usePokerStore.getState().setHand(r.data.hand);
+        setIsOwner(r.data.isOwner);
       })
       .catch(() => navigate('/games/poker'));
 
@@ -141,6 +143,13 @@ export function PokerTablePage() {
     function onChatHistory(d: { tableId: number; messages: PokerChatMessage[] }) {
       if (d.tableId === tableId) usePokerStore.getState().setChatHistory(d.messages);
     }
+    // The table was deleted (owner closed it, an admin removed it, or it emptied
+    // out) — bounce back to the lobby.
+    function onClosed(d: { tableId: number }) {
+      if (d.tableId !== tableId) return;
+      toast('This table has been closed.');
+      navigate('/games/poker');
+    }
 
     if (!socket.connected) socket.connect();
     socket.on('poker:state', onState);
@@ -149,6 +158,7 @@ export function PokerTablePage() {
     socket.on('poker:chat', onChat);
     socket.on('poker:chathistory', onChatHistory);
     socket.on('poker:handhistory', onHandHistory);
+    socket.on('poker:closed', onClosed);
     socket.emit('poker:subscribe', tableId);
     return () => {
       socket.emit('poker:unsubscribe', tableId);
@@ -158,6 +168,7 @@ export function PokerTablePage() {
       socket.off('poker:chat', onChat);
       socket.off('poker:chathistory', onChatHistory);
       socket.off('poker:handhistory', onHandHistory);
+      socket.off('poker:closed', onClosed);
       usePokerStore.getState().reset();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -202,6 +213,17 @@ export function PokerTablePage() {
       navigate('/games/poker');
     } catch {
       toast.error('Could not leave');
+    }
+  }
+
+  async function closeTable() {
+    if (!window.confirm('Close this table for everyone? All seated players are cashed out and refunded.')) return;
+    try {
+      await apiClient.delete(`/poker/tables/${tableId}`);
+      navigate('/games/poker');
+    } catch (e) {
+      const ax = e as { response?: { data?: { error?: string } } };
+      toast.error(ax.response?.data?.error ?? 'Could not close table');
     }
   }
 
@@ -255,6 +277,7 @@ export function PokerTablePage() {
           <button className="btn btn-ghost" onClick={() => setShowHistory(true)}>History</button>
           {iAmSeated && <button className="btn btn-ghost" onClick={() => setInviting(true)}>Invite</button>}
           {iAmSeated && <button className="btn btn-outline" onClick={leave}>Leave table</button>}
+          {isOwner && <button className="btn btn-outline pkr-close-btn" onClick={closeTable}>Close table</button>}
         </div>
       </div>
 
@@ -486,8 +509,10 @@ function Seat({
         </div>
       )}
       <div className="pkr-seat-plate">
-        <Avatar username={seat.username ?? '?'} avatarColor={seat.avatarColor} className="pkr-seat-ava" />
-        {frac !== null && <TimerRing frac={frac} />}
+        <div className="pkr-seat-avawrap">
+          <Avatar username={seat.username ?? '?'} avatarColor={seat.avatarColor} className="pkr-seat-ava" />
+          {frac !== null && <TimerRing frac={frac} />}
+        </div>
         <div className="pkr-seat-meta">
           <div className="pkr-seat-name">
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{seat.username}</span>
