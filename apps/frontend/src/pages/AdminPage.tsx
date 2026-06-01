@@ -30,6 +30,20 @@ interface HistoryRound {
   createdAt: string;
 }
 
+interface PokerTableRow {
+  id: number;
+  name: string;
+  type: 'public' | 'private';
+  smallBlind: number;
+  bigBlind: number;
+  maxSeats: number;
+  seatedHumans: number;
+  botCount: number;
+  handInProgress: boolean;
+  ownerName: string | null;
+  createdAt: string;
+}
+
 const GAME_LABEL: Record<string, string> = { roulette: 'Roulette', plinko: 'Plinko', mines: 'Mines', blackjack: 'Blackjack' };
 const GAME_COLOR: Record<string, string> = { roulette: 'var(--accent)', plinko: 'var(--blue)', mines: 'var(--loss)', blackjack: 'var(--purple)' };
 
@@ -78,13 +92,38 @@ export function AdminPage() {
   const [toast, setToast] = useState<{ msg: string; kind: 'win' | 'loss' } | null>(null);
   const [grantAmount, setGrantAmount] = useState('');
   const [isGranting, setIsGranting] = useState(false);
+  const [pokerTables, setPokerTables] = useState<PokerTableRow[]>([]);
 
   useEffect(() => {
     apiClient
       .get<StatsResponse>('/admin/stats')
       .then(res => setStats(res.data))
       .catch(() => {});
+    refreshPokerTables();
   }, []);
+
+  function refreshPokerTables() {
+    apiClient
+      .get<{ tables: PokerTableRow[] }>('/admin/poker/tables')
+      .then(res => setPokerTables(res.data.tables))
+      .catch(() => {});
+  }
+
+  async function handleDeletePokerTable(table: PokerTableRow) {
+    if (!window.confirm(`Delete poker table “${table.name}”? Any seated players are refunded and kicked.`)) return;
+    try {
+      const res = await apiClient.delete<{ ok: boolean; refunded: number; chips: number }>('/admin/poker/tables/' + table.id);
+      setPokerTables(prev => prev.filter(t => t.id !== table.id));
+      showToast(
+        res.data.refunded > 0
+          ? `Closed “${table.name}” — refunded ${res.data.chips.toLocaleString()} coins to ${res.data.refunded} player${res.data.refunded === 1 ? '' : 's'}.`
+          : `Closed “${table.name}”.`,
+        'win',
+      );
+    } catch {
+      showToast('Could not delete that table. Please try again.', 'loss');
+    }
+  }
 
   function showToast(msg: string, kind: 'win' | 'loss') {
     setToast({ msg, kind });
@@ -288,6 +327,64 @@ export function AdminPage() {
           </table>
           </div>
         ) : null}
+      </div>
+
+      {/* Poker tables — janitor for orphaned/abandoned tables. Deleting refunds
+          every seated player and kicks the room. */}
+      <div className="panel" style={{ marginBottom: 14 }}>
+        <div className="panel-head">
+          <h3>Poker Tables</h3>
+          <span className="net" style={{ letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+            {pokerTables.length} {pokerTables.length === 1 ? 'TABLE' : 'TABLES'}
+          </span>
+        </div>
+        {pokerTables.length === 0 ? (
+          <div className="lb-empty">No poker tables exist right now.</div>
+        ) : (
+          <div className="table-scroll" style={{ marginTop: 16 }}>
+            <table className="act-table admin-table">
+              <thead>
+                <tr>
+                  <th>Table</th>
+                  <th>Owner</th>
+                  <th className="r">Stakes</th>
+                  <th className="r">Seated</th>
+                  <th>Status</th>
+                  <th className="r">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pokerTables.map(t => (
+                  <tr key={t.id}>
+                    <td>
+                      <div className="gcell">
+                        <span className="avatar">{initial(t.name)}</span>
+                        <div>
+                          <div className="gname">{t.name}</div>
+                          <div className="gtype">TABLE #{String(t.id).padStart(4, '0')}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="desc">{t.ownerName ?? '—'}</td>
+                    <td className="mult" style={{ color: 'var(--text-secondary)' }}>{t.smallBlind}/{t.bigBlind}</td>
+                    <td className="res">{t.seatedHumans}{t.botCount > 0 && <small> +{t.botCount} bot</small>}</td>
+                    <td>
+                      <div className="tags">
+                        <span className={'tag ' + (t.type === 'private' ? 'gold' : 'accent')}>{t.type === 'private' ? 'PRIVATE' : 'PUBLIC'}</span>
+                        {t.handInProgress && <span className="tag muted">LIVE</span>}
+                      </div>
+                    </td>
+                    <td style={{ textAlign: 'right' }}>
+                      <button type="button" className="admin-btn ban" onClick={() => void handleDeletePokerTable(t)}>
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* Player inspector — shown when a player is selected */}

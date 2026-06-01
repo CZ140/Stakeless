@@ -292,4 +292,93 @@ describe('Poker routes', () => {
       expect((await auth('post', `/api/poker/tables/${id}/sit`, b.token).send({ seatIndex: 0, buyIn: 500 })).status).toBe(200);
     });
   });
+
+  describe('table deletion + auto-teardown', () => {
+    function del(path: string, token: string) {
+      return request(app).delete(path).set('Authorization', `Bearer ${token}`);
+    }
+
+    it('lets the owner delete their private table, refunding every seated player', async () => {
+      const owner = await createUser({ username: 'owner', balance: 1000 });
+      const friend = await createUser({ username: 'friend', balance: 1000 });
+      const id = await createTable(owner.token, { type: 'private' });
+      await makeFriends(owner.user.id, friend.user.id);
+      await auth('post', `/api/poker/tables/${id}/sit`, owner.token).send({ seatIndex: 0, buyIn: 600 });
+      await auth('post', `/api/poker/tables/${id}/invite`, owner.token).send({ username: 'friend' });
+      await auth('post', `/api/poker/tables/${id}/sit`, friend.token).send({ seatIndex: 1, buyIn: 500 });
+      expect(await getBalance(owner.user.id)).toBe(400);
+      expect(await getBalance(friend.user.id)).toBe(500);
+
+      const res = await del(`/api/poker/tables/${id}`, owner.token);
+      expect(res.status).toBe(200);
+      expect(res.body.deleted).toBe(true);
+      expect(res.body.refunded).toBe(2);
+
+      // Both players are made whole and the table is gone (404 + absent from lobby).
+      expect(await getBalance(owner.user.id)).toBe(1000);
+      expect(await getBalance(friend.user.id)).toBe(1000);
+      expect((await auth('get', `/api/poker/tables/${id}`, owner.token)).status).toBe(404);
+      const lobby = await auth('get', '/api/poker/tables', owner.token);
+      expect(lobby.body.tables.find((t: { id: number }) => t.id === id)).toBeUndefined();
+    });
+
+    it('blocks a non-owner, and refuses to delete a public table', async () => {
+      const owner = await createUser({ username: 'owner', balance: 1000 });
+      const friend = await createUser({ username: 'friend', balance: 1000 });
+      const priv = await createTable(owner.token, { type: 'private' });
+      await makeFriends(owner.user.id, friend.user.id);
+      await auth('post', `/api/poker/tables/${priv}/sit`, owner.token).send({ seatIndex: 0, buyIn: 500 });
+      await auth('post', `/api/poker/tables/${priv}/invite`, owner.token).send({ username: 'friend' });
+
+      // An invited member is not the owner → 403, table survives.
+      expect((await del(`/api/poker/tables/${priv}`, friend.token)).status).toBe(403);
+      expect((await auth('get', `/api/poker/tables/${priv}`, owner.token)).status).toBe(200);
+
+      // Public tables have no owner → owner-delete is rejected.
+      const pub = await createTable(owner.token);
+      expect((await del(`/api/poker/tables/${pub}`, owner.token)).status).toBe(403);
+    });
+
+    it('auto-removes an emptied PRIVATE table but keeps a public one', async () => {
+      const owner = await createUser({ username: 'owner', balance: 1000 });
+      const priv = await createTable(owner.token, { type: 'private' });
+      const pub = await createTable(owner.token);
+
+      // Last human leaves the private table → it disappears, fully refunded.
+      await auth('post', `/api/poker/tables/${priv}/sit`, owner.token).send({ seatIndex: 0, buyIn: 600 });
+      expect((await auth('post', `/api/poker/tables/${priv}/leave`, owner.token).send()).body.cashedOut).toBe(600);
+      expect(await getBalance(owner.user.id)).toBe(1000);
+      expect((await auth('get', `/api/poker/tables/${priv}`, owner.token)).status).toBe(404);
+
+      // The public table is a permanent house table — it persists when emptied.
+      await auth('post', `/api/poker/tables/${pub}/sit`, owner.token).send({ seatIndex: 0, buyIn: 600 });
+      await auth('post', `/api/poker/tables/${pub}/leave`, owner.token).send();
+      expect((await auth('get', `/api/poker/tables/${pub}`, owner.token)).status).toBe(200);
+    });
+
+    it('lets an admin force-delete any table, refunding seated players', async () => {
+      const admin = await createUser({ username: 'root', role: 'admin' });
+      const owner = await createUser({ username: 'owner', balance: 1000 });
+      const id = await createTable(owner.token);
+      await auth('post', `/api/poker/tables/${id}/sit`, owner.token).send({ seatIndex: 0, buyIn: 700 });
+      expect(await getBalance(owner.user.id)).toBe(300);
+
+      const res = await del(`/api/admin/poker/tables/${id}`, admin.token);
+      expect(res.status).toBe(200);
+      expect(res.body.chips).toBe(700);
+      expect(res.body.refunded).toBe(1);
+      expect(await getBalance(owner.user.id)).toBe(1000);
+      expect((await auth('get', `/api/poker/tables/${id}`, owner.token)).status).toBe(404);
+
+      const list = await auth('get', '/api/admin/poker/tables', admin.token);
+      expect(list.body.tables.find((t: { id: number }) => t.id === id)).toBeUndefined();
+    });
+
+    it('forbids non-admins from the admin table janitor', async () => {
+      const owner = await createUser({ username: 'owner', balance: 1000 });
+      const id = await createTable(owner.token);
+      expect((await del(`/api/admin/poker/tables/${id}`, owner.token)).status).toBe(403);
+      expect((await auth('get', '/api/admin/poker/tables', owner.token)).status).toBe(403);
+    });
+  });
 });

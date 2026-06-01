@@ -95,5 +95,14 @@ export function attachPokerRealtime(io: Server): void {
         }, NEXT_HAND_DELAY_MS),
       );
     },
+    onTableClosed: (tableId) => {
+      // Drop every timer for the gone table, then tell the room so any open client
+      // bounces back to the lobby.
+      clearTurn(tableId);
+      const prev = nextHandTimers.get(tableId);
+      if (prev) clearTimeout(prev);
+      nextHandTimers.delete(tableId);
+      io.to(`poker:${tableId}`).emit('poker:closed', { tableId });
+    },
   };
 }

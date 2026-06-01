@@ -9,6 +9,7 @@ import {
   grantBalance,
   logAdminAction,
 } from '../services/adminService.js';
+import { tableManager } from '../services/poker/manager.js';
 
 export const adminRouter: IRouter = Router();
 
@@ -101,6 +102,33 @@ adminRouter.post('/players/:id/grant', async (req, res) => {
   } catch (err) {
     if ((err as { code?: string }).code === 'NOT_FOUND') { res.status(404).json({ error: 'Player not found' }); return; }
     console.error('[admin] grant error:', err);
+    res.status(500).json({ error: 'An unexpected error occurred' });
+  }
+});
+
+// GET /api/admin/poker/tables — every poker table (ignores private visibility) for
+// the table janitor.
+adminRouter.get('/poker/tables', async (_req, res) => {
+  try {
+    res.json({ tables: await tableManager.adminListTables() });
+  } catch (err) {
+    console.error('[admin] poker list error:', err);
+    res.status(500).json({ error: 'An unexpected error occurred' });
+  }
+});
+
+// DELETE /api/admin/poker/tables/:id — force-close any table. Refunds seated
+// players and kicks the room; audit-logged.
+adminRouter.delete('/poker/tables/:id', async (req, res) => {
+  const tableId = Number(req.params.id);
+  if (!Number.isInteger(tableId) || tableId <= 0) { res.status(400).json({ error: 'Invalid id' }); return; }
+  try {
+    const { refunded, chips } = await tableManager.deleteTable(tableId);
+    await logAdminAction(req.user!.id, 'delete_poker_table', null, `deleted poker table ${tableId} (refunded ${chips} chips to ${refunded} players)`);
+    res.json({ ok: true, refunded, chips });
+  } catch (err) {
+    if ((err as { code?: string }).code === 'NOT_FOUND') { res.status(404).json({ error: 'Table not found' }); return; }
+    console.error('[admin] poker delete error:', err);
     res.status(500).json({ error: 'An unexpected error occurred' });
   }
 });
