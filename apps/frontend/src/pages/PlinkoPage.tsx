@@ -6,6 +6,9 @@ import { PlinkoBoard, type PlinkoBoardHandle } from '../components/vault/PlinkoB
 import { usePlinkoStore, type RiskLevel } from '../stores/plinkoStore';
 import { useBalanceStore } from '../stores/balanceStore';
 import { useGameSounds } from '../hooks/useGameSounds';
+import { useAutoBet } from '../hooks/useAutoBet';
+import { AutoBetControls } from '../components/vault/AutoBetControls';
+import type { RoundResult } from '../lib/autobet';
 import { apiClient } from '../api/client';
 
 const FRONTEND_MULTIPLIERS: Record<RiskLevel, Record<number, number[]>> = {
@@ -121,8 +124,6 @@ export function PlinkoPage() {
   const [showHowTo, setShowHowTo] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<'manual' | 'auto'>('manual');
-  const [autoCount, setAutoCount] = useState(10);
-  const [autoRunning, setAutoRunning] = useState(false);
   const [inFlight, setInFlight] = useState(0);
   const [results, setResults] = useState<ResultChip[]>([]);
 
@@ -176,13 +177,13 @@ export function PlinkoPage() {
     }
   }
 
-  // Single drain loop fires one queued drop every DROP_INTERVAL_MS — guarantees
-  // real spacing regardless of how fast the user clicks (no 429 bursts) and
-  // drives both manual clicks and auto runs.
+  // Single drain loop fires one queued (manual) drop every DROP_INTERVAL_MS —
+  // guarantees real spacing regardless of how fast the user clicks (no 429 bursts).
+  // Manual drops fall in parallel; auto-bet (below) is sequential so it can size
+  // each stake off the previous result.
   function drainNext() {
     if (queueRef.current <= 0) {
       drainTimerRef.current = null;
-      setAutoRunning(false);
       return;
     }
     queueRef.current -= 1;
@@ -202,17 +203,30 @@ export function PlinkoPage() {
     enqueueDrops(1);
   }
 
-  function startAuto() {
-    setAutoRunning(true);
-    enqueueDrops(Math.max(1, Math.floor(autoCount)));
+  // Auto-bet: drop ONE ball at `stake` and resolve when it lands, so the shared
+  // engine can apply stake progression + stop conditions between drops.
+  async function playRound(stake: number): Promise<RoundResult> {
+    setBetAmount(stake);
+    setError(null);
+    localStorage.setItem('lastBet_plinko', String(stake));
+    const d = (await apiClient.post<PlinkoResponse>('/games/plinko/bet', { betAmount: stake, rows, riskLevel })).data;
+    useBalanceStore.getState().setBalance(d.newBalance);
+    return await new Promise<RoundResult>((resolve) => {
+      const id = ++idRef.current;
+      const land = () => {
+        setInFlight((n) => Math.max(0, n - 1));
+        setResults((prev) => [{ id, mult: d.multiplier, profit: d.profit }, ...prev].slice(0, 12));
+        if (d.profit > 0) playWin();
+        else playLoss();
+        resolve({ profit: d.profit, win: d.profit > 0 });
+      };
+      setInFlight((n) => n + 1);
+      if (boardRef.current) boardRef.current.drop(d.bucket, land);
+      else land(); // no board mounted → settle immediately so the loop never hangs
+    });
   }
 
-  function stopAuto() {
-    queueRef.current = 0;
-    if (drainTimerRef.current) clearTimeout(drainTimerRef.current);
-    drainTimerRef.current = null;
-    setAutoRunning(false);
-  }
+  const auto = useAutoBet(playRound);
 
   const canBet = balance !== null && balance >= betAmount;
   const setAmt = (n: number) => setBetAmount(Math.max(1, Math.floor(n)));
@@ -258,31 +272,31 @@ export function PlinkoPage() {
           </div>
         </div>
 
-        {/* Bet panel — custom for multi-ball + auto */}
+        {/* Bet panel — custom for multi-ball (manual) + shared auto-bet engine */}
         <div className="bet-panel">
           <div className="tabs-2">
-            <button className={mode === 'manual' ? 'active' : ''} type="button" disabled={autoRunning} onClick={() => setMode('manual')}>Manual</button>
-            <button className={mode === 'auto' ? 'active' : ''} type="button" disabled={autoRunning} onClick={() => setMode('auto')}>Auto</button>
+            <button className={mode === 'manual' ? 'active' : ''} type="button" disabled={auto.running} onClick={() => setMode('manual')}>Manual</button>
+            <button className={mode === 'auto' ? 'active' : ''} type="button" disabled={auto.running} onClick={() => setMode('auto')}>Auto</button>
           </div>
           <div className="body">
             <div>
-              <label className="label">Bet amount</label>
+              <label className="label">{mode === 'auto' ? 'Base bet' : 'Bet amount'}</label>
               <div className="amount-row">
-                <input className="input" data-mono type="number" min={1} value={betAmount} disabled={autoRunning}
+                <input className="input" data-mono type="number" min={1} value={betAmount} disabled={auto.running}
                        onChange={(e) => setAmt(+e.target.value || 0)} />
                 <span className="coin-suffix"><span className="dot" /> COINS</span>
               </div>
             </div>
             <div className="quick-bets">
-              <button type="button" disabled={autoRunning} onClick={() => setAmt(betAmount / 2)}>½</button>
-              <button type="button" disabled={autoRunning} onClick={() => setAmt(betAmount * 2)}>2×</button>
-              <button type="button" disabled={autoRunning} onClick={() => setAmt(1)}>MIN</button>
-              <button type="button" disabled={autoRunning} onClick={() => setAmt(balance ?? betAmount)}>MAX</button>
+              <button type="button" disabled={auto.running} onClick={() => setAmt(betAmount / 2)}>½</button>
+              <button type="button" disabled={auto.running} onClick={() => setAmt(betAmount * 2)}>2×</button>
+              <button type="button" disabled={auto.running} onClick={() => setAmt(1)}>MIN</button>
+              <button type="button" disabled={auto.running} onClick={() => setAmt(balance ?? betAmount)}>MAX</button>
             </div>
 
             <div>
               <label className="label">Risk</label>
-              <select className="select" value={riskLevel} disabled={autoRunning} onChange={(e) => setRiskLevel(e.target.value as RiskLevel)}>
+              <select className="select" value={riskLevel} disabled={auto.running} onChange={(e) => setRiskLevel(e.target.value as RiskLevel)}>
                 {RISK_LEVELS.map((r) => <option key={r} value={r}>{RISK_LABELS[r]}</option>)}
               </select>
             </div>
@@ -290,32 +304,28 @@ export function PlinkoPage() {
             <div>
               <label className="label">Rows · {rows}{inFlight > 0 ? ' (locked while balls drop)' : ''}</label>
               <input type="range" min={8} max={16} step={1} value={rows}
-                     disabled={autoRunning || inFlight > 0}
+                     disabled={auto.running || inFlight > 0}
                      onChange={(e) => setRows(Number(e.target.value))}
-                     style={{ width: '100%', accentColor: 'var(--accent)', cursor: autoRunning || inFlight > 0 ? 'not-allowed' : 'pointer' }} />
+                     style={{ width: '100%', accentColor: 'var(--accent)', cursor: auto.running || inFlight > 0 ? 'not-allowed' : 'pointer' }} />
               <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontSize: 10, marginTop: 2 }}>
                 <span>8</span><span>16</span>
               </div>
             </div>
 
-            {mode === 'auto' && (
-              <div>
-                <label className="label">Number of bets</label>
-                <input className="input" data-mono type="number" min={1} max={500} value={autoCount} disabled={autoRunning}
-                       onChange={(e) => setAutoCount(Math.max(1, Math.min(500, Math.floor(+e.target.value || 1))))} />
-              </div>
-            )}
-
             {mode === 'manual' ? (
               <button className="btn btn-primary place-bet" type="button" disabled={!canBet} onClick={manualDrop}>
                 Drop ball{inFlight > 0 ? ` · ${inFlight} in play` : ''}
               </button>
-            ) : autoRunning ? (
-              <button className="btn btn-ghost place-bet" type="button" onClick={stopAuto}>Stop auto</button>
             ) : (
-              <button className="btn btn-primary place-bet" type="button" disabled={!canBet} onClick={startAuto}>
-                Start auto · {autoCount}
-              </button>
+              <AutoBetControls
+                baseBet={betAmount}
+                balance={balance}
+                running={auto.running}
+                stats={auto.stats}
+                onStart={(cfg) => auto.start({ ...cfg, baseBet: betAmount })}
+                onStop={auto.stop}
+                storageKey="autobet_plinko"
+              />
             )}
           </div>
         </div>
