@@ -9,8 +9,18 @@ import { useBalanceStore } from '../stores/balanceStore';
 import { useAudioStore } from '../stores/audioStore';
 import { sound } from '../lib/sound';
 import { celebrate, winTier } from '../lib/juice';
+import { useAutoBet } from '../hooks/useAutoBet';
+import { AutoBetControls } from '../components/vault/AutoBetControls';
+import type { RoundResult } from '../lib/autobet';
 import { apiClient } from '../api/client';
 import { XIcon } from '../components/vault/icons';
+
+// Scale a chip layout so its total ≈ the auto stake (integer chips, min 1 each).
+function scaleLayout(template: PlacedChip[], stake: number): PlacedChip[] {
+  const total = template.reduce((s, c) => s + c.amount, 0) || 1;
+  const f = stake / total;
+  return template.map((c) => ({ ...c, amount: Math.max(1, Math.round(c.amount * f)) }));
+}
 
 interface RouletteResponse {
   winningPocket: number;
@@ -42,11 +52,40 @@ export function RoulettePage() {
   const [showHowTo, setShowHowTo] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pendingBalance, setPendingBalance] = useState<number | null>(null);
+  const [mode, setMode] = useState<'manual' | 'auto'>('manual');
+  // The layout captured when auto-bet starts, rebet (scaled) every spin; and a
+  // resolver the wheel-settled callback calls to finish the current auto round.
+  const autoTemplateRef = useRef<PlacedChip[]>([]);
+  const settleResolveRef = useRef<(() => void) | null>(null);
+  const auto = useAutoBet(playRound);
 
   const totalBet = placedChips.reduce((sum, c) => sum + c.amount, 0);
   const isSpinning = gamePhase === 'spinning';
   const isResult = gamePhase === 'result';
-  const locked = isSpinning || isResult;
+  const locked = isSpinning || isResult || auto.running;
+
+  // One auto round at `stake`: rebet the scaled template, spin, and resolve when
+  // the wheel settles (handleWheelSettled fires the resolver). Throws on error.
+  async function playRound(stake: number): Promise<RoundResult> {
+    const layout = scaleLayout(autoTemplateRef.current, stake);
+    const wager = layout.reduce((s, c) => s + c.amount, 0);
+    setError(null);
+    setGamePhase('spinning');
+    let d: RouletteResponse;
+    try {
+      d = (await apiClient.post<RouletteResponse>('/games/roulette/bet', { bets: layout })).data;
+    } catch (e) {
+      setGamePhase('betting');
+      throw e;
+    }
+    const netAmount = d.profit - wager;
+    setWinningPocket(d.winningPocket);
+    setLastResult({ winningPocket: d.winningPocket, netAmount, wager, bets: layout });
+    setPendingBalance(d.newBalance);
+    return await new Promise<RoundResult>((resolve) => {
+      settleResolveRef.current = () => resolve({ profit: netAmount, win: netAmount >= 0 });
+    });
+  }
 
   const chipsByZone = useMemo(() => {
     const map: Record<string, number> = {};
@@ -97,7 +136,11 @@ export function RoulettePage() {
     }
     if (lastResult) addToHistory(lastResult.winningPocket);
     setGamePhase('result');
-    clearAll();
+    if (!auto.running) clearAll(); // keep the template visible across auto spins
+    // Finish the in-flight auto round (no-op for manual spins).
+    const resolve = settleResolveRef.current;
+    settleResolveRef.current = null;
+    resolve?.();
   }
 
   function handlePlayAgain() {
@@ -222,8 +265,8 @@ export function RoulettePage() {
         {/* Bet panel — chip-based */}
         <div className="bet-panel">
           <div className="tabs-2">
-            <button className="active" type="button">Manual</button>
-            <button type="button" disabled style={{ opacity: 0.4, cursor: 'not-allowed' }}>Auto</button>
+            <button className={mode === 'manual' ? 'active' : ''} type="button" disabled={auto.running} onClick={() => setMode('manual')}>Manual</button>
+            <button className={mode === 'auto' ? 'active' : ''} type="button" disabled={auto.running} onClick={() => setMode('auto')}>Auto</button>
           </div>
           <div className="body">
             <div>
@@ -291,14 +334,31 @@ export function RoulettePage() {
               <div className="row"><span>Bets placed</span><span className="mono">{placedChips.length}</span></div>
             </div>
 
-            <button
-              className="btn btn-primary place-bet"
-              disabled={isSpinning || (!isResult && totalBet === 0)}
-              onClick={() => void handleSpin()}
-              type="button"
-            >
-              {spinLabel}
-            </button>
+            {mode === 'manual' ? (
+              <button
+                className="btn btn-primary place-bet"
+                disabled={isSpinning || (!isResult && totalBet === 0)}
+                onClick={() => void handleSpin()}
+                type="button"
+              >
+                {spinLabel}
+              </button>
+            ) : (
+              <AutoBetControls
+                baseBet={totalBet || 1}
+                balance={balance}
+                running={auto.running}
+                stats={auto.stats}
+                onStart={(cfg) => {
+                  autoTemplateRef.current = placedChips.map((c) => ({ ...c }));
+                  auto.start({ ...cfg, baseBet: totalBet });
+                }}
+                onStop={auto.stop}
+                storageKey="autobet_roulette"
+                disabled={totalBet === 0}
+                disabledHint="Place at least one chip on the table to auto-bet."
+              />
+            )}
           </div>
         </div>
       </div>
