@@ -10,10 +10,19 @@ import {
 } from '../stores/blackjackStore';
 import { useBalanceStore } from '../stores/balanceStore';
 import { useAudioStore } from '../stores/audioStore';
+import { useAutoBet } from '../hooks/useAutoBet';
+import type { RoundResult } from '../lib/autobet';
+import { AutoBetControls } from '../components/vault/AutoBetControls';
+import { decideBlackjack } from '../lib/blackjackStrategy';
 import { sound } from '../lib/sound';
 import { celebrate, winTier } from '../lib/juice';
 import { prefersReducedMotion } from '../hooks/useReducedMotion';
 import { apiClient } from '../api/client';
+
+const BJ_DEAL_MS = 700; // let the initial deal land before the first decision
+const BJ_STEP_MS = 600; // pause between auto actions so each card reads
+const BJ_RESULT_MS = 1700; // hold the settled result (covers the reveal) before re-deal
+const bjSleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 // A snappy back-out overshoot for cards settling into place.
 const CARD_EASE: [number, number, number, number] = [0.34, 1.56, 0.64, 1];
@@ -239,6 +248,7 @@ export function BlackjackPage() {
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [mode, setMode] = useState<'manual' | 'auto'>('manual');
   // Gates the result display (banner, outcome badges, dealer total, win flourish)
   // until the dealer's hole card has flipped and all cards have finished dealing.
   const [resultRevealed, setResultRevealed] = useState(false);
@@ -351,6 +361,44 @@ export function BlackjackPage() {
     store.reset();
   }
 
+  // One auto round at `stake`: deal a single hand, play it (and any splits) with
+  // basic strategy, then settle. Drives the store so cards deal/flip; throws on a
+  // backend error so the engine stops. net = total returned − total staked.
+  async function playRound(stake: number): Promise<RoundResult> {
+    store.setBetAmount(stake);
+    sound.unlock();
+    seenKeysRef.current.clear();
+    setResultRevealed(false);
+    localStorage.setItem('lastBet_blackjack', String(stake));
+    let view = (await apiClient.post<BJSessionView>('/games/blackjack/deal', { bets: [stake] })).data;
+    if (view.phase === 'settled') applySettled(view);
+    else {
+      store.applyView(view);
+      if (view.newBalance !== undefined) useBalanceStore.getState().setBalance(view.newBalance);
+    }
+    await bjSleep(BJ_DEAL_MS);
+    let guard = 0;
+    while (view.phase === 'player_turn' && guard++ < 60) {
+      const hand = view.hands[view.activeHandIndex];
+      const action =
+        hand && hand.status === 'playing'
+          ? decideBlackjack(hand.cards, view.dealer.upCard, view.canDouble, view.canSplit)
+          : 'stand';
+      view = (await apiClient.post<BJSessionView>('/games/blackjack/action', { sessionId: view.sessionId, action })).data;
+      if (view.phase === 'settled') applySettled(view);
+      else {
+        store.applyView(view);
+        if (view.newBalance !== undefined) useBalanceStore.getState().setBalance(view.newBalance);
+      }
+      await bjSleep(BJ_STEP_MS);
+    }
+    await bjSleep(BJ_RESULT_MS);
+    const net = view.hands.reduce((s, h) => s + handNet(h), 0);
+    return { profit: net, win: net >= 0 };
+  }
+
+  const auto = useAutoBet(playRound);
+
   // The outcome is settled on the backend, but only shown once the deal/draw
   // animation has finished playing out.
   const showResult = isSettled && resultRevealed;
@@ -461,11 +509,47 @@ export function BlackjackPage() {
         {/* Bet / action panel */}
         <div className="bet-panel">
           <div className="tabs-2">
-            <button className="active" type="button">Manual</button>
-            <button type="button" disabled style={{ opacity: 0.4, cursor: 'not-allowed' }}>Auto</button>
+            <button className={mode === 'manual' ? 'active' : ''} type="button" disabled={auto.running} onClick={() => setMode('manual')}>Manual</button>
+            <button className={mode === 'auto' ? 'active' : ''} type="button" disabled={auto.running} onClick={() => setMode('auto')}>Auto</button>
           </div>
           <div className="body">
-            {isBetting && (
+            {mode === 'auto' && (
+              <>
+                <div>
+                  <label className="label">Base bet</label>
+                  <div className="amount-row">
+                    <input
+                      className="input"
+                      data-mono
+                      type="number"
+                      min={1}
+                      value={betAmount}
+                      disabled={auto.running}
+                      onChange={(e) => store.setBetAmount(Math.max(1, Math.floor(+e.target.value || 0)))}
+                    />
+                    <span className="coin-suffix"><span className="dot" /> COINS</span>
+                  </div>
+                </div>
+                <div className="quick-bets">
+                  <button type="button" disabled={auto.running} onClick={() => quickBet(betAmount / 2)}>½</button>
+                  <button type="button" disabled={auto.running} onClick={() => quickBet(betAmount * 2)}>2×</button>
+                  <button type="button" disabled={auto.running} onClick={() => quickBet(1)}>MIN</button>
+                  <button type="button" disabled={auto.running} onClick={() => quickBet(balance ?? betAmount)}>MAX</button>
+                </div>
+                <div className="ab-hint">Auto plays one hand per round with basic strategy.</div>
+                <AutoBetControls
+                  baseBet={betAmount}
+                  balance={balance}
+                  running={auto.running}
+                  stats={auto.stats}
+                  onStart={(cfg) => auto.start({ ...cfg, baseBet: betAmount })}
+                  onStop={auto.stop}
+                  storageKey="autobet_blackjack"
+                />
+              </>
+            )}
+
+            {mode === 'manual' && isBetting && (
               <>
                 <div>
                   <label className="label">Bet per hand</label>
@@ -515,7 +599,7 @@ export function BlackjackPage() {
               </>
             )}
 
-            {isPlayerTurn && (
+            {mode === 'manual' && isPlayerTurn && (
               <>
                 <div className="bet-summary">
                   <div className="row">
@@ -554,7 +638,7 @@ export function BlackjackPage() {
               </div>
             )}
 
-            {showResult && (
+            {mode === 'manual' && showResult && (
               <>
                 <div className="bet-summary">
                   {hands.map((h, i) => {
