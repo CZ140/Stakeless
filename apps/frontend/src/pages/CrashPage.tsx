@@ -10,6 +10,8 @@ import { useAudioStore } from '../stores/audioStore';
 import { sound, type SoundHandle } from '../lib/sound';
 import { celebrate, flash, screenShake, winTier } from '../lib/juice';
 import { prefersReducedMotion } from '../hooks/useReducedMotion';
+import { useAutoBet } from '../hooks/useAutoBet';
+import type { RoundResult } from '../lib/autobet';
 import { apiClient } from '../api/client';
 import { socket } from '../socket';
 
@@ -157,6 +159,15 @@ export function CrashPage() {
   const toneRef = useRef<SoundHandle | null>(null);
   const boardRef = useRef<HTMLDivElement>(null);
   const multRef = useRef<HTMLDivElement>(null);
+  // Resolver the next settlement (bust / cash-out, from any path) calls to finish
+  // the current auto round.
+  const settleResolveRef = useRef<((r: RoundResult) => void) | null>(null);
+  function resolveAuto(r: RoundResult) {
+    const fn = settleResolveRef.current;
+    settleResolveRef.current = null;
+    fn?.(r);
+  }
+  const auto = useAutoBet(playRound);
 
   function stopLoop() {
     if (rafRef.current != null) {
@@ -244,6 +255,7 @@ export function CrashPage() {
       setMult(crashPoint);
       settle({ win: false, multiplier: crashPoint, payout: 0, profit: -st.betAmount, auto: false });
       bustFx();
+      resolveAuto({ profit: -st.betAmount, win: false });
     }
     function onCashout({
       sessionId, multiplier, payout, newBalance, auto,
@@ -255,6 +267,7 @@ export function CrashPage() {
       if (typeof newBalance === 'number') useBalanceStore.getState().setBalance(newBalance);
       settle({ win: true, multiplier, payout, profit: payout - st.betAmount, auto: !!auto });
       winFx(multiplier, payout - st.betAmount);
+      resolveAuto({ profit: payout - st.betAmount, win: true });
     }
     socket.on('crash:bust', onBust);
     socket.on('crash:cashout', onCashout);
@@ -306,16 +319,50 @@ export function CrashPage() {
         if (typeof d.newBalance === 'number') useBalanceStore.getState().setBalance(d.newBalance);
         settle({ win: true, multiplier: m, payout: d.payout ?? 0, profit: (d.payout ?? 0) - st.betAmount, auto: false });
         winFx(m, (d.payout ?? 0) - st.betAmount);
+        resolveAuto({ profit: (d.payout ?? 0) - st.betAmount, win: true });
       } else {
         const cp = d.crashPoint ?? mult;
         setMult(cp);
         settle({ win: false, multiplier: cp, payout: 0, profit: -st.betAmount, auto: false });
         bustFx();
+        resolveAuto({ profit: -st.betAmount, win: false });
       }
     } catch (err: unknown) {
       const ax = err as { response?: { data?: { error?: string }; status?: number } };
       setError(ax.response?.data?.error ?? 'Something went wrong.');
     }
+  }
+
+  // One auto round at `stake`: start a round (with the user's auto cash-out) and
+  // resolve when it settles — auto cash-out (socket) or bust. Auto-bet is gated on
+  // auto cash-out being on, so every round has an automated exit. Throws on error.
+  async function playRound(stake: number): Promise<RoundResult> {
+    setBetAmount(stake);
+    sound.unlock();
+    sound.bet();
+    setError(null);
+    resetToIdle();
+    localStorage.setItem('lastBet_crash', String(stake));
+    const st = useCrashStore.getState();
+    let d: StartResponse;
+    try {
+      d = (await apiClient.post<StartResponse>('/games/crash/start', {
+        betAmount: stake,
+        autoCashout: st.autoEnabled ? st.autoValue : null,
+      })).data;
+    } catch (e) {
+      // Adopt an already-running round (409) rather than desyncing, then await it.
+      const ax = e as { response?: { status?: number; data?: { session?: ActiveResponse['session'] } } };
+      if (ax.response?.status === 409 && ax.response.data?.session) {
+        const s = ax.response.data.session;
+        beginRound(s.sessionId, s.startedAt, s.serverNow);
+        return await new Promise<RoundResult>((resolve) => { settleResolveRef.current = resolve; });
+      }
+      throw e;
+    }
+    useBalanceStore.getState().setBalance(d.newBalance);
+    beginRound(d.sessionId, d.startedAt, d.serverNow);
+    return await new Promise<RoundResult>((resolve) => { settleResolveRef.current = resolve; });
   }
 
   const running = phase === 'running';
@@ -390,6 +437,15 @@ export function CrashPage() {
           profitOnWin={running ? Math.floor(betAmount * displayMult) - betAmount : undefined}
           primaryLabel={primaryLabel}
           onPrimary={onPrimary}
+          autoBet={{
+            running: auto.running,
+            stats: auto.stats,
+            onStart: (cfg) => auto.start({ ...cfg, baseBet: betAmount }),
+            onStop: auto.stop,
+            storageKey: 'autobet_crash',
+            disabled: !autoEnabled,
+            disabledHint: 'Turn on auto cash-out to use auto-bet.',
+          }}
         >
           <div>
             <label className="label">Auto cash-out</label>
@@ -398,7 +454,7 @@ export function CrashPage() {
                 type="button"
                 className={`crash-auto-toggle${autoEnabled ? ' on' : ''}`}
                 onClick={() => setAutoEnabled(!autoEnabled)}
-                disabled={running}
+                disabled={running || auto.running}
               >
                 {autoEnabled ? 'ON' : 'OFF'}
               </button>
@@ -410,7 +466,7 @@ export function CrashPage() {
                   min={1.01}
                   step={0.1}
                   value={autoValue}
-                  disabled={!autoEnabled || running}
+                  disabled={!autoEnabled || running || auto.running}
                   onChange={(e) => setAutoValue(+e.target.value || 1.01)}
                 />
                 <span className="coin-suffix">× CASH</span>
