@@ -18,10 +18,17 @@ import { CoinIcon } from '../components/vault/icons';
 import { useChickenStore } from '../stores/chickenStore';
 import { useBalanceStore } from '../stores/balanceStore';
 import { useAudioStore } from '../stores/audioStore';
+import { useAutoBet } from '../hooks/useAutoBet';
+import type { RoundResult } from '../lib/autobet';
+import { LadderStrategyControls, loadLadderStrategy, type LadderStrategy } from '../components/vault/LadderStrategy';
 import { sound } from '../lib/sound';
 import { celebrate, winTier } from '../lib/juice';
 import { prefersReducedMotion } from '../hooks/useReducedMotion';
 import { apiClient } from '../api/client';
+
+const LADDER_STEP_MS = 280;
+const LADDER_RESULT_MS = 650;
+const ladderSleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 interface StartResponse { sessionId: number; difficulty: ChickenDifficulty; lane: number; multiplier: number; maxLanes: number; newBalance: number }
 interface StepResponse { dead: boolean; lane: number; multiplier: number; crossed: boolean; newBalance?: number }
@@ -138,6 +145,7 @@ export function ChickenPage() {
   const balance = useBalanceStore((s) => s.balance);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [strat, setStrat] = useState<LadderStrategy>(() => loadLadderStrategy('autostrat_chicken'));
 
   const stageRef = useRef<HTMLDivElement>(null);
   const roadRef = useRef<HTMLDivElement>(null);
@@ -246,13 +254,52 @@ export function ChickenPage() {
     }
   }
 
+  // One auto round at `stake`: start, cross lanes until the strategy says cash out
+  // (target multiplier or N lanes) or a truck hits, then settle. Drives the store
+  // so the road animates; throws on a backend error.
+  async function playRound(stake: number): Promise<RoundResult> {
+    setBetAmount(stake);
+    localStorage.setItem('lastBet_chicken', String(stake));
+    const s = (await apiClient.post<StartResponse>('/games/chicken/start', { betAmount: stake, difficulty })).data;
+    useBalanceStore.getState().setBalance(s.newBalance);
+    startRound({ sessionId: s.sessionId, maxLanes: s.maxLanes });
+    const targetSteps = strat.mode === 'steps' ? Math.min(strat.steps, s.maxLanes) : s.maxLanes;
+    let mult = 1;
+    let done = 0;
+    while (done < s.maxLanes) {
+      if (strat.mode === 'steps' && done >= targetSteps) break;
+      if (strat.mode === 'multiplier' && mult >= strat.multiplier) break;
+      const d = (await apiClient.post<StepResponse>('/games/chicken/step', { sessionId: s.sessionId })).data;
+      await ladderSleep(LADDER_STEP_MS);
+      if (d.dead) {
+        applyDeath({ lane: d.lane, multiplier: d.multiplier });
+        if (d.newBalance != null) useBalanceStore.getState().setBalance(d.newBalance);
+        sound.error();
+        await ladderSleep(LADDER_RESULT_MS);
+        return { profit: -stake, win: false };
+      }
+      applyAdvance({ lane: d.lane, multiplier: d.multiplier, crossed: d.crossed });
+      sound.tick();
+      mult = d.multiplier;
+      done = d.lane;
+      if (d.crossed) break;
+    }
+    const c = (await apiClient.post<CashoutResponse>('/games/chicken/cashout', { sessionId: s.sessionId })).data;
+    useBalanceStore.getState().setBalance(c.newBalance);
+    applyCashout({ payout: c.payout, multiplier: c.multiplier, lane: c.lane });
+    await ladderSleep(LADDER_RESULT_MS);
+    return { profit: c.payout - stake, win: c.payout - stake >= 0 };
+  }
+
+  const auto = useAutoBet(playRound);
+
   const isActive = phase === 'active';
   const isBetting = phase === 'betting';
   const profit = Math.max(0, Math.floor(betAmount * multiplier) - betAmount);
   const cfg = CHICKEN_DIFFICULTIES[difficulty];
   const nextMultiplier = isActive && !crossed ? chickenMultiplier(difficulty, lane + 1) : null;
   const nextRisk = isActive && !crossed ? chickenNextDeathChance(difficulty, lane) : null;
-  const canStep = isActive && !crossed && !busy;
+  const canStep = isActive && !crossed && !busy && !auto.running;
 
   let primaryLabel = busy ? 'Starting…' : 'Place bet';
   let onPrimary: () => void = () => { void handleStart(); };
@@ -366,7 +413,7 @@ export function ChickenPage() {
           amount={betAmount}
           onAmountChange={setBetAmount}
           balance={balance}
-          amountLocked={!isBetting}
+          amountLocked={!isBetting || auto.running}
           summary={[
             { label: 'Difficulty', value: cfg.label },
             { label: 'Hazard rate', value: hazardRate(difficulty) },
@@ -375,6 +422,18 @@ export function ChickenPage() {
           primaryLabel={primaryLabel}
           onPrimary={onPrimary}
           primaryDisabled={primaryDisabled}
+          autoBet={{
+            running: auto.running,
+            stats: auto.stats,
+            onStart: (cfg2) => auto.start({ ...cfg2, baseBet: betAmount }),
+            onStop: auto.stop,
+            storageKey: 'autobet_chicken',
+            disabled: !isBetting,
+            disabledHint: 'Finish the current round to start auto-bet.',
+          }}
+          autoExtra={
+            <LadderStrategyControls value={strat} onChange={setStrat} stepLabel="lanes" storageKey="autostrat_chicken" disabled={auto.running} />
+          }
         >
           <div>
             <label className="label">Difficulty</label>

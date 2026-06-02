@@ -14,10 +14,27 @@ import { BetPanel } from '../components/vault/BetPanel';
 import { useHiloStore } from '../stores/hiloStore';
 import { useBalanceStore } from '../stores/balanceStore';
 import { useAudioStore } from '../stores/audioStore';
+import { useAutoBet } from '../hooks/useAutoBet';
+import type { RoundResult } from '../lib/autobet';
+import { LadderStrategyControls, loadLadderStrategy, type LadderStrategy } from '../components/vault/LadderStrategy';
 import { sound } from '../lib/sound';
 import { celebrate, pulse, winTier } from '../lib/juice';
 import { prefersReducedMotion } from '../hooks/useReducedMotion';
 import { apiClient } from '../api/client';
+
+const LADDER_STEP_MS = 280;
+const LADDER_RESULT_MS = 650;
+const ladderSleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+// Auto-play picks the statistically better call: the available direction with the
+// higher win chance for the current rank.
+function bestDir(rank: number): HiloDirection {
+  const hiOk = hiloDirectionAvailable(rank, 'hi');
+  const loOk = hiloDirectionAvailable(rank, 'lo');
+  if (hiOk && !loOk) return 'hi';
+  if (loOk && !hiOk) return 'lo';
+  return hiloWinChance(rank, 'hi') >= hiloWinChance(rank, 'lo') ? 'hi' : 'lo';
+}
 
 interface StartResponse { sessionId: number; currentCard: HiloCard; streak: number; multiplier: number; newBalance: number }
 interface GuessResponse { nextCard: HiloCard; win: boolean; busted: boolean; streak: number; multiplier: number; newBalance?: number }
@@ -54,6 +71,7 @@ export function HiloPage() {
   const balance = useBalanceStore((s) => s.balance);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [strat, setStrat] = useState<LadderStrategy>(() => loadLadderStrategy('autostrat_hilo'));
 
   const stageRef = useRef<HTMLDivElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);
@@ -159,10 +177,48 @@ export function HiloPage() {
     }
   }
 
+  // One auto round at `stake`: start, guess the better direction until the strategy
+  // says cash out (target multiplier or N guesses) or a wrong guess/tie busts, then
+  // settle. Drives the store so the cards flip; throws on a backend error.
+  async function playRound(stake: number): Promise<RoundResult> {
+    setBetAmount(stake);
+    localStorage.setItem('lastBet_hilo', String(stake));
+    const s = (await apiClient.post<StartResponse>('/games/hilo/start', { betAmount: stake })).data;
+    useBalanceStore.getState().setBalance(s.newBalance);
+    startRound({ sessionId: s.sessionId, currentCard: s.currentCard });
+    let current = s.currentCard;
+    let mult = s.multiplier;
+    let streakLocal = s.streak;
+    while (streakLocal < 52) {
+      if (strat.mode === 'steps' && streakLocal >= strat.steps) break;
+      if (strat.mode === 'multiplier' && mult >= strat.multiplier) break;
+      const d = (await apiClient.post<GuessResponse>('/games/hilo/guess', { sessionId: s.sessionId, direction: bestDir(current.rank) })).data;
+      await ladderSleep(LADDER_STEP_MS);
+      if (d.busted) {
+        applyBust({ nextCard: d.nextCard, multiplier: d.multiplier, streak: d.streak });
+        sound.error();
+        await ladderSleep(LADDER_RESULT_MS);
+        return { profit: -stake, win: false };
+      }
+      applyWin({ nextCard: d.nextCard, multiplier: d.multiplier, streak: d.streak });
+      sound.tick();
+      current = d.nextCard;
+      mult = d.multiplier;
+      streakLocal = d.streak;
+    }
+    const c = (await apiClient.post<CashoutResponse>('/games/hilo/cashout', { sessionId: s.sessionId })).data;
+    useBalanceStore.getState().setBalance(c.newBalance);
+    applyCashout({ payout: c.payout, multiplier: c.multiplier, streak: c.streak });
+    await ladderSleep(LADDER_RESULT_MS);
+    return { profit: c.payout - stake, win: c.payout - stake >= 0 };
+  }
+
+  const auto = useAutoBet(playRound);
+
   const isActive = phase === 'active';
   const isBetting = phase === 'betting';
   const rank = currentCard?.rank ?? null;
-  const canGuess = isActive && !busy;
+  const canGuess = isActive && !busy && !auto.running;
   const profit = Math.max(0, Math.floor(betAmount * multiplier) - betAmount);
 
   // Live per-direction odds for the current base card.
@@ -279,12 +335,24 @@ export function HiloPage() {
           amount={betAmount}
           onAmountChange={setBetAmount}
           balance={balance}
-          amountLocked={!isBetting}
+          amountLocked={!isBetting || auto.running}
           multiplier={isActive ? multiplier.toFixed(2) : undefined}
           profitOnWin={isActive && streak > 0 ? profit : undefined}
           primaryLabel={primaryLabel}
           onPrimary={onPrimary}
           primaryDisabled={primaryDisabled}
+          autoBet={{
+            running: auto.running,
+            stats: auto.stats,
+            onStart: (cfg) => auto.start({ ...cfg, baseBet: betAmount }),
+            onStop: auto.stop,
+            storageKey: 'autobet_hilo',
+            disabled: !isBetting,
+            disabledHint: 'Finish the current round to start auto-bet.',
+          }}
+          autoExtra={
+            <LadderStrategyControls value={strat} onChange={setStrat} stepLabel="guesses" storageKey="autostrat_hilo" disabled={auto.running} />
+          }
         />
       </div>
     </AppShell>

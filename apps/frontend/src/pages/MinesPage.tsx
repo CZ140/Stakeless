@@ -7,7 +7,14 @@ import { GemIcon, BombIcon } from '../components/vault/icons';
 import { useMinesStore } from '../stores/minesStore';
 import { useBalanceStore } from '../stores/balanceStore';
 import { useGameSounds } from '../hooks/useGameSounds';
+import { useAutoBet } from '../hooks/useAutoBet';
+import type { RoundResult } from '../lib/autobet';
+import { LadderStrategyControls, loadLadderStrategy, type LadderStrategy } from '../components/vault/LadderStrategy';
 import { apiClient } from '../api/client';
+
+const LADDER_STEP_MS = 280; // pause between auto steps so the board reads
+const LADDER_RESULT_MS = 650; // hold the win/loss result before the next round
+const ladderSleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 interface StartResponse {
   sessionId: number;
@@ -92,6 +99,7 @@ export function MinesPage() {
   const [showHowTo, setShowHowTo] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [strat, setStrat] = useState<LadderStrategy>(() => loadLadderStrategy('autostrat_mines'));
   const balance = useBalanceStore((s) => s.balance);
 
   useEffect(() => {
@@ -165,10 +173,52 @@ export function MinesPage() {
     }
   }
 
+  // One auto round at `stake`: start, reveal random tiles until the strategy says
+  // cash out (target multiplier or N tiles) or a mine ends it, then settle. Drives
+  // the store so the board animates; throws on a backend error.
+  async function playRound(stake: number): Promise<RoundResult> {
+    setBetAmount(stake);
+    localStorage.setItem('lastBet_mines', String(stake));
+    const sid = (await apiClient.post<StartResponse>('/games/mines/start', { betAmount: stake, mineCount })).data.sessionId;
+    startRound(sid);
+    const safe = 25 - mineCount;
+    const targetSteps = strat.mode === 'steps' ? Math.min(strat.steps, safe) : safe;
+    const picked = new Set<number>();
+    let mult = 1;
+    let steps = 0;
+    while (steps < safe) {
+      if (strat.mode === 'steps' && steps >= targetSteps) break;
+      if (strat.mode === 'multiplier' && mult >= strat.multiplier) break;
+      const avail: number[] = [];
+      for (let i = 0; i < 25; i++) if (!picked.has(i)) avail.push(i);
+      const idx = avail[Math.floor(Math.random() * avail.length)]!;
+      picked.add(idx);
+      const data = (await apiClient.post<TileResponse>('/games/mines/tile', { sessionId: sid, row: Math.floor(idx / 5), col: idx % 5 })).data;
+      await ladderSleep(LADDER_STEP_MS);
+      if (data.hit) {
+        setResult({ won: false, payout: 0, mineGrid: data.mineGrid });
+        playLoss();
+        await ladderSleep(LADDER_RESULT_MS);
+        return { profit: -stake, win: false };
+      }
+      revealTile(idx, data.currentMultiplier);
+      mult = data.currentMultiplier;
+      steps += 1;
+    }
+    const c = (await apiClient.post<CashoutResponse>('/games/mines/cashout', { sessionId: sid })).data;
+    setResult({ won: true, payout: c.payout, mineGrid: c.mineGrid });
+    useBalanceStore.getState().setBalance(c.newBalance);
+    playWin();
+    await ladderSleep(LADDER_RESULT_MS);
+    return { profit: c.payout - stake, win: c.payout - stake >= 0 };
+  }
+
+  const auto = useAutoBet(playRound);
+
   const isConfigPhase = gamePhase === 'betting';
   const isActivePhase = gamePhase === 'active';
   const isResultPhase = gamePhase === 'result';
-  const tileDisabled = isLoading || !isActivePhase;
+  const tileDisabled = isLoading || !isActivePhase || auto.running;
   const profit = betAmount * multiplier - betAmount;
   const gemsTotal = 25 - mineCount;
 
@@ -267,12 +317,24 @@ export function MinesPage() {
           amount={betAmount}
           onAmountChange={setBetAmount}
           balance={balance}
-          amountLocked={!isConfigPhase}
+          amountLocked={!isConfigPhase || auto.running}
           multiplier={isActivePhase ? multiplier.toFixed(2) : undefined}
           profitOnWin={isActivePhase && tilesRevealed > 0 ? profit : undefined}
           primaryLabel={primaryLabel}
           onPrimary={onPrimary}
           primaryDisabled={primaryDisabled}
+          autoBet={{
+            running: auto.running,
+            stats: auto.stats,
+            onStart: (cfg) => auto.start({ ...cfg, baseBet: betAmount }),
+            onStop: auto.stop,
+            storageKey: 'autobet_mines',
+            disabled: !isConfigPhase,
+            disabledHint: 'Finish the current round to start auto-bet.',
+          }}
+          autoExtra={
+            <LadderStrategyControls value={strat} onChange={setStrat} stepLabel="tiles" storageKey="autostrat_mines" disabled={auto.running} />
+          }
         >
           <div>
             <label className="label">Mines</label>
