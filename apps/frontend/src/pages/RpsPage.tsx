@@ -10,7 +10,12 @@ import { useAudioStore } from '../stores/audioStore';
 import { sound } from '../lib/sound';
 import { celebrate, pulse, winTier } from '../lib/juice';
 import { prefersReducedMotion } from '../hooks/useReducedMotion';
+import { useAutoBet } from '../hooks/useAutoBet';
+import type { RoundResult } from '../lib/autobet';
 import { apiClient } from '../api/client';
+
+const RPS_ANIM_MS = 1200; // shake → reveal before the next auto bet
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 interface RpsResponse {
   choice: RpsChoice;
@@ -80,27 +85,42 @@ export function RpsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lastResult]);
 
-  async function handleShoot() {
-    if (playing) return;
+  // One round at `stake`: fire the throw, run the shake/reveal, resolve net result.
+  // A tie is a push (profit 0) → counts as non-losing for stake progression.
+  async function playRound(stake: number): Promise<RoundResult> {
+    setBetAmount(stake);
     sound.unlock();
     sound.tick();
-    setError(null);
     setRevealed(false);
     setPlaying(true);
-    localStorage.setItem('lastBet_rps', String(betAmount));
+    localStorage.setItem('lastBet_rps', String(stake));
+    let d: RpsResponse;
     try {
-      const res = await apiClient.post<RpsResponse>('/games/rps/bet', { betAmount, choice });
-      const d = res.data;
-      useBalanceStore.getState().setBalance(d.newBalance);
-      // The animation effect re-enables the controls on completion.
-      setLastResult({ choice: d.choice, house: d.house, outcome: d.outcome, multiplier: d.multiplier, profit: d.profit });
+      d = (await apiClient.post<RpsResponse>('/games/rps/bet', { betAmount: stake, choice })).data;
+    } catch (e) {
+      setPlaying(false); // the reveal animation never runs on error, so reset here
+      throw e;
+    }
+    useBalanceStore.getState().setBalance(d.newBalance);
+    setLastResult({ choice: d.choice, house: d.house, outcome: d.outcome, multiplier: d.multiplier, profit: d.profit });
+    await sleep(prefersReducedMotion() ? 0 : RPS_ANIM_MS);
+    return { profit: d.profit, win: d.profit >= 0 };
+  }
+
+  const auto = useAutoBet(playRound);
+
+  async function handleShoot() {
+    if (playing || auto.running) return;
+    setError(null);
+    setRevealed(false);
+    try {
+      await playRound(betAmount);
     } catch (err: unknown) {
       sound.error();
       const ax = err as { response?: { data?: { error?: string }; status?: number } };
       if (ax.response?.status === 402) setError('Insufficient funds.');
       else if (ax.response?.status === 429) setError('Too fast — slow down.');
       else setError(ax.response?.data?.error ?? 'Something went wrong. Please try again.');
-      setPlaying(false);
     }
   }
 
@@ -201,7 +221,14 @@ export function RpsPage() {
           ]}
           primaryLabel={playing ? 'Shooting…' : `Shoot · ${THROW_LABEL[choice]}`}
           onPrimary={() => { void handleShoot(); }}
-          primaryDisabled={playing}
+          primaryDisabled={playing || auto.running}
+          autoBet={{
+            running: auto.running,
+            stats: auto.stats,
+            onStart: (cfg) => auto.start({ ...cfg, baseBet: betAmount }),
+            onStop: auto.stop,
+            storageKey: 'autobet_rps',
+          }}
         />
       </div>
     </AppShell>

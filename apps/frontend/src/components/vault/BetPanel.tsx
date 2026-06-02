@@ -1,9 +1,23 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
+import { AutoBetControls } from './AutoBetControls';
+import type { AutoBetConfig } from '../../lib/autobet';
+import type { AutoBetStats } from '../../hooks/useAutoBet';
 
 export interface SummaryRow {
   label: string;
   value: string;
   win?: boolean;
+}
+
+/** Wiring for the "Auto" tab. When omitted, the Auto tab stays disabled. */
+export interface AutoBetBinding {
+  running: boolean;
+  stats: AutoBetStats;
+  onStart: (cfg: Omit<AutoBetConfig, 'baseBet'>) => void;
+  onStop: () => void;
+  storageKey: string;
+  disabled?: boolean;
+  disabledHint?: string;
 }
 
 interface BetPanelProps {
@@ -20,15 +34,16 @@ interface BetPanelProps {
   primaryDisabled?: boolean;
   /** Game-specific controls (risk selector, mine count, etc.). */
   children?: ReactNode;
+  /** Enables + wires the "Auto" tab. Omit to keep auto-bet unavailable. */
+  autoBet?: AutoBetBinding;
 }
 
 function formatAmt(n: number): string {
   return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-// Shared bet panel for amount-based games (Plinko / Mines / Blackjack).
-// The "Auto" tab is rendered but disabled — auto-betting is not implemented,
-// so it is shown as unavailable rather than faked.
+// Shared bet panel for amount-based games. The "Auto" tab is enabled only when an
+// `autoBet` binding is supplied; otherwise it stays disabled.
 export function BetPanel({
   amount,
   onAmountChange,
@@ -41,7 +56,14 @@ export function BetPanel({
   onPrimary,
   primaryDisabled,
   children,
+  autoBet,
 }: BetPanelProps) {
+  const [tab, setTab] = useState<'manual' | 'auto'>('manual');
+  // While auto-bet runs, pin the Auto tab and lock the base-bet inputs.
+  const autoRunning = autoBet?.running ?? false;
+  const activeTab = autoRunning ? 'auto' : tab;
+  const inputsLocked = amountLocked || autoRunning;
+
   const quick: { label: string; apply: () => number }[] = [
     { label: '½', apply: () => Math.max(1, Math.floor(amount / 2)) },
     { label: '2×', apply: () => amount * 2 },
@@ -52,16 +74,27 @@ export function BetPanel({
   return (
     <div className="bet-panel">
       <div className="tabs-2">
-        <button className="active" type="button">
+        <button
+          className={activeTab === 'manual' ? 'active' : ''}
+          type="button"
+          disabled={autoRunning}
+          onClick={() => setTab('manual')}
+        >
           Manual
         </button>
-        <button type="button" disabled title="Auto-betting coming soon" style={{ opacity: 0.4, cursor: 'not-allowed' }}>
-          Auto
-        </button>
+        {autoBet ? (
+          <button className={activeTab === 'auto' ? 'active' : ''} type="button" onClick={() => setTab('auto')}>
+            Auto
+          </button>
+        ) : (
+          <button type="button" disabled title="Auto-betting coming soon" style={{ opacity: 0.4, cursor: 'not-allowed' }}>
+            Auto
+          </button>
+        )}
       </div>
       <div className="body">
         <div>
-          <label className="label">Bet amount</label>
+          <label className="label">{activeTab === 'auto' ? 'Base bet' : 'Bet amount'}</label>
           <div className="amount-row">
             <input
               className="input"
@@ -69,7 +102,7 @@ export function BetPanel({
               type="number"
               min={1}
               value={amount}
-              disabled={amountLocked}
+              disabled={inputsLocked}
               onChange={(e) => onAmountChange(Math.max(1, Math.floor(+e.target.value || 0)))}
             />
             <span className="coin-suffix">
@@ -80,7 +113,7 @@ export function BetPanel({
 
         <div className="quick-bets">
           {quick.map((q) => (
-            <button key={q.label} type="button" disabled={amountLocked} onClick={() => onAmountChange(q.apply())}>
+            <button key={q.label} type="button" disabled={inputsLocked} onClick={() => onAmountChange(q.apply())}>
               {q.label}
             </button>
           ))}
@@ -111,9 +144,23 @@ export function BetPanel({
           </div>
         )}
 
-        <button className="btn btn-primary place-bet" disabled={primaryDisabled} onClick={onPrimary} type="button">
-          {primaryLabel}
-        </button>
+        {activeTab === 'auto' && autoBet ? (
+          <AutoBetControls
+            baseBet={amount}
+            balance={balance}
+            running={autoBet.running}
+            stats={autoBet.stats}
+            onStart={autoBet.onStart}
+            onStop={autoBet.onStop}
+            disabled={autoBet.disabled}
+            disabledHint={autoBet.disabledHint}
+            storageKey={autoBet.storageKey}
+          />
+        ) : (
+          <button className="btn btn-primary place-bet" disabled={primaryDisabled} onClick={onPrimary} type="button">
+            {primaryLabel}
+          </button>
+        )}
       </div>
     </div>
   );
