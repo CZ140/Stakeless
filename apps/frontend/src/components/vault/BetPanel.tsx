@@ -36,6 +36,8 @@ interface BetPanelProps {
   children?: ReactNode;
   /** Enables + wires the "Auto" tab. Omit to keep auto-bet unavailable. */
   autoBet?: AutoBetBinding;
+  /** Extra controls shown only in the Auto tab (e.g. a ladder cash-out strategy). */
+  autoExtra?: ReactNode;
 }
 
 function formatAmt(n: number): string {
@@ -57,6 +59,7 @@ export function BetPanel({
   primaryDisabled,
   children,
   autoBet,
+  autoExtra,
 }: BetPanelProps) {
   const [tab, setTab] = useState<'manual' | 'auto'>('manual');
   // While auto-bet runs, pin the Auto tab and lock the base-bet inputs.
@@ -155,7 +158,9 @@ export function BetPanel({
             disabled={autoBet.disabled}
             disabledHint={autoBet.disabledHint}
             storageKey={autoBet.storageKey}
-          />
+          >
+            {autoExtra}
+          </AutoBetControls>
         ) : (
           <button className="btn btn-primary place-bet" disabled={primaryDisabled} onClick={onPrimary} type="button">
             {primaryLabel}

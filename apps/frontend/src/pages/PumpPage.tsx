@@ -13,8 +13,15 @@ import { BetPanel } from '../components/vault/BetPanel';
 import { usePumpStore } from '../stores/pumpStore';
 import { useBalanceStore } from '../stores/balanceStore';
 import { useAudioStore } from '../stores/audioStore';
+import { useAutoBet } from '../hooks/useAutoBet';
+import type { RoundResult } from '../lib/autobet';
+import { LadderStrategyControls, loadLadderStrategy, type LadderStrategy } from '../components/vault/LadderStrategy';
 import { sound } from '../lib/sound';
 import { celebrate, winTier } from '../lib/juice';
+
+const LADDER_STEP_MS = 280;
+const LADDER_RESULT_MS = 650;
+const ladderSleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 import { prefersReducedMotion } from '../hooks/useReducedMotion';
 import { apiClient } from '../api/client';
 
@@ -61,6 +68,7 @@ export function PumpPage() {
   const balance = useBalanceStore((s) => s.balance);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [strat, setStrat] = useState<LadderStrategy>(() => loadLadderStrategy('autostrat_pump'));
 
   const stageRef = useRef<HTMLDivElement>(null);
   const balloonWrapRef = useRef<HTMLDivElement>(null);
@@ -165,6 +173,44 @@ export function PumpPage() {
     }
   }
 
+  // One auto round at `stake`: start, pump until the strategy says cash out (target
+  // multiplier or N pumps) or it pops, then settle. Drives the store so the balloon
+  // animates; throws on a backend error.
+  async function playRound(stake: number): Promise<RoundResult> {
+    setBetAmount(stake);
+    localStorage.setItem('lastBet_pump', String(stake));
+    const s = (await apiClient.post<StartResponse>('/games/pump/start', { betAmount: stake, difficulty })).data;
+    useBalanceStore.getState().setBalance(s.newBalance);
+    startRound({ sessionId: s.sessionId, maxPumps: s.maxPumps });
+    const targetSteps = strat.mode === 'steps' ? Math.min(strat.steps, s.maxPumps) : s.maxPumps;
+    let mult = 1;
+    let done = 0;
+    while (done < s.maxPumps) {
+      if (strat.mode === 'steps' && done >= targetSteps) break;
+      if (strat.mode === 'multiplier' && mult >= strat.multiplier) break;
+      const d = (await apiClient.post<InflateResponse>('/games/pump/inflate', { sessionId: s.sessionId })).data;
+      await ladderSleep(LADDER_STEP_MS);
+      if (d.popped) {
+        applyPop({ pumps: d.pumps, multiplier: d.multiplier });
+        sound.error();
+        await ladderSleep(LADDER_RESULT_MS);
+        return { profit: -stake, win: false };
+      }
+      applyInflate({ pumps: d.pumps, multiplier: d.multiplier, maxedOut: d.maxedOut });
+      sound.tick();
+      mult = d.multiplier;
+      done = d.pumps;
+      if (d.maxedOut) break;
+    }
+    const c = (await apiClient.post<CashoutResponse>('/games/pump/cashout', { sessionId: s.sessionId })).data;
+    applyCashout({ payout: c.payout, multiplier: c.multiplier, pumps: c.pumps });
+    useBalanceStore.getState().setBalance(c.newBalance);
+    await ladderSleep(LADDER_RESULT_MS);
+    return { profit: c.payout - stake, win: c.payout - stake >= 0 };
+  }
+
+  const auto = useAutoBet(playRound);
+
   const isActive = phase === 'active';
   const isBetting = phase === 'betting';
   const profit = Math.max(0, Math.floor(betAmount * multiplier) - betAmount);
@@ -249,7 +295,7 @@ export function PumpPage() {
               <button
                 type="button"
                 className="pump-btn"
-                disabled={!isActive || busy || maxedOut}
+                disabled={!isActive || busy || maxedOut || auto.running}
                 onClick={() => { void handleInflate(); }}
               >
                 <span className="lbl">▲ PUMP</span>
@@ -267,12 +313,24 @@ export function PumpPage() {
           amount={betAmount}
           onAmountChange={setBetAmount}
           balance={balance}
-          amountLocked={!isBetting}
+          amountLocked={!isBetting || auto.running}
           multiplier={isActive ? multiplier.toFixed(2) : undefined}
           profitOnWin={isActive && pumps > 0 ? profit : undefined}
           primaryLabel={primaryLabel}
           onPrimary={onPrimary}
           primaryDisabled={primaryDisabled}
+          autoBet={{
+            running: auto.running,
+            stats: auto.stats,
+            onStart: (cfg) => auto.start({ ...cfg, baseBet: betAmount }),
+            onStop: auto.stop,
+            storageKey: 'autobet_pump',
+            disabled: !isBetting,
+            disabledHint: 'Finish the current round to start auto-bet.',
+          }}
+          autoExtra={
+            <LadderStrategyControls value={strat} onChange={setStrat} stepLabel="pumps" storageKey="autostrat_pump" disabled={auto.running} />
+          }
         >
           <div>
             <label className="label">Difficulty</label>
