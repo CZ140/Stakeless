@@ -10,7 +10,12 @@ import { useAudioStore } from '../stores/audioStore';
 import { sound } from '../lib/sound';
 import { celebrate, countUp, pulse, winTier } from '../lib/juice';
 import { prefersReducedMotion } from '../hooks/useReducedMotion';
+import { useAutoBet } from '../hooks/useAutoBet';
+import type { RoundResult } from '../lib/autobet';
 import { apiClient } from '../api/client';
+
+const DICE_ANIM_MS = 650; // marker slide + count-up before the next auto bet
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 interface DiceResponse {
   roll: number;
@@ -76,28 +81,42 @@ export function DicePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lastResult]);
 
-  async function handleRoll() {
-    if (rolling) return;
+  // Plays exactly one round at `stake`: fires the bet, animates, and resolves with
+  // the net result. Shared by the manual button and the auto-bet engine; throws on
+  // a backend error so the engine can stop.
+  async function playRound(stake: number): Promise<RoundResult> {
+    setBetAmount(stake);
     sound.unlock();
     sound.diceRoll();
-    setError(null);
     setRolling(true);
-    localStorage.setItem('lastBet_dice', String(betAmount));
+    localStorage.setItem('lastBet_dice', String(stake));
     try {
-      const res = await apiClient.post<DiceResponse>('/games/dice/bet', { betAmount, target, direction });
+      const res = await apiClient.post<DiceResponse>('/games/dice/bet', { betAmount: stake, target, direction });
       const d = res.data;
       useBalanceStore.getState().setBalance(d.newBalance);
       setLastResult({
         roll: d.roll, win: d.win, multiplier: d.multiplier, profit: d.profit, target: d.target, direction: d.direction,
       });
+      await sleep(prefersReducedMotion() ? 0 : DICE_ANIM_MS);
+      return { profit: d.profit, win: d.win };
+    } finally {
+      setRolling(false);
+    }
+  }
+
+  const auto = useAutoBet(playRound);
+
+  async function handleRoll() {
+    if (rolling || auto.running) return;
+    setError(null);
+    try {
+      await playRound(betAmount);
     } catch (err: unknown) {
       sound.error();
       const ax = err as { response?: { data?: { error?: string }; status?: number } };
       if (ax.response?.status === 402) setError('Insufficient funds.');
       else if (ax.response?.status === 429) setError('Too many rolls too fast — slow down.');
       else setError(ax.response?.data?.error ?? 'Something went wrong. Please try again.');
-    } finally {
-      setRolling(false);
     }
   }
 
@@ -199,7 +218,14 @@ export function DicePage() {
           summary={[{ label: 'Win chance', value: `${(winChance * 100).toFixed(2)}%` }]}
           primaryLabel={rolling ? 'Rolling…' : 'Roll dice'}
           onPrimary={() => { void handleRoll(); }}
-          primaryDisabled={rolling}
+          primaryDisabled={rolling || auto.running}
+          autoBet={{
+            running: auto.running,
+            stats: auto.stats,
+            onStart: (cfg) => auto.start({ ...cfg, baseBet: betAmount }),
+            onStop: auto.stop,
+            storageKey: 'autobet_dice',
+          }}
         />
       </div>
     </AppShell>

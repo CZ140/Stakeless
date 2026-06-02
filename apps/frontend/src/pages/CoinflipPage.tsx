@@ -10,7 +10,12 @@ import { useAudioStore } from '../stores/audioStore';
 import { sound } from '../lib/sound';
 import { celebrate, pulse, winTier } from '../lib/juice';
 import { prefersReducedMotion } from '../hooks/useReducedMotion';
+import { useAutoBet } from '../hooks/useAutoBet';
+import type { RoundResult } from '../lib/autobet';
 import { apiClient } from '../api/client';
+
+const FLIP_ANIM_MS = 1250; // coin spin before the next auto bet
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 interface CoinflipResponse {
   result: CoinSide;
@@ -77,26 +82,41 @@ export function CoinflipPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lastResult]);
 
-  async function handleFlip() {
-    if (flipping) return;
+  // One round at `stake`: fire the bet, spin the coin, resolve with the net result.
+  // Shared by the manual button and the auto-bet engine; throws on a backend error.
+  async function playRound(stake: number): Promise<RoundResult> {
+    setBetAmount(stake);
     sound.unlock();
     sound.coinFlip();
-    setError(null);
     setFlipping(true);
-    localStorage.setItem('lastBet_flip', String(betAmount));
+    localStorage.setItem('lastBet_flip', String(stake));
+    let d: CoinflipResponse;
     try {
-      const res = await apiClient.post<CoinflipResponse>('/games/flip/bet', { betAmount, call });
-      const d = res.data;
-      useBalanceStore.getState().setBalance(d.newBalance);
-      // The spin animation (effect above) re-enables the button on completion.
-      setLastResult({ result: d.result, call: d.call, win: d.win, multiplier: d.multiplier, profit: d.profit });
+      d = (await apiClient.post<CoinflipResponse>('/games/flip/bet', { betAmount: stake, call })).data;
+    } catch (e) {
+      setFlipping(false); // the spin animation never runs on error, so reset here
+      throw e;
+    }
+    useBalanceStore.getState().setBalance(d.newBalance);
+    // The spin animation (effect above) re-enables the button on completion.
+    setLastResult({ result: d.result, call: d.call, win: d.win, multiplier: d.multiplier, profit: d.profit });
+    await sleep(prefersReducedMotion() ? 0 : FLIP_ANIM_MS);
+    return { profit: d.profit, win: d.win };
+  }
+
+  const auto = useAutoBet(playRound);
+
+  async function handleFlip() {
+    if (flipping || auto.running) return;
+    setError(null);
+    try {
+      await playRound(betAmount);
     } catch (err: unknown) {
       sound.error();
       const ax = err as { response?: { data?: { error?: string }; status?: number } };
       if (ax.response?.status === 402) setError('Insufficient funds.');
       else if (ax.response?.status === 429) setError('Too many flips too fast — slow down.');
       else setError(ax.response?.data?.error ?? 'Something went wrong. Please try again.');
-      setFlipping(false);
     }
   }
 
@@ -183,7 +203,14 @@ export function CoinflipPage() {
           summary={[{ label: 'Win chance', value: `${(winChance * 100).toFixed(0)}%` }]}
           primaryLabel={flipping ? 'Flipping…' : `Flip on ${callLabel}`}
           onPrimary={() => { void handleFlip(); }}
-          primaryDisabled={flipping}
+          primaryDisabled={flipping || auto.running}
+          autoBet={{
+            running: auto.running,
+            stats: auto.stats,
+            onStart: (cfg) => auto.start({ ...cfg, baseBet: betAmount }),
+            onStop: auto.stop,
+            storageKey: 'autobet_flip',
+          }}
         />
       </div>
     </AppShell>

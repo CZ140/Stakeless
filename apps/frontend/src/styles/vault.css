@@ -921,6 +921,29 @@ body::before {
 
 .place-bet { width: 100%; height: 48px; font-size: var(--fs-md); font-weight: 700; margin-top: 4px; }
 
+/* ─── Auto-bet controls (BetPanel "Auto" tab) ─── */
+.autobet { display: flex; flex-direction: column; gap: 14px; }
+.ab-field { display: flex; flex-direction: column; gap: 6px; }
+.ab-progression { display: grid; grid-template-columns: 1fr 96px; gap: 8px; align-items: stretch; }
+.ab-seg { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+.ab-seg button {
+  border: 1px solid var(--border); background: var(--bg-elevated); color: var(--text-secondary);
+  border-radius: var(--r-md); font-size: var(--fs-sm); font-weight: 600; cursor: pointer; padding: 0 8px; height: 38px;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+.ab-seg button.active { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.ab-seg button:disabled { opacity: 0.5; cursor: not-allowed; }
+.ab-pct { min-width: 0; }
+.ab-stops { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.ab-status {
+  display: flex; justify-content: space-between; align-items: center;
+  font-family: var(--font-mono); font-size: var(--fs-sm);
+  border: 1px solid var(--border); border-radius: var(--r-md); padding: 8px 12px; background: var(--bg-elevated);
+}
+.ab-status .win { color: var(--win); }
+.ab-status .loss { color: var(--loss); }
+.ab-hint { font-size: var(--fs-sm); color: var(--text-muted); text-align: center; }
+
 /* option button grids inside bet panels (risk / mines count) */
 .opt-grid { display: grid; gap: 4px; }
 .opt-grid button {

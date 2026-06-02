@@ -10,6 +10,8 @@ import { useAudioStore } from '../stores/audioStore';
 import { sound, type SoundHandle } from '../lib/sound';
 import { celebrate, countUp, winTier } from '../lib/juice';
 import { prefersReducedMotion } from '../hooks/useReducedMotion';
+import { useAutoBet } from '../hooks/useAutoBet';
+import type { RoundResult } from '../lib/autobet';
 import { apiClient } from '../api/client';
 
 interface SlotsResponse {
@@ -77,44 +79,52 @@ export function SlotsPage() {
     countUp(payoutRef.current, 0, lastResult.totalPayout);
   }, [lastResult, spinning]);
 
-  async function handleSpin() {
-    if (spinning) return;
+  // One round at `stake`: spin the reels and resolve with the net result once the
+  // last reel lands (the reveal callback). Shared by the manual button and the
+  // auto-bet engine; throws on a backend error. A safety timeout guarantees the
+  // promise settles even if a reel ref is unexpectedly missing.
+  async function playRound(stake: number): Promise<RoundResult> {
+    setBetAmount(stake);
     sound.unlock();
-    setError(null);
     setSpinning(true);
     setLastResult(null);
-    localStorage.setItem('lastBet_slots', String(betAmount));
+    localStorage.setItem('lastBet_slots', String(stake));
     sound.bet();
 
+    let d: SlotsResponse;
     try {
-      const res = await apiClient.post<SlotsResponse>('/games/slots/bet', { betAmount });
-      const d = res.data;
-      useBalanceStore.getState().setBalance(d.newBalance);
-      const reduced = prefersReducedMotion();
+      d = (await apiClient.post<SlotsResponse>('/games/slots/bet', { betAmount: stake })).data;
+    } catch (e) {
+      spinSoundRef.current?.stop(0);
+      spinSoundRef.current = null;
+      setSpinning(false);
+      throw e;
+    }
+    useBalanceStore.getState().setBalance(d.newBalance);
+    const reduced = prefersReducedMotion();
 
-      // Near-miss tension: reels 0 & 1 already share a symbol on some payline.
-      const suspense =
-        !reduced &&
-        PAYLINES.some((pl) => d.grid[0]![pl.cells[0]![1]] === d.grid[1]![pl.cells[1]![1]]);
+    // Near-miss tension: reels 0 & 1 already share a symbol on some payline.
+    const suspense =
+      !reduced &&
+      PAYLINES.some((pl) => d.grid[0]![pl.cells[0]![1]] === d.grid[1]![pl.cells[1]![1]]);
 
-      spinSoundRef.current = sound.reelSpin();
+    spinSoundRef.current = sound.reelSpin();
 
+    return await new Promise<RoundResult>((resolve) => {
+      let settled = false;
       const reveal = () => {
+        if (settled) return;
+        settled = true;
         spinSoundRef.current?.stop();
         spinSoundRef.current = null;
-        setLastResult({
-          grid: d.grid,
-          lines: d.lines,
-          totalPayout: d.totalPayout,
-          win: d.win,
-          profit: d.profit,
-        });
+        setLastResult({ grid: d.grid, lines: d.lines, totalPayout: d.totalPayout, win: d.win, profit: d.profit });
         setSpinning(false);
         if (d.win) {
-          celebrate(winTier(d.profit, betAmount), { shakeEl: gridRef.current, originEl: gridRef.current });
+          celebrate(winTier(d.profit, stake), { shakeEl: gridRef.current, originEl: gridRef.current });
         } else {
           celebrate('none');
         }
+        resolve({ profit: d.profit, win: d.profit >= 0 });
       };
 
       for (let i = 0; i < 3; i++) {
@@ -126,15 +136,24 @@ export function SlotsPage() {
           onStop: isLast ? reveal : undefined,
         });
       }
+      // Safety net: settle even if the last reel's onStop never fires.
+      setTimeout(reveal, reduced ? 120 : 1800);
+    });
+  }
+
+  const auto = useAutoBet(playRound);
+
+  async function handleSpin() {
+    if (spinning || auto.running) return;
+    setError(null);
+    try {
+      await playRound(betAmount);
     } catch (err: unknown) {
-      spinSoundRef.current?.stop(0);
-      spinSoundRef.current = null;
       sound.error();
       const ax = err as { response?: { data?: { error?: string }; status?: number } };
       if (ax.response?.status === 402) setError('Insufficient funds.');
       else if (ax.response?.status === 429) setError('Too many spins too fast — slow down.');
       else setError(ax.response?.data?.error ?? 'Something went wrong. Please try again.');
-      setSpinning(false);
     }
   }
 
@@ -237,7 +256,14 @@ export function SlotsPage() {
           onPrimary={() => {
             void handleSpin();
           }}
-          primaryDisabled={spinning}
+          primaryDisabled={spinning || auto.running}
+          autoBet={{
+            running: auto.running,
+            stats: auto.stats,
+            onStart: (cfg) => auto.start({ ...cfg, baseBet: betAmount }),
+            onStop: auto.stop,
+            storageKey: 'autobet_slots',
+          }}
         />
       </div>
     </AppShell>
