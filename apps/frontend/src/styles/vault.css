@@ -1754,6 +1754,12 @@ body::before {
 @keyframes tierup-pop { from { opacity: 0; transform: scale(0.9) translateY(8px); } to { opacity: 1; transform: none; } }
 @keyframes tierup-glow { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
 
+/* ── Shared modal enter animations (replaces framer-motion on overlay/how-to modals) ── */
+@keyframes modal-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes modal-pop { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: none; } }
+/* ResultOverlay is centered via translate(-50%,-50%); bake it into the keyframe so scale doesn't override it */
+@keyframes modal-pop-centered { from { opacity: 0; transform: translate(-50%, -50%) scale(0.9); } to { opacity: 1; transform: translate(-50%, -50%) scale(1); } }
+
 /* ── Avatar image variant (shared <Avatar> with an uploaded photo) ── */
 .has-img { overflow: hidden; background: none !important; padding: 0; }
 .has-img::after { display: none !important; }

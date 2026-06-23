@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { motion } from 'framer-motion';
+import gsap from 'gsap';
 import { AppShell } from '../components/vault/AppShell';
 import {
   useBlackjackStore,
@@ -24,9 +24,6 @@ const BJ_DEAL_MS = 700; // let the initial deal land before the first decision
 const BJ_STEP_MS = 600; // pause between auto actions so each card reads
 const BJ_RESULT_MS = 1700; // hold the settled result (covers the reveal) before re-deal
 const bjSleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
-
-// A snappy back-out overshoot for cards settling into place.
-const CARD_EASE: [number, number, number, number] = [0.34, 1.56, 0.64, 1];
 
 // Deal-sequence timing (seconds). A card flies in (FLY_S) from the upper-right,
 // then flips face-up (FLIP_S). STEP_S is the gap between successive cards being
@@ -152,36 +149,53 @@ function DealtCard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // A later reveal of an already-placed card (the dealer flipping its hole card).
-  const prevFaceUp = useRef(faceUp);
-  useEffect(() => {
-    if (!prevFaceUp.current && faceUp && !isNew) sound.cardFlip();
-    prevFaceUp.current = faceUp;
-  }, [faceUp, isNew]);
+  const flyRef = useRef<HTMLDivElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
 
   const animate = !reduced && isNew;
   const flipDelay = isNew ? (reduced ? 0 : delay + FLY_S) : 0;
 
+  // Mount: a new card flies in from the shoe (back.out overshoot ≈ the old
+  // [0.34,1.56,0.64,1] bezier) then flips up after it lands; existing/reduced
+  // cards just snap to their face with no entrance.
+  useEffect(() => {
+    const c = cardRef.current;
+    if (!c) return;
+    if (animate) {
+      if (flyRef.current) {
+        gsap.fromTo(
+          flyRef.current,
+          { opacity: 0, x: DECK_DX, y: DECK_DY },
+          { opacity: 1, x: 0, y: 0, duration: FLY_S, ease: 'back.out(1.6)', delay },
+        );
+      }
+      gsap.fromTo(c, { rotateY: 180 }, { rotateY: faceUp ? 0 : 180, duration: FLIP_S, ease: 'power1.inOut', delay: flipDelay });
+    } else {
+      gsap.set(c, { rotateY: faceUp ? 0 : 180 });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // A later reveal of an already-placed card (the dealer flipping its hole card):
+  // animate the flip in place + play the cue.
+  const prevFaceUp = useRef(faceUp);
+  useEffect(() => {
+    if (!prevFaceUp.current && faceUp && !isNew) {
+      sound.cardFlip();
+      if (cardRef.current) gsap.to(cardRef.current, { rotateY: 0, duration: reduced ? 0 : FLIP_S, ease: 'power1.inOut' });
+    }
+    prevFaceUp.current = faceUp;
+  }, [faceUp, isNew, reduced]);
+
   return (
-    <motion.div
-      className="bj-card-fly"
-      initial={animate ? { opacity: 0, x: DECK_DX, y: DECK_DY } : false}
-      animate={{ opacity: 1, x: 0, y: 0 }}
-      transition={{ duration: reduced ? 0 : FLY_S, ease: CARD_EASE, delay: animate ? delay : 0 }}
-    >
-      <motion.div
-        className="bj-card-3d"
-        initial={animate ? { rotateY: 180 } : false}
-        animate={{ rotateY: faceUp ? 0 : 180 }}
-        transition={{ duration: reduced ? 0 : FLIP_S, ease: 'easeInOut', delay: flipDelay }}
-        style={{ transformStyle: 'preserve-3d' }}
-      >
+    <div className="bj-card-fly" ref={flyRef}>
+      <div className="bj-card-3d" ref={cardRef} style={{ transformStyle: 'preserve-3d' }}>
         <div className="bj-face bj-front">{card ? <CardFace card={card} /> : <div className="playing-card" />}</div>
         <div className="bj-face bj-back">
           <div className="playing-card back" />
         </div>
-      </motion.div>
-    </motion.div>
+      </div>
+    </div>
   );
 }
 

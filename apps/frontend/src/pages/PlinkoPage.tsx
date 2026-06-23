@@ -1,6 +1,5 @@
 import { useShallow } from 'zustand/react/shallow';
 import { useEffect, useRef, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { AppShell } from '../components/vault/AppShell';
 import { PlinkoBoard, type PlinkoBoardHandle } from '../components/vault/PlinkoBoard';
 import { usePlinkoStore, type RiskLevel } from '../stores/plinkoStore';
@@ -78,26 +77,17 @@ const DROP_INTERVAL_MS = 170; // real spacing between drops (backend rejects <10
 
 function PlinkoHowToPlay({ open, onClose }: { open: boolean; onClose: () => void }) {
   return (
-    <AnimatePresence>
+    <>
       {open && (
         <>
-          <motion.div
-            key="plinko-htplay-backdrop"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+          <div
             onClick={onClose}
-            style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 200 }}
+            style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 200, animation: 'modal-fade 0.18s ease-out' }}
           />
           <div style={{ position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 201, pointerEvents: 'none' }}>
-            <motion.div
-              key="plinko-htplay-modal"
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              transition={{ duration: 0.2 }}
+            <div
               className="card"
-              style={{ padding: '32px', maxWidth: '520px', width: '90vw', maxHeight: '80vh', overflowY: 'auto', pointerEvents: 'auto' }}
+              style={{ padding: '32px', maxWidth: '520px', width: '90vw', maxHeight: '80vh', overflowY: 'auto', pointerEvents: 'auto', animation: 'modal-pop 0.2s ease-out' }}
             >
               <h2 style={{ marginTop: 0, marginBottom: '12px' }}>How to play Plinko</h2>
               <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '16px' }}>
@@ -109,11 +99,11 @@ function PlinkoHowToPlay({ open, onClose }: { open: boolean; onClose: () => void
                 of balls for you.
               </p>
               <button className="btn btn-primary" onClick={onClose}>Got it</button>
-            </motion.div>
+            </div>
           </div>
         </>
       )}
-    </AnimatePresence>
+    </>
   );
 }
 

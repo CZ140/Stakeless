@@ -1,5 +1,3 @@
-import { motion, AnimatePresence } from 'framer-motion';
-
 interface HowToPlayModalProps {
   open: boolean;
   onClose: () => void;
@@ -15,34 +13,26 @@ const BET_TYPES = [
 
 export function HowToPlayModal({ open, onClose }: HowToPlayModalProps) {
   return (
-    <AnimatePresence>
+    <>
       {open && (
         <>
           {/* Backdrop */}
-          <motion.div
-            key="htplay-backdrop"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+          <div
             onClick={onClose}
             style={{
               position: 'fixed', inset: 0,
               backgroundColor: 'rgba(0,0,0,0.6)',
               zIndex: 200,
+              animation: 'modal-fade 0.18s ease-out',
             }}
           />
-          {/* Centering wrapper — flexbox so Framer Motion transform doesn't fight translate(-50%,-50%) */}
+          {/* Centering wrapper */}
           <div style={{
             position: 'fixed', inset: 0,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             zIndex: 201, pointerEvents: 'none',
           }}>
-          <motion.div
-            key="htplay-modal"
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            transition={{ duration: 0.2 }}
+          <div
             style={{
               backgroundColor: '#1a1a2e',
               borderRadius: '16px',
@@ -52,6 +42,7 @@ export function HowToPlayModal({ open, onClose }: HowToPlayModalProps) {
               maxHeight: '80vh',
               overflowY: 'auto',
               pointerEvents: 'auto',
+              animation: 'modal-pop 0.2s ease-out',
             }}
           >
             <h2 style={{ color: '#e0d7ff', marginTop: 0, marginBottom: '16px' }}>
@@ -101,10 +92,10 @@ export function HowToPlayModal({ open, onClose }: HowToPlayModalProps) {
             >
               Got It
             </button>
-          </motion.div>
+          </div>
           </div>
         </>
       )}
-    </AnimatePresence>
+    </>
   );
 }

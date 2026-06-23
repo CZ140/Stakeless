@@ -1,4 +1,3 @@
-import { motion, AnimatePresence } from 'framer-motion';
 import type { PlacedChip } from '../stores/rouletteStore';
 
 interface ResultOverlayProps {
@@ -70,14 +69,9 @@ export function ResultOverlay({ visible, winningPocket, netAmount, bets }: Resul
     }));
 
   return (
-    <AnimatePresence>
+    <>
       {visible && (
-        <motion.div
-          key="result-overlay"
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.9 }}
-          transition={{ duration: 0.25 }}
+        <div
           style={{
             position: 'absolute',
             top: '50%', left: '50%',
@@ -90,6 +84,7 @@ export function ResultOverlay({ visible, winningPocket, netAmount, bets }: Resul
             textAlign: 'center',
             minWidth: '220px',
             boxShadow: won ? '0 0 32px rgba(124,58,237,0.4)' : 'none',
+            animation: 'modal-pop-centered 0.25s ease-out',
           }}
         >
           {/* Winning number */}
@@ -140,8 +135,8 @@ export function ResultOverlay({ visible, winningPocket, netAmount, bets }: Resul
           <div style={{ color: '#718096', fontSize: '0.78rem', marginTop: '8px' }}>
             Press Spin to play again
           </div>
-        </motion.div>
+        </div>
       )}
-    </AnimatePresence>
+    </>
   );
 }

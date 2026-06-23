@@ -13,7 +13,6 @@
     "@gsap/react": "^2.1.2",
     "axios": "^1.13.6",
     "canvas-confetti": "^1.9.4",
-    "framer-motion": "^12.34.4",
     "gsap": "^3.14.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
