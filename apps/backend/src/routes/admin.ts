@@ -10,6 +10,7 @@ import {
   logAdminAction,
 } from '../services/adminService.js';
 import { tableManager } from '../services/poker/manager.js';
+import { getErrorCode } from '../lib/errors.js';
 
 export const adminRouter: IRouter = Router();
 
@@ -100,7 +101,7 @@ adminRouter.post('/players/:id/grant', async (req, res) => {
     await logAdminAction(req.user!.id, 'grant_balance', targetId, `granted ${amount} coins → ${newBalance}`);
     res.json({ ok: true, newBalance });
   } catch (err) {
-    if ((err as { code?: string }).code === 'NOT_FOUND') { res.status(404).json({ error: 'Player not found' }); return; }
+    if (getErrorCode(err) === 'NOT_FOUND') { res.status(404).json({ error: 'Player not found' }); return; }
     console.error('[admin] grant error:', err);
     res.status(500).json({ error: 'An unexpected error occurred' });
   }
@@ -127,7 +128,7 @@ adminRouter.delete('/poker/tables/:id', async (req, res) => {
     await logAdminAction(req.user!.id, 'delete_poker_table', null, `deleted poker table ${tableId} (refunded ${chips} chips to ${refunded} players)`);
     res.json({ ok: true, refunded, chips });
   } catch (err) {
-    if ((err as { code?: string }).code === 'NOT_FOUND') { res.status(404).json({ error: 'Table not found' }); return; }
+    if (getErrorCode(err) === 'NOT_FOUND') { res.status(404).json({ error: 'Table not found' }); return; }
     console.error('[admin] poker delete error:', err);
     res.status(500).json({ error: 'An unexpected error occurred' });
   }

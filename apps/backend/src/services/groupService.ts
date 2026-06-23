@@ -21,17 +21,7 @@ import type {
   SocialUser,
 } from '@gambling/shared';
 import { areFriends } from './friendService.js';
-
-function err(code: string, message: string): Error {
-  return Object.assign(new Error(message), { code });
-}
-
-// Drizzle wraps the driver error, so a Postgres unique-violation (23505) surfaces
-// on the error or its .cause. Used as the race-safety net behind pre-checks.
-function isUniqueViolation(e: unknown): boolean {
-  const code = (e as { code?: string }).code ?? (e as { cause?: { code?: string } }).cause?.code;
-  return code === '23505';
-}
+import { err, isUniqueViolation } from '../lib/dbErrors.js';
 
 const ROLES: ReadonlySet<string> = new Set<GroupRole>(['owner', 'admin', 'member']);
 function asRole(r: string): GroupRole {

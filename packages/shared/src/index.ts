@@ -216,9 +216,6 @@ export interface HealthResponse {
   timestamp: string;
 }
 
-// Game types (stubs for future phases)
-export type GameType = 'roulette' | 'plinko' | 'mines' | 'blackjack' | 'dice' | 'slots' | 'crash' | 'flip' | 'hilo' | 'pump' | 'chicken' | 'rps';
-
 // ─── Dice ─────────────────────────────────────────────────────────────────────
 // Pure dice math shared by the backend (settlement) and frontend (live readout)
 // so multiplier/odds are computed identically on both sides. The crypto RNG
@@ -264,16 +261,4 @@ export function diceTargetBounds(direction: DiceDirection): { min: number; max: 
   return direction === 'under'
     ? { min: DICE.MIN_WIN_CHANCE * 100, max: DICE.MAX_WIN_CHANCE * 100 } // 2 … 95
     : { min: (1 - DICE.MAX_WIN_CHANCE) * 100, max: (1 - DICE.MIN_WIN_CHANCE) * 100 }; // 5 … 98
-}
-
-// Wallet / Game types (Phase 3+)
-export interface BetRequest {
-  betAmount: number;
-  gameType?: string;
-}
-
-export interface BetResponse {
-  outcome: 'win' | 'loss';
-  profit: number;
-  newBalance: number;
 }

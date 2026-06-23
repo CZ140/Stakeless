@@ -13,6 +13,7 @@ import { prefersReducedMotion } from '../hooks/useReducedMotion';
 import { useAutoBet } from '../hooks/useAutoBet';
 import type { RoundResult } from '../lib/autobet';
 import { apiClient } from '../api/client';
+import { handleApiError } from '../lib/handleApiError';
 
 interface SlotsResponse {
   grid: SlotGrid;
@@ -150,10 +151,7 @@ export function SlotsPage() {
       await playRound(betAmount);
     } catch (err: unknown) {
       sound.error();
-      const ax = err as { response?: { data?: { error?: string }; status?: number } };
-      if (ax.response?.status === 402) setError('Insufficient funds.');
-      else if (ax.response?.status === 429) setError('Too many spins too fast — slow down.');
-      else setError(ax.response?.data?.error ?? 'Something went wrong. Please try again.');
+      handleApiError(err, setError, { rateLimitMsg: 'Too many spins too fast — slow down.' });
     }
   }
 

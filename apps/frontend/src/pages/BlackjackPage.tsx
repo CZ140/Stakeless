@@ -18,6 +18,7 @@ import { sound } from '../lib/sound';
 import { celebrate, winTier } from '../lib/juice';
 import { prefersReducedMotion } from '../hooks/useReducedMotion';
 import { apiClient } from '../api/client';
+import { handleApiError } from '../lib/handleApiError';
 
 const BJ_DEAL_MS = 700; // let the initial deal land before the first decision
 const BJ_STEP_MS = 600; // pause between auto actions so each card reads
@@ -328,9 +329,7 @@ export function BlackjackPage() {
       if (res.data.phase === 'settled') applySettled(res.data);
       else store.applyView(res.data);
     } catch (err: unknown) {
-      const axiosErr = err as { response?: { data?: { error?: string }; status?: number } };
-      if (axiosErr.response?.status === 402) setError('Insufficient funds for that total bet.');
-      else setError(axiosErr.response?.data?.error ?? 'Something went wrong. Please try again.');
+      handleApiError(err, setError, { insufficientMsg: 'Insufficient funds for that total bet.' });
     } finally {
       setIsLoading(false);
     }
@@ -347,9 +346,7 @@ export function BlackjackPage() {
       if (res.data.phase === 'settled') applySettled(res.data);
       else store.applyView(res.data);
     } catch (err: unknown) {
-      const axiosErr = err as { response?: { data?: { error?: string }; status?: number } };
-      if (axiosErr.response?.status === 402) setError('Insufficient funds for that action.');
-      else setError(axiosErr.response?.data?.error ?? 'Something went wrong. Please try again.');
+      handleApiError(err, setError, { insufficientMsg: 'Insufficient funds for that action.' });
     } finally {
       setIsLoading(false);
     }

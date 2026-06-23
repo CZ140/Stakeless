@@ -25,10 +25,8 @@ import { sound } from '../lib/sound';
 import { celebrate, winTier } from '../lib/juice';
 import { prefersReducedMotion } from '../hooks/useReducedMotion';
 import { apiClient } from '../api/client';
-
-const LADDER_STEP_MS = 280;
-const LADDER_RESULT_MS = 650;
-const ladderSleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+import { sleep as ladderSleep, LADDER_STEP_MS, LADDER_RESULT_MS } from '../lib/sleep';
+import { handleApiError } from '../lib/handleApiError';
 
 interface StartResponse { sessionId: number; difficulty: ChickenDifficulty; lane: number; multiplier: number; maxLanes: number; newBalance: number }
 interface StepResponse { dead: boolean; lane: number; multiplier: number; crossed: boolean; newBalance?: number }
@@ -186,12 +184,9 @@ export function ChickenPage() {
 
   function handleError(err: unknown) {
     sound.error();
-    const ax = err as { response?: { data?: { error?: string }; status?: number } };
-    const status = ax.response?.status;
-    if (status === 402) setError('Insufficient funds.');
-    else if (status === 409) { setError('You already have a round in progress.'); void resume(); }
-    else if (status === 429) setError('Too fast — slow down.');
-    else setError(ax.response?.data?.error ?? 'Something went wrong. Please try again.');
+    const status = (err as { response?: { status?: number } }).response?.status;
+    if (status === 409) { setError('You already have a round in progress.'); void resume(); return; }
+    handleApiError(err, setError, { rateLimitMsg: 'Too fast — slow down.' });
   }
 
   async function handleStart() {

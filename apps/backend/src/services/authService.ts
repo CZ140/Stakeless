@@ -101,20 +101,7 @@ export async function login(
     throw Object.assign(new Error('Account banned'), { code: 'ACCOUNT_BANNED' });
   }
 
-  // Issue tokens
-  const accessToken = await signAccessToken(user.id);
-  const rawRefreshToken = generateOpaqueToken();
-  const tokenHash = hashToken(rawRefreshToken);
-  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-
-  await db.insert(refreshTokens).values({ userId: user.id, tokenHash, expiresAt });
-
-  // Update lastLoginAt
-  await db.update(users)
-    .set({ lastLoginAt: new Date() })
-    .where(eq(users.id, user.id));
-
-  return { accessToken, rawRefreshToken };
+  return issueSession(user.id);
 }
 
 // ─── loginWithGoogle ──────────────────────────────────────────────────────────
@@ -356,21 +343,5 @@ export async function resetPassword(
     .where(eq(emailVerificationTokens.id, record.id));
 
   // Auto-login: issue fresh access + refresh tokens
-  const accessToken = await signAccessToken(record.userId);
-  const newRawRefreshToken = generateOpaqueToken();
-  const refreshHash = hashToken(newRawRefreshToken);
-  const refreshExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-
-  await db.insert(refreshTokens).values({
-    userId: record.userId,
-    tokenHash: refreshHash,
-    expiresAt: refreshExpiresAt,
-  });
-
-  // Update lastLoginAt
-  await db.update(users)
-    .set({ lastLoginAt: new Date() })
-    .where(eq(users.id, record.userId));
-
-  return { accessToken, rawRefreshToken: newRawRefreshToken };
+  return issueSession(record.userId);
 }

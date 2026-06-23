@@ -3,6 +3,7 @@ import { randomInt } from 'node:crypto';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { validateBet } from '../middleware/validateBet.js';
 import { claimDailyBonus, claimRakeback, deductBet, settleBet } from '../services/walletService.js';
+import { getErrorCode } from '../lib/errors.js';
 
 export const walletRouter: IRouter = Router();
 
@@ -16,7 +17,7 @@ walletRouter.post('/bonus', requireAuth, async (req, res) => {
     const { newBalance, nextClaimAt, amount, streak } = await claimDailyBonus(req.user!.id);
     res.json({ newBalance, nextClaimAt, amount, streak });
   } catch (err: unknown) {
-    const code = (err as { code?: string }).code;
+    const code = getErrorCode(err);
     if (code === 'BONUS_NOT_READY') {
       const msUntilNext = (err as { msUntilNext?: number }).msUntilNext;
       res.status(429).json({ error: 'Bonus not available yet', msUntilNext });
@@ -38,7 +39,7 @@ walletRouter.post('/rakeback', requireAuth, async (req, res) => {
     const { newBalance, amount } = await claimRakeback(req.user!.id);
     res.json({ newBalance, amount });
   } catch (err: unknown) {
-    const code = (err as { code?: string }).code;
+    const code = getErrorCode(err);
     if (code === 'NO_RAKEBACK') {
       res.status(409).json({ error: 'No rakeback available yet' });
       return;
@@ -80,7 +81,7 @@ walletRouter.post('/bet', requireAuth, validateBet, async (req, res) => {
     // Step 4: Return result
     res.json({ outcome, profit, newBalance });
   } catch (err: unknown) {
-    const code = (err as { code?: string }).code;
+    const code = getErrorCode(err);
     if (code === 'INSUFFICIENT_FUNDS') {
       res.status(402).json({ error: 'Insufficient funds' });
       return;

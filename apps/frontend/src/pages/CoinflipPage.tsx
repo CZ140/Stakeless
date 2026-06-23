@@ -13,9 +13,10 @@ import { prefersReducedMotion } from '../hooks/useReducedMotion';
 import { useAutoBet } from '../hooks/useAutoBet';
 import type { RoundResult } from '../lib/autobet';
 import { apiClient } from '../api/client';
+import { sleep } from '../lib/sleep';
+import { handleApiError } from '../lib/handleApiError';
 
 const FLIP_ANIM_MS = 1250; // coin spin before the next auto bet
-const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 interface CoinflipResponse {
   result: CoinSide;
@@ -113,10 +114,7 @@ export function CoinflipPage() {
       await playRound(betAmount);
     } catch (err: unknown) {
       sound.error();
-      const ax = err as { response?: { data?: { error?: string }; status?: number } };
-      if (ax.response?.status === 402) setError('Insufficient funds.');
-      else if (ax.response?.status === 429) setError('Too many flips too fast — slow down.');
-      else setError(ax.response?.data?.error ?? 'Something went wrong. Please try again.');
+      handleApiError(err, setError, { rateLimitMsg: 'Too many flips too fast — slow down.' });
     }
   }
 

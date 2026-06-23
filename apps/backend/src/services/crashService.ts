@@ -49,7 +49,7 @@ export interface CrashSessionState {
 // reconciled lazily from the persisted state on resume / next start.
 const timers = new Map<number, NodeJS.Timeout[]>();
 
-export function cancelTimers(sessionId: number): void {
+function cancelTimers(sessionId: number): void {
   const ts = timers.get(sessionId);
   if (ts) {
     ts.forEach(clearTimeout);

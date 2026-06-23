@@ -13,6 +13,7 @@ import { spinGrid } from '../services/slotsService.js';
 import { flipCoin, resolveCoinflip } from '../services/coinflipService.js';
 import { throwRps, resolveRps } from '../services/rpsService.js';
 import { initialHiloState, applyHiloGuess, type HiloSessionState } from '../services/hiloService.js';
+import { getErrorCode } from '../lib/errors.js';
 import { initialPumpState, applyPump, type PumpSessionState } from '../services/pumpService.js';
 import { initialChickenState, applyStep, type ChickenSessionState } from '../services/chickenService.js';
 import { startCrashRound, manualCashout, reconcileActiveCrash } from '../services/crashService.js';
@@ -122,7 +123,7 @@ gamesRouter.post('/roulette/bet', gameLimiter, clickInterval, requireAuth, async
     await applyTierUp(userId);
     res.json({ winningPocket, profit, newBalance });
   } catch (err: unknown) {
-    const code = (err as { code?: string }).code;
+    const code = getErrorCode(err);
     if (code === 'INSUFFICIENT_FUNDS') {
       res.status(402).json({ error: 'Insufficient funds' });
       return;
@@ -172,7 +173,7 @@ gamesRouter.post('/plinko/bet', gameLimiter, clickInterval, requireAuth, async (
     // net profit shown to player = gross payout - stake (stake was already deducted)
     res.json({ bucket, multiplier, profit: grossPayout - betAmount, newBalance });
   } catch (err: unknown) {
-    const code = (err as { code?: string }).code;
+    const code = getErrorCode(err);
     if (code === 'INSUFFICIENT_FUNDS') { res.status(402).json({ error: 'Insufficient funds' }); return; }
     if (code === 'BET_TOO_SMALL') { res.status(400).json({ error: 'Bet amount too small' }); return; }
     console.error('[games] plinko bet error:', err);
@@ -229,7 +230,7 @@ gamesRouter.post('/dice/bet', gameLimiter, clickInterval, requireAuth, async (re
     // net profit shown to player = gross payout − stake (stake was already deducted)
     res.json({ roll, target, direction, win, multiplier, winChance, profit: grossPayout - betAmount, newBalance });
   } catch (err: unknown) {
-    const code = (err as { code?: string }).code;
+    const code = getErrorCode(err);
     if (code === 'INSUFFICIENT_FUNDS') { res.status(402).json({ error: 'Insufficient funds' }); return; }
     if (code === 'BET_TOO_SMALL') { res.status(400).json({ error: 'Bet amount too small' }); return; }
     console.error('[games] dice bet error:', err);
@@ -275,7 +276,7 @@ gamesRouter.post('/slots/bet', gameLimiter, clickInterval, requireAuth, async (r
     // net profit shown to player = gross payout − stake (stake was already deducted)
     res.json({ grid, lines, totalPayout, win, profit: totalPayout - betAmount, newBalance });
   } catch (err: unknown) {
-    const code = (err as { code?: string }).code;
+    const code = getErrorCode(err);
     if (code === 'INSUFFICIENT_FUNDS') { res.status(402).json({ error: 'Insufficient funds' }); return; }
     if (code === 'BET_TOO_SMALL') { res.status(400).json({ error: 'Bet amount too small' }); return; }
     console.error('[games] slots bet error:', err);
@@ -323,7 +324,7 @@ gamesRouter.post('/flip/bet', gameLimiter, clickInterval, requireAuth, async (re
     // net profit shown to player = gross payout − stake (stake was already deducted)
     res.json({ result, call, win, multiplier, profit: grossPayout - betAmount, newBalance });
   } catch (err: unknown) {
-    const code = (err as { code?: string }).code;
+    const code = getErrorCode(err);
     if (code === 'INSUFFICIENT_FUNDS') { res.status(402).json({ error: 'Insufficient funds' }); return; }
     if (code === 'BET_TOO_SMALL') { res.status(400).json({ error: 'Bet amount too small' }); return; }
     console.error('[games] coinflip bet error:', err);
@@ -370,7 +371,7 @@ gamesRouter.post('/rps/bet', gameLimiter, clickInterval, requireAuth, async (req
     await applyTierUp(userId);
     res.json({ choice, house, outcome, multiplier, profit: grossPayout - betAmount, newBalance });
   } catch (err: unknown) {
-    const code = (err as { code?: string }).code;
+    const code = getErrorCode(err);
     if (code === 'INSUFFICIENT_FUNDS') { res.status(402).json({ error: 'Insufficient funds' }); return; }
     if (code === 'BET_TOO_SMALL') { res.status(400).json({ error: 'Bet amount too small' }); return; }
     console.error('[games] rps bet error:', err);
@@ -439,7 +440,7 @@ gamesRouter.post('/crash/start', gameLimiter, clickInterval, requireAuth, async 
       newBalance: round.newBalance,
     });
   } catch (err: unknown) {
-    const code = (err as { code?: string }).code;
+    const code = getErrorCode(err);
     if (code === 'ALREADY_RUNNING') { await respondAlreadyRunning(); return; }
     if (code === 'INSUFFICIENT_FUNDS') { res.status(402).json({ error: 'Insufficient funds' }); return; }
     if (code === 'BET_TOO_SMALL') { res.status(400).json({ error: 'Bet amount too small' }); return; }
@@ -556,7 +557,7 @@ gamesRouter.post('/mines/start', gameLimiter, clickInterval, requireAuth, async 
 
     res.json({ sessionId: session!.id });
   } catch (err: unknown) {
-    const code = (err as { code?: string }).code;
+    const code = getErrorCode(err);
     if (code === 'INSUFFICIENT_FUNDS') {
       res.status(402).json({ error: 'Insufficient funds' });
       return;
@@ -827,7 +828,7 @@ gamesRouter.post('/hilo/start', gameLimiter, clickInterval, requireAuth, async (
     io?.to(`user:${userId}`).emit('balance:update', { balance: newBalance });
     res.json({ sessionId: session!.id, currentCard: state.currentCard, streak: 0, multiplier: 1, newBalance });
   } catch (err: unknown) {
-    const code = (err as { code?: string }).code;
+    const code = getErrorCode(err);
     if (code === 'INSUFFICIENT_FUNDS') { res.status(402).json({ error: 'Insufficient funds' }); return; }
     if (code === 'BET_TOO_SMALL') { res.status(400).json({ error: 'Bet amount too small' }); return; }
     console.error('[games] hilo start error:', err);
@@ -1045,7 +1046,7 @@ gamesRouter.post('/pump/start', gameLimiter, clickInterval, requireAuth, async (
       newBalance,
     });
   } catch (err: unknown) {
-    const code = (err as { code?: string }).code;
+    const code = getErrorCode(err);
     if (code === 'INSUFFICIENT_FUNDS') { res.status(402).json({ error: 'Insufficient funds' }); return; }
     if (code === 'BET_TOO_SMALL') { res.status(400).json({ error: 'Bet amount too small' }); return; }
     console.error('[games] pump start error:', err);
@@ -1263,7 +1264,7 @@ gamesRouter.post('/chicken/start', gameLimiter, clickInterval, requireAuth, asyn
       newBalance,
     });
   } catch (err: unknown) {
-    const code = (err as { code?: string }).code;
+    const code = getErrorCode(err);
     if (code === 'INSUFFICIENT_FUNDS') { res.status(402).json({ error: 'Insufficient funds' }); return; }
     if (code === 'BET_TOO_SMALL') { res.status(400).json({ error: 'Bet amount too small' }); return; }
     console.error('[games] chicken start error:', err);
@@ -1523,7 +1524,7 @@ gamesRouter.post('/blackjack/deal', gameLimiter, clickInterval, requireAuth, asy
 
     res.json(serializeBlackjack(state, session!.id));
   } catch (err: unknown) {
-    const code = (err as { code?: string }).code;
+    const code = getErrorCode(err);
     if (code === 'INSUFFICIENT_FUNDS') { res.status(402).json({ error: 'Insufficient funds' }); return; }
     if (code === 'BET_TOO_SMALL') { res.status(400).json({ error: 'Bet amount too small' }); return; }
     console.error('[games] blackjack deal error:', err);
@@ -1598,7 +1599,7 @@ gamesRouter.post('/blackjack/action', gameLimiter, clickInterval, requireAuth, a
 
     res.json(serializeBlackjack(state, sessionId));
   } catch (err: unknown) {
-    const code = (err as { code?: string }).code;
+    const code = getErrorCode(err);
     if (code === 'INSUFFICIENT_FUNDS') { res.status(402).json({ error: 'Insufficient funds' }); return; }
     console.error('[games] blackjack action error:', err);
     res.status(500).json({ error: 'An unexpected error occurred' });

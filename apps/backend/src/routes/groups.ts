@@ -29,11 +29,12 @@ import {
   deleteGroup,
   getGroupLeaderboard,
 } from '../services/groupService.js';
+import { getErrorCode } from '../lib/errors.js';
 
 export const groupsRouter: IRouter = Router();
 
 function handleGroupError(err: unknown, res: Response): boolean {
-  const code = (err as { code?: string }).code;
+  const code = getErrorCode(err);
   const map: Record<string, [number, string]> = {
     NOT_FOUND: [404, 'Not found'],
     NOT_MEMBER: [403, 'You are not a member of this group'],

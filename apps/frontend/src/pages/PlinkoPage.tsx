@@ -10,6 +10,7 @@ import { useAutoBet } from '../hooks/useAutoBet';
 import { AutoBetControls } from '../components/vault/AutoBetControls';
 import type { RoundResult } from '../lib/autobet';
 import { apiClient } from '../api/client';
+import { handleApiError } from '../lib/handleApiError';
 
 const FRONTEND_MULTIPLIERS: Record<RiskLevel, Record<number, number[]>> = {
   low: {
@@ -169,10 +170,9 @@ export function PlinkoPage() {
       });
       return true;
     } catch (err: unknown) {
-      const ax = err as { response?: { data?: { error?: string }; status?: number } };
-      if (ax.response?.status === 402) setError('Insufficient funds.');
-      else if (ax.response?.status === 429) setError('Whoa — too many drops too fast. Give it a moment and try again.');
-      else setError(ax.response?.data?.error ?? 'Something went wrong. Please try again.');
+      handleApiError(err, setError, {
+        rateLimitMsg: 'Whoa — too many drops too fast. Give it a moment and try again.',
+      });
       return false;
     }
   }

@@ -20,17 +20,7 @@ import type {
   RelationshipTag,
 } from '@gambling/shared';
 import { isOnline } from './presence.js';
-
-function err(code: string, message: string): Error {
-  return Object.assign(new Error(message), { code });
-}
-
-// Drizzle wraps the driver error, so a Postgres unique-violation (23505) surfaces
-// on the error or its .cause.
-function isUniqueViolation(e: unknown): boolean {
-  const code = (e as { code?: string }).code ?? (e as { cause?: { code?: string } }).cause?.code;
-  return code === '23505';
-}
+import { err, isUniqueViolation } from '../lib/dbErrors.js';
 
 // Columns surfaced across the social UI — never selects password_hash etc.
 const userCols = {

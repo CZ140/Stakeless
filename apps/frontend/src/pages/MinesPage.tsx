@@ -11,10 +11,8 @@ import { useAutoBet } from '../hooks/useAutoBet';
 import type { RoundResult } from '../lib/autobet';
 import { LadderStrategyControls, loadLadderStrategy, type LadderStrategy } from '../components/vault/LadderStrategy';
 import { apiClient } from '../api/client';
-
-const LADDER_STEP_MS = 280; // pause between auto steps so the board reads
-const LADDER_RESULT_MS = 650; // hold the win/loss result before the next round
-const ladderSleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+import { sleep as ladderSleep, LADDER_STEP_MS, LADDER_RESULT_MS } from '../lib/sleep';
+import { handleApiError } from '../lib/handleApiError';
 
 interface StartResponse {
   sessionId: number;
@@ -129,9 +127,7 @@ export function MinesPage() {
       const res = await apiClient.post<StartResponse>('/games/mines/start', { betAmount, mineCount });
       startRound(res.data.sessionId);
     } catch (err: unknown) {
-      const axiosErr = err as { response?: { data?: { error?: string }; status?: number } };
-      if (axiosErr.response?.status === 402) setError('Insufficient funds.');
-      else setError(axiosErr.response?.data?.error ?? 'Something went wrong. Please try again.');
+      handleApiError(err, setError);
     }
   }
 
