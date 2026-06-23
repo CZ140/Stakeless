@@ -5,6 +5,7 @@ import { authLimiter } from '../middleware/rateLimiter.js';
 import { register, login, loginWithGoogle, refreshToken, getProfile, updateProfile, logout, forgotPassword, resetPassword } from '../services/authService.js';
 import { verifyGoogleCredential } from '../services/googleAuthService.js';
 import { requireAuth } from '../middleware/requireAuth.js';
+import { getErrorCode } from '../lib/errors.js';
 import { env } from '../env.js';
 
 export const authRouter: IRouter = Router();
@@ -26,7 +27,7 @@ authRouter.post('/register', authLimiter, validate(registerSchema), async (req, 
     await register(req.body.email as string, req.body.password as string, req.body.username as string);
     res.status(201).json({ message: 'Registration successful. You can sign in now.' });
   } catch (err: unknown) {
-    const code = (err as { code?: string }).code;
+    const code = getErrorCode(err);
     if (code === 'USERNAME_TAKEN') {
       // Surfaced (unlike duplicate email) so the user can pick another name.
       res.status(409).json({ error: 'That username is already taken' });
@@ -65,7 +66,7 @@ authRouter.post('/login', authLimiter, validate(loginSchema), async (req, res) =
 
     res.json({ accessToken });
   } catch (err: unknown) {
-    const code = (err as { code?: string }).code;
+    const code = getErrorCode(err);
     if (code === 'INVALID_CREDENTIALS') {
       res.status(401).json({ error: 'Invalid credentials' });
       return;
@@ -103,7 +104,7 @@ authRouter.post('/google', authLimiter, validate(googleAuthSchema), async (req, 
     // isNewUser tells the client to route a fresh signup through the username step.
     res.json({ accessToken, isNewUser });
   } catch (err: unknown) {
-    const code = (err as { code?: string }).code;
+    const code = getErrorCode(err);
     if (code === 'GOOGLE_NOT_CONFIGURED') {
       res.status(503).json({ error: 'Google sign-in is not available right now' });
       return;
@@ -164,7 +165,7 @@ authRouter.get('/me', requireAuth, async (req, res) => {
     const profile = await getProfile(req.user!.id);
     res.json(profile);
   } catch (err: unknown) {
-    if ((err as { code?: string }).code === 'NOT_FOUND') {
+    if (getErrorCode(err) === 'NOT_FOUND') {
       res.status(404).json({ error: 'User not found' });
       return;
     }
@@ -208,7 +209,7 @@ authRouter.patch('/me', requireAuth, validate(updateProfileSchema), async (req, 
     const profile = await updateProfile(req.user!.id, req.body);
     res.json(profile);
   } catch (err: unknown) {
-    const code = (err as { code?: string }).code;
+    const code = getErrorCode(err);
     if (code === 'USERNAME_TAKEN') {
       res.status(409).json({ error: 'That username is already taken' });
       return;
@@ -274,7 +275,7 @@ authRouter.post('/reset-password', validate(resetPasswordSchema), async (req, re
 
     res.json({ accessToken });
   } catch (err: unknown) {
-    if ((err as { code?: string }).code === 'INVALID_TOKEN') {
+    if (getErrorCode(err) === 'INVALID_TOKEN') {
       res.status(400).json({ error: 'Invalid or expired reset link' });
       return;
     }

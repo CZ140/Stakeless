@@ -14,6 +14,7 @@ import { AutoBetControls } from '../components/vault/AutoBetControls';
 import type { RoundResult } from '../lib/autobet';
 import { apiClient } from '../api/client';
 import { XIcon } from '../components/vault/icons';
+import { handleApiError } from '../lib/handleApiError';
 
 // Scale a chip layout so its total ≈ the auto stake (integer chips, min 1 each).
 function scaleLayout(template: PlacedChip[], stake: number): PlacedChip[] {
@@ -119,9 +120,7 @@ export function RoulettePage() {
       setLastResult({ winningPocket: pocket, netAmount, wager: totalBet, bets: [...placedChips] });
       setPendingBalance(newBalance);
     } catch (err: unknown) {
-      const axiosErr = err as { response?: { data?: { error?: string }; status?: number } };
-      if (axiosErr.response?.status === 402) setError('Insufficient funds to place this bet.');
-      else setError(axiosErr.response?.data?.error ?? 'Something went wrong. Please try again.');
+      handleApiError(err, setError, { insufficientMsg: 'Insufficient funds to place this bet.' });
       setGamePhase('betting');
     }
   }

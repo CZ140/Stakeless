@@ -2,6 +2,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { PAYLINES, SLOT_SYMBOLS, type SlotGrid, type SlotSymbolId } from '@gambling/shared';
 import { AppShell } from '../components/vault/AppShell';
+import { GamePageHeader } from '../components/vault/GamePageHeader';
 import { BetPanel } from '../components/vault/BetPanel';
 import { SlotReel, type SlotReelHandle } from '../components/vault/SlotReel';
 import { useSlotsStore } from '../stores/slotsStore';
@@ -13,6 +14,7 @@ import { prefersReducedMotion } from '../hooks/useReducedMotion';
 import { useAutoBet } from '../hooks/useAutoBet';
 import type { RoundResult } from '../lib/autobet';
 import { apiClient } from '../api/client';
+import { handleApiError } from '../lib/handleApiError';
 
 interface SlotsResponse {
   grid: SlotGrid;
@@ -150,10 +152,7 @@ export function SlotsPage() {
       await playRound(betAmount);
     } catch (err: unknown) {
       sound.error();
-      const ax = err as { response?: { data?: { error?: string }; status?: number } };
-      if (ax.response?.status === 402) setError('Insufficient funds.');
-      else if (ax.response?.status === 429) setError('Too many spins too fast — slow down.');
-      else setError(ax.response?.data?.error ?? 'Something went wrong. Please try again.');
+      handleApiError(err, setError, { rateLimitMsg: 'Too many spins too fast — slow down.' });
     }
   }
 
@@ -172,35 +171,14 @@ export function SlotsPage() {
 
   return (
     <AppShell>
-      <div className="crumb">
-        <span>HOME</span>
-        <span className="crumb-sep">/</span>
-        <span>GAMES</span>
-        <span className="crumb-sep">/</span>
-        <span style={{ color: 'var(--text-secondary)' }}>SLOTS</span>
-      </div>
-      <div className="game-page-head">
-        <h1 className="h-title">Slots</h1>
-        <div className="game-meta-spec">
-          <span>3×3 · 5 LINES</span>
-          <span className="dot">·</span>
-          <span>97% RTP</span>
-          <button
-            className="icon-btn"
-            onClick={toggleMute}
-            title={muted ? 'Unmute' : 'Mute'}
-            style={{ fontSize: 14 }}
-          >
-            {muted ? '🔇' : '🔊'}
-          </button>
-        </div>
-      </div>
-
-      {error && (
-        <div className="notice loss" style={{ marginBottom: 16, textAlign: 'left' }}>
-          {error}
-        </div>
-      )}
+      <GamePageHeader
+        crumb="SLOTS"
+        title="Slots"
+        specs={['3×3 · 5 LINES', '97% RTP']}
+        muted={muted}
+        onToggleMute={toggleMute}
+        error={error}
+      />
 
       <div className="game-layout">
         <div className="game-stage">

@@ -22,12 +22,13 @@ import {
   unblockUser,
   listBlocked,
 } from '../services/friendService.js';
+import { getErrorCode } from '../lib/errors.js';
 
 export const friendsRouter: IRouter = Router();
 
 // Map a coded service error to a response. Returns true if it handled the error.
 function handleSocialError(err: unknown, res: import('express').Response): boolean {
-  const code = (err as { code?: string }).code;
+  const code = getErrorCode(err);
   const map: Record<string, [number, string]> = {
     NOT_FOUND: [404, 'No user with that username'],
     CANNOT_FRIEND_SELF: [400, 'You cannot friend yourself'],

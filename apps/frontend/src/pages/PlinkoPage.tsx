@@ -1,7 +1,7 @@
 import { useShallow } from 'zustand/react/shallow';
 import { useEffect, useRef, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { AppShell } from '../components/vault/AppShell';
+import { GamePageHeader } from '../components/vault/GamePageHeader';
 import { PlinkoBoard, type PlinkoBoardHandle } from '../components/vault/PlinkoBoard';
 import { usePlinkoStore, type RiskLevel } from '../stores/plinkoStore';
 import { useBalanceStore } from '../stores/balanceStore';
@@ -10,6 +10,7 @@ import { useAutoBet } from '../hooks/useAutoBet';
 import { AutoBetControls } from '../components/vault/AutoBetControls';
 import type { RoundResult } from '../lib/autobet';
 import { apiClient } from '../api/client';
+import { handleApiError } from '../lib/handleApiError';
 
 const FRONTEND_MULTIPLIERS: Record<RiskLevel, Record<number, number[]>> = {
   low: {
@@ -77,26 +78,17 @@ const DROP_INTERVAL_MS = 170; // real spacing between drops (backend rejects <10
 
 function PlinkoHowToPlay({ open, onClose }: { open: boolean; onClose: () => void }) {
   return (
-    <AnimatePresence>
+    <>
       {open && (
         <>
-          <motion.div
-            key="plinko-htplay-backdrop"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+          <div
             onClick={onClose}
-            style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 200 }}
+            style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 200, animation: 'modal-fade 0.18s ease-out' }}
           />
           <div style={{ position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 201, pointerEvents: 'none' }}>
-            <motion.div
-              key="plinko-htplay-modal"
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              transition={{ duration: 0.2 }}
+            <div
               className="card"
-              style={{ padding: '32px', maxWidth: '520px', width: '90vw', maxHeight: '80vh', overflowY: 'auto', pointerEvents: 'auto' }}
+              style={{ padding: '32px', maxWidth: '520px', width: '90vw', maxHeight: '80vh', overflowY: 'auto', pointerEvents: 'auto', animation: 'modal-pop 0.2s ease-out' }}
             >
               <h2 style={{ marginTop: 0, marginBottom: '12px' }}>How to play Plinko</h2>
               <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '16px' }}>
@@ -108,11 +100,11 @@ function PlinkoHowToPlay({ open, onClose }: { open: boolean; onClose: () => void
                 of balls for you.
               </p>
               <button className="btn btn-primary" onClick={onClose}>Got it</button>
-            </motion.div>
+            </div>
           </div>
         </>
       )}
-    </AnimatePresence>
+    </>
   );
 }
 
@@ -169,10 +161,9 @@ export function PlinkoPage() {
       });
       return true;
     } catch (err: unknown) {
-      const ax = err as { response?: { data?: { error?: string }; status?: number } };
-      if (ax.response?.status === 402) setError('Insufficient funds.');
-      else if (ax.response?.status === 429) setError('Whoa — too many drops too fast. Give it a moment and try again.');
-      else setError(ax.response?.data?.error ?? 'Something went wrong. Please try again.');
+      handleApiError(err, setError, {
+        rateLimitMsg: 'Whoa — too many drops too fast. Give it a moment and try again.',
+      });
       return false;
     }
   }
@@ -233,21 +224,15 @@ export function PlinkoPage() {
 
   return (
     <AppShell>
-      <div className="crumb">
-        <span>HOME</span><span className="crumb-sep">/</span><span>GAMES</span>
-        <span className="crumb-sep">/</span><span style={{ color: 'var(--text-secondary)' }}>PLINKO</span>
-      </div>
-      <div className="game-page-head">
-        <h1 className="h-title">Plinko</h1>
-        <div className="game-meta-spec">
-          <span>{rows} ROWS</span><span className="dot">·</span>
-          <span style={{ textTransform: 'capitalize' }}>{riskLevel} risk</span>
-          <button className="btn btn-ghost" style={{ padding: '6px 14px', fontSize: 12 }} onClick={() => setShowHowTo(true)}>How to play</button>
-          <button className="icon-btn" onClick={toggleMute} title={isMuted ? 'Unmute' : 'Mute'} style={{ fontSize: 14 }}>{isMuted ? '🔇' : '🔊'}</button>
-        </div>
-      </div>
-
-      {error && <div className="notice loss" role="alert" style={{ marginBottom: 16, textAlign: 'left' }}>{error}</div>}
+      <GamePageHeader
+        crumb="PLINKO"
+        title="Plinko"
+        specs={[`${rows} ROWS`, <span style={{ textTransform: 'capitalize' }}>{riskLevel} risk</span>]}
+        muted={isMuted}
+        onToggleMute={toggleMute}
+        error={error}
+        onHowTo={() => setShowHowTo(true)}
+      />
 
       <div className="game-layout">
         <div className="game-stage" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14, background: 'linear-gradient(180deg, var(--bg-inset), #050810)' }}>

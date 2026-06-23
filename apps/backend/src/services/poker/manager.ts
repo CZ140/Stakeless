@@ -14,14 +14,7 @@ import { areFriends } from '../friendService.js';
 import { isGroupMember } from '../groupService.js';
 import { POKER } from '@gambling/shared';
 import type { PokerAction, PublicTableState, PrivateHand, PokerTableSummary, PokerInvite } from '@gambling/shared';
-
-function err(code: string, message: string): Error {
-  return Object.assign(new Error(message), { code });
-}
-function isUniqueViolation(e: unknown): boolean {
-  const code = (e as { code?: string }).code ?? (e as { cause?: { code?: string } }).cause?.code;
-  return code === '23505';
-}
+import { err, isUniqueViolation } from '../../lib/dbErrors.js';
 
 export interface CreateTableInput {
   name: string;

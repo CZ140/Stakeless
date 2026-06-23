@@ -10,6 +10,7 @@ import {
   type CardSuit,
 } from '@gambling/shared';
 import { AppShell } from '../components/vault/AppShell';
+import { GamePageHeader } from '../components/vault/GamePageHeader';
 import { BetPanel } from '../components/vault/BetPanel';
 import { useHiloStore } from '../stores/hiloStore';
 import { useBalanceStore } from '../stores/balanceStore';
@@ -21,10 +22,8 @@ import { sound } from '../lib/sound';
 import { celebrate, pulse, winTier } from '../lib/juice';
 import { prefersReducedMotion } from '../hooks/useReducedMotion';
 import { apiClient } from '../api/client';
-
-const LADDER_STEP_MS = 280;
-const LADDER_RESULT_MS = 650;
-const ladderSleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+import { sleep as ladderSleep, LADDER_STEP_MS, LADDER_RESULT_MS } from '../lib/sleep';
+import { handleApiError } from '../lib/handleApiError';
 
 // Auto-play picks the statistically better call: the available direction with the
 // higher win chance for the current rank.
@@ -110,12 +109,9 @@ export function HiloPage() {
 
   function handleError(err: unknown) {
     sound.error();
-    const ax = err as { response?: { data?: { error?: string }; status?: number } };
-    const status = ax.response?.status;
-    if (status === 402) setError('Insufficient funds.');
-    else if (status === 409) { setError('You already have a round in progress.'); void resume(); }
-    else if (status === 429) setError('Too fast — slow down.');
-    else setError(ax.response?.data?.error ?? 'Something went wrong. Please try again.');
+    const status = (err as { response?: { status?: number } }).response?.status;
+    if (status === 409) { setError('You already have a round in progress.'); void resume(); return; }
+    handleApiError(err, setError, { rateLimitMsg: 'Too fast — slow down.' });
   }
 
   async function handleStart() {
@@ -251,21 +247,14 @@ export function HiloPage() {
 
   return (
     <AppShell>
-      <div className="crumb">
-        <span>HOME</span><span className="crumb-sep">/</span><span>GAMES</span>
-        <span className="crumb-sep">/</span><span style={{ color: 'var(--text-secondary)' }}>HI-LO</span>
-      </div>
-      <div className="game-page-head">
-        <h1 className="h-title">Hi-Lo</h1>
-        <div className="game-meta-spec">
-          <span>52-CARD DECK</span><span className="dot">·</span><span>TIES LOSE</span><span className="dot">·</span><span>97% RTP</span>
-          <button className="icon-btn" onClick={toggleMute} title={muted ? 'Unmute' : 'Mute'} style={{ fontSize: 14 }}>
-            {muted ? '🔇' : '🔊'}
-          </button>
-        </div>
-      </div>
-
-      {error && <div className="notice loss" role="alert" style={{ marginBottom: 16, textAlign: 'left' }}>{error}</div>}
+      <GamePageHeader
+        crumb="HI-LO"
+        title="Hi-Lo"
+        specs={['52-CARD DECK', 'TIES LOSE', '97% RTP']}
+        muted={muted}
+        onToggleMute={toggleMute}
+        error={error}
+      />
 
       <div className="game-layout">
         <div className="game-stage">

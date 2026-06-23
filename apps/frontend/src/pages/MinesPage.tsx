@@ -1,7 +1,7 @@
 import { useShallow } from 'zustand/react/shallow';
 import { useEffect, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { AppShell } from '../components/vault/AppShell';
+import { GamePageHeader } from '../components/vault/GamePageHeader';
 import { BetPanel } from '../components/vault/BetPanel';
 import { GemIcon, BombIcon } from '../components/vault/icons';
 import { useMinesStore } from '../stores/minesStore';
@@ -11,10 +11,8 @@ import { useAutoBet } from '../hooks/useAutoBet';
 import type { RoundResult } from '../lib/autobet';
 import { LadderStrategyControls, loadLadderStrategy, type LadderStrategy } from '../components/vault/LadderStrategy';
 import { apiClient } from '../api/client';
-
-const LADDER_STEP_MS = 280; // pause between auto steps so the board reads
-const LADDER_RESULT_MS = 650; // hold the win/loss result before the next round
-const ladderSleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+import { sleep as ladderSleep, LADDER_STEP_MS, LADDER_RESULT_MS } from '../lib/sleep';
+import { handleApiError } from '../lib/handleApiError';
 
 interface StartResponse {
   sessionId: number;
@@ -48,26 +46,17 @@ interface ActiveSessionResponse {
 
 function MinesHowToPlay({ open, onClose }: { open: boolean; onClose: () => void }) {
   return (
-    <AnimatePresence>
+    <>
       {open && (
         <>
-          <motion.div
-            key="mines-htplay-backdrop"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+          <div
             onClick={onClose}
-            style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 200 }}
+            style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 200, animation: 'modal-fade 0.18s ease-out' }}
           />
           <div style={{ position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 201, pointerEvents: 'none' }}>
-            <motion.div
-              key="mines-htplay-modal"
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              transition={{ duration: 0.2 }}
+            <div
               className="card"
-              style={{ padding: '32px', maxWidth: '520px', width: '90vw', maxHeight: '80vh', overflowY: 'auto', pointerEvents: 'auto' }}
+              style={{ padding: '32px', maxWidth: '520px', width: '90vw', maxHeight: '80vh', overflowY: 'auto', pointerEvents: 'auto', animation: 'modal-pop 0.2s ease-out' }}
             >
               <h2 style={{ marginTop: 0, marginBottom: '12px' }}>How to play Mines</h2>
               <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '16px' }}>
@@ -79,11 +68,11 @@ function MinesHowToPlay({ open, onClose }: { open: boolean; onClose: () => void 
                 determined server-side — you never know where mines are until you reveal them or cash out.
               </p>
               <button className="btn btn-primary" onClick={onClose}>Got it</button>
-            </motion.div>
+            </div>
           </div>
         </>
       )}
-    </AnimatePresence>
+    </>
   );
 }
 
@@ -129,9 +118,7 @@ export function MinesPage() {
       const res = await apiClient.post<StartResponse>('/games/mines/start', { betAmount, mineCount });
       startRound(res.data.sessionId);
     } catch (err: unknown) {
-      const axiosErr = err as { response?: { data?: { error?: string }; status?: number } };
-      if (axiosErr.response?.status === 402) setError('Insufficient funds.');
-      else setError(axiosErr.response?.data?.error ?? 'Something went wrong. Please try again.');
+      handleApiError(err, setError);
     }
   }
 
@@ -242,20 +229,15 @@ export function MinesPage() {
 
   return (
     <AppShell>
-      <div className="crumb">
-        <span>HOME</span><span className="crumb-sep">/</span><span>GAMES</span>
-        <span className="crumb-sep">/</span><span style={{ color: 'var(--text-secondary)' }}>MINES</span>
-      </div>
-      <div className="game-page-head">
-        <h1 className="h-title">Mines</h1>
-        <div className="game-meta-spec">
-          <span>5×5 GRID</span><span className="dot">·</span><span>{mineCount} MINES</span>
-          <button className="btn btn-ghost" style={{ padding: '6px 14px', fontSize: 12 }} onClick={() => setShowHowTo(true)}>How to play</button>
-          <button className="icon-btn" onClick={toggleMute} title={isMuted ? 'Unmute' : 'Mute'} style={{ fontSize: 14 }}>{isMuted ? '🔇' : '🔊'}</button>
-        </div>
-      </div>
-
-      {error && <div className="notice loss" role="alert" style={{ marginBottom: 16, textAlign: 'left' }}>{error}</div>}
+      <GamePageHeader
+        crumb="MINES"
+        title="Mines"
+        specs={['5×5 GRID', `${mineCount} MINES`]}
+        muted={isMuted}
+        onToggleMute={toggleMute}
+        error={error}
+        onHowTo={() => setShowHowTo(true)}
+      />
 
       <div className="game-layout">
         <div className="game-stage">

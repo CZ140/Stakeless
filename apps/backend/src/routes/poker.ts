@@ -9,11 +9,12 @@ import { socialLimiter } from '../middleware/rateLimiter.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { io } from '../socket/index.js';
 import { tableManager } from '../services/poker/manager.js';
+import { getErrorCode } from '../lib/errors.js';
 
 export const pokerRouter: IRouter = Router();
 
 function handlePokerError(err: unknown, res: Response): boolean {
-  const code = (err as { code?: string }).code;
+  const code = getErrorCode(err);
   const map: Record<string, [number, string]> = {
     NOT_FOUND: [404, 'Table not found'],
     NOT_AUTHORIZED: [403, 'Not authorized'],

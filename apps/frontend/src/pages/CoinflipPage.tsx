@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import gsap from 'gsap';
 import { coinflipMultiplier, COINFLIP, type CoinSide } from '@gambling/shared';
 import { AppShell } from '../components/vault/AppShell';
+import { GamePageHeader } from '../components/vault/GamePageHeader';
 import { BetPanel } from '../components/vault/BetPanel';
 import { useCoinflipStore } from '../stores/coinflipStore';
 import { useBalanceStore } from '../stores/balanceStore';
@@ -13,9 +14,10 @@ import { prefersReducedMotion } from '../hooks/useReducedMotion';
 import { useAutoBet } from '../hooks/useAutoBet';
 import type { RoundResult } from '../lib/autobet';
 import { apiClient } from '../api/client';
+import { sleep } from '../lib/sleep';
+import { handleApiError } from '../lib/handleApiError';
 
 const FLIP_ANIM_MS = 1250; // coin spin before the next auto bet
-const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 interface CoinflipResponse {
   result: CoinSide;
@@ -113,10 +115,7 @@ export function CoinflipPage() {
       await playRound(betAmount);
     } catch (err: unknown) {
       sound.error();
-      const ax = err as { response?: { data?: { error?: string }; status?: number } };
-      if (ax.response?.status === 402) setError('Insufficient funds.');
-      else if (ax.response?.status === 429) setError('Too many flips too fast — slow down.');
-      else setError(ax.response?.data?.error ?? 'Something went wrong. Please try again.');
+      handleApiError(err, setError, { rateLimitMsg: 'Too many flips too fast — slow down.' });
     }
   }
 
@@ -124,21 +123,14 @@ export function CoinflipPage() {
 
   return (
     <AppShell>
-      <div className="crumb">
-        <span>HOME</span><span className="crumb-sep">/</span><span>GAMES</span>
-        <span className="crumb-sep">/</span><span style={{ color: 'var(--text-secondary)' }}>COIN FLIP</span>
-      </div>
-      <div className="game-page-head">
-        <h1 className="h-title">Coin Flip</h1>
-        <div className="game-meta-spec">
-          <span>50 / 50</span><span className="dot">·</span><span>{multiplier.toFixed(2)}× ON WIN</span>
-          <button className="icon-btn" onClick={toggleMute} title={muted ? 'Unmute' : 'Mute'} style={{ fontSize: 14 }}>
-            {muted ? '🔇' : '🔊'}
-          </button>
-        </div>
-      </div>
-
-      {error && <div className="notice loss" role="alert" style={{ marginBottom: 16, textAlign: 'left' }}>{error}</div>}
+      <GamePageHeader
+        crumb="COIN FLIP"
+        title="Coin Flip"
+        specs={['50 / 50', `${multiplier.toFixed(2)}× ON WIN`]}
+        muted={muted}
+        onToggleMute={toggleMute}
+        error={error}
+      />
 
       <div className="game-layout">
         <div className="game-stage">
