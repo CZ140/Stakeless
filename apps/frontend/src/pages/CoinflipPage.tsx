@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import gsap from 'gsap';
 import { coinflipMultiplier, COINFLIP, type CoinSide } from '@gambling/shared';
 import { AppShell } from '../components/vault/AppShell';
+import { GamePageHeader } from '../components/vault/GamePageHeader';
 import { BetPanel } from '../components/vault/BetPanel';
 import { useCoinflipStore } from '../stores/coinflipStore';
 import { useBalanceStore } from '../stores/balanceStore';
@@ -122,21 +123,14 @@ export function CoinflipPage() {
 
   return (
     <AppShell>
-      <div className="crumb">
-        <span>HOME</span><span className="crumb-sep">/</span><span>GAMES</span>
-        <span className="crumb-sep">/</span><span style={{ color: 'var(--text-secondary)' }}>COIN FLIP</span>
-      </div>
-      <div className="game-page-head">
-        <h1 className="h-title">Coin Flip</h1>
-        <div className="game-meta-spec">
-          <span>50 / 50</span><span className="dot">·</span><span>{multiplier.toFixed(2)}× ON WIN</span>
-          <button className="icon-btn" onClick={toggleMute} title={muted ? 'Unmute' : 'Mute'} style={{ fontSize: 14 }}>
-            {muted ? '🔇' : '🔊'}
-          </button>
-        </div>
-      </div>
-
-      {error && <div className="notice loss" role="alert" style={{ marginBottom: 16, textAlign: 'left' }}>{error}</div>}
+      <GamePageHeader
+        crumb="COIN FLIP"
+        title="Coin Flip"
+        specs={['50 / 50', `${multiplier.toFixed(2)}× ON WIN`]}
+        muted={muted}
+        onToggleMute={toggleMute}
+        error={error}
+      />
 
       <div className="game-layout">
         <div className="game-stage">

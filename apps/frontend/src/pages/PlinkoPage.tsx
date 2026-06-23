@@ -1,6 +1,7 @@
 import { useShallow } from 'zustand/react/shallow';
 import { useEffect, useRef, useState } from 'react';
 import { AppShell } from '../components/vault/AppShell';
+import { GamePageHeader } from '../components/vault/GamePageHeader';
 import { PlinkoBoard, type PlinkoBoardHandle } from '../components/vault/PlinkoBoard';
 import { usePlinkoStore, type RiskLevel } from '../stores/plinkoStore';
 import { useBalanceStore } from '../stores/balanceStore';
@@ -223,21 +224,15 @@ export function PlinkoPage() {
 
   return (
     <AppShell>
-      <div className="crumb">
-        <span>HOME</span><span className="crumb-sep">/</span><span>GAMES</span>
-        <span className="crumb-sep">/</span><span style={{ color: 'var(--text-secondary)' }}>PLINKO</span>
-      </div>
-      <div className="game-page-head">
-        <h1 className="h-title">Plinko</h1>
-        <div className="game-meta-spec">
-          <span>{rows} ROWS</span><span className="dot">·</span>
-          <span style={{ textTransform: 'capitalize' }}>{riskLevel} risk</span>
-          <button className="btn btn-ghost" style={{ padding: '6px 14px', fontSize: 12 }} onClick={() => setShowHowTo(true)}>How to play</button>
-          <button className="icon-btn" onClick={toggleMute} title={isMuted ? 'Unmute' : 'Mute'} style={{ fontSize: 14 }}>{isMuted ? '🔇' : '🔊'}</button>
-        </div>
-      </div>
-
-      {error && <div className="notice loss" role="alert" style={{ marginBottom: 16, textAlign: 'left' }}>{error}</div>}
+      <GamePageHeader
+        crumb="PLINKO"
+        title="Plinko"
+        specs={[`${rows} ROWS`, <span style={{ textTransform: 'capitalize' }}>{riskLevel} risk</span>]}
+        muted={isMuted}
+        onToggleMute={toggleMute}
+        error={error}
+        onHowTo={() => setShowHowTo(true)}
+      />
 
       <div className="game-layout">
         <div className="game-stage" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14, background: 'linear-gradient(180deg, var(--bg-inset), #050810)' }}>

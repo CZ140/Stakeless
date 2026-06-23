@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import gsap from 'gsap';
 import { RPS, RPS_CHOICES, rpsWinMultiplier, type RpsChoice } from '@gambling/shared';
 import { AppShell } from '../components/vault/AppShell';
+import { GamePageHeader } from '../components/vault/GamePageHeader';
 import { BetPanel } from '../components/vault/BetPanel';
 import { useRpsStore } from '../stores/rpsStore';
 import { useBalanceStore } from '../stores/balanceStore';
@@ -137,21 +138,14 @@ export function RpsPage() {
 
   return (
     <AppShell>
-      <div className="crumb">
-        <span>HOME</span><span className="crumb-sep">/</span><span>GAMES</span>
-        <span className="crumb-sep">/</span><span style={{ color: 'var(--text-secondary)' }}>RPS</span>
-      </div>
-      <div className="game-page-head">
-        <h1 className="h-title">Rock · Paper · Scissors</h1>
-        <div className="game-meta-spec">
-          <span>{multiplier.toFixed(2)}× ON WIN</span><span className="dot">·</span><span>TIE PUSHES</span><span className="dot">·</span><span>97% RTP</span>
-          <button className="icon-btn" onClick={toggleMute} title={muted ? 'Unmute' : 'Mute'} style={{ fontSize: 14 }}>
-            {muted ? '🔇' : '🔊'}
-          </button>
-        </div>
-      </div>
-
-      {error && <div className="notice loss" role="alert" style={{ marginBottom: 16, textAlign: 'left' }}>{error}</div>}
+      <GamePageHeader
+        crumb="RPS"
+        title="Rock · Paper · Scissors"
+        specs={[`${multiplier.toFixed(2)}× ON WIN`, 'TIE PUSHES', '97% RTP']}
+        muted={muted}
+        onToggleMute={toggleMute}
+        error={error}
+      />
 
       <div className="game-layout">
         <div className="game-stage">

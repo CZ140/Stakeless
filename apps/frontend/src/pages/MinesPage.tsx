@@ -1,6 +1,7 @@
 import { useShallow } from 'zustand/react/shallow';
 import { useEffect, useState } from 'react';
 import { AppShell } from '../components/vault/AppShell';
+import { GamePageHeader } from '../components/vault/GamePageHeader';
 import { BetPanel } from '../components/vault/BetPanel';
 import { GemIcon, BombIcon } from '../components/vault/icons';
 import { useMinesStore } from '../stores/minesStore';
@@ -228,20 +229,15 @@ export function MinesPage() {
 
   return (
     <AppShell>
-      <div className="crumb">
-        <span>HOME</span><span className="crumb-sep">/</span><span>GAMES</span>
-        <span className="crumb-sep">/</span><span style={{ color: 'var(--text-secondary)' }}>MINES</span>
-      </div>
-      <div className="game-page-head">
-        <h1 className="h-title">Mines</h1>
-        <div className="game-meta-spec">
-          <span>5×5 GRID</span><span className="dot">·</span><span>{mineCount} MINES</span>
-          <button className="btn btn-ghost" style={{ padding: '6px 14px', fontSize: 12 }} onClick={() => setShowHowTo(true)}>How to play</button>
-          <button className="icon-btn" onClick={toggleMute} title={isMuted ? 'Unmute' : 'Mute'} style={{ fontSize: 14 }}>{isMuted ? '🔇' : '🔊'}</button>
-        </div>
-      </div>
-
-      {error && <div className="notice loss" role="alert" style={{ marginBottom: 16, textAlign: 'left' }}>{error}</div>}
+      <GamePageHeader
+        crumb="MINES"
+        title="Mines"
+        specs={['5×5 GRID', `${mineCount} MINES`]}
+        muted={isMuted}
+        onToggleMute={toggleMute}
+        error={error}
+        onHowTo={() => setShowHowTo(true)}
+      />
 
       <div className="game-layout">
         <div className="game-stage">

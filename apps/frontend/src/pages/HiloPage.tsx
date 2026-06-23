@@ -10,6 +10,7 @@ import {
   type CardSuit,
 } from '@gambling/shared';
 import { AppShell } from '../components/vault/AppShell';
+import { GamePageHeader } from '../components/vault/GamePageHeader';
 import { BetPanel } from '../components/vault/BetPanel';
 import { useHiloStore } from '../stores/hiloStore';
 import { useBalanceStore } from '../stores/balanceStore';
@@ -246,21 +247,14 @@ export function HiloPage() {
 
   return (
     <AppShell>
-      <div className="crumb">
-        <span>HOME</span><span className="crumb-sep">/</span><span>GAMES</span>
-        <span className="crumb-sep">/</span><span style={{ color: 'var(--text-secondary)' }}>HI-LO</span>
-      </div>
-      <div className="game-page-head">
-        <h1 className="h-title">Hi-Lo</h1>
-        <div className="game-meta-spec">
-          <span>52-CARD DECK</span><span className="dot">·</span><span>TIES LOSE</span><span className="dot">·</span><span>97% RTP</span>
-          <button className="icon-btn" onClick={toggleMute} title={muted ? 'Unmute' : 'Mute'} style={{ fontSize: 14 }}>
-            {muted ? '🔇' : '🔊'}
-          </button>
-        </div>
-      </div>
-
-      {error && <div className="notice loss" role="alert" style={{ marginBottom: 16, textAlign: 'left' }}>{error}</div>}
+      <GamePageHeader
+        crumb="HI-LO"
+        title="Hi-Lo"
+        specs={['52-CARD DECK', 'TIES LOSE', '97% RTP']}
+        muted={muted}
+        onToggleMute={toggleMute}
+        error={error}
+      />
 
       <div className="game-layout">
         <div className="game-stage">

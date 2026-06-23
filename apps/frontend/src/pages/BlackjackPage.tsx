@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import gsap from 'gsap';
 import { AppShell } from '../components/vault/AppShell';
+import { GamePageHeader } from '../components/vault/GamePageHeader';
 import {
   useBlackjackStore,
   type Card,
@@ -427,19 +428,14 @@ export function BlackjackPage() {
 
   return (
     <AppShell>
-      <div className="crumb">
-        <span>HOME</span><span className="crumb-sep">/</span><span>GAMES</span>
-        <span className="crumb-sep">/</span><span style={{ color: 'var(--text-secondary)' }}>BLACKJACK</span>
-      </div>
-      <div className="game-page-head">
-        <h1 className="h-title">Blackjack</h1>
-        <div className="game-meta-spec">
-          <span>SINGLE DECK</span><span className="dot">·</span><span>BJ PAYS 3:2</span><span className="dot">·</span><span>DEALER STANDS 17</span>
-          <button className="icon-btn" onClick={toggleMute} title={muted ? 'Unmute' : 'Mute'} style={{ fontSize: 14 }}>{muted ? '🔇' : '🔊'}</button>
-        </div>
-      </div>
-
-      {error && <div className="notice loss" role="alert" style={{ marginBottom: 16, textAlign: 'left' }}>{error}</div>}
+      <GamePageHeader
+        crumb="BLACKJACK"
+        title="Blackjack"
+        specs={['SINGLE DECK', 'BJ PAYS 3:2', 'DEALER STANDS 17']}
+        muted={muted}
+        onToggleMute={toggleMute}
+        error={error}
+      />
 
       <div className="game-layout">
         <div className="game-stage" style={{ padding: 14 }}>
