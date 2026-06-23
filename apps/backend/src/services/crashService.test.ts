@@ -93,13 +93,18 @@ describe('generateCrashPoint', () => {
     }
   });
 
-  it('instabusts (1.00×) at roughly the house-edge rate', () => {
+  it('instabusts (1.00×) at roughly the expected rate', () => {
+    // Instabusts are u < HOUSE_EDGE PLUS the renormalised band that floors to 1.00×
+    // (crashPointFromUniform rounds down to 2 dp), so the true rate is ~0.0396, not
+    // HOUSE_EDGE. Centre the bound on that or it flakes ~1/3 of runs at the edge.
+    const floorBand = 1 - 1 / 1.01; // multipliers in [1.00, 1.01) collapse to 1.00×
+    const expected = CRASH.HOUSE_EDGE + (1 - CRASH.HOUSE_EDGE) * floorBand;
     const N = 40_000;
     let busts = 0;
     for (let i = 0; i < N; i++) if (generateCrashPoint() === 1.0) busts++;
     const rate = busts / N;
-    expect(rate).toBeGreaterThan(CRASH.HOUSE_EDGE - 0.01);
-    expect(rate).toBeLessThan(CRASH.HOUSE_EDGE + 0.01);
+    expect(rate).toBeGreaterThan(expected - 0.005); // ±0.005 ≈ 5σ at N=40k
+    expect(rate).toBeLessThan(expected + 0.005);
   });
 });
 
