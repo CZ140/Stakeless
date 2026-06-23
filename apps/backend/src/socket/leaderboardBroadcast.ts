@@ -34,6 +34,9 @@ export function startLeaderboardBroadcast(io: Server): void {
   }
   broadcastInterval = setInterval(async () => {
     try {
+      // ponytail: skip the DB hit when nobody's connected — otherwise this timer
+      // queries Neon every 7s forever, pinning compute on 24/7 (the whole monthly bill).
+      if (io.engine.clientsCount === 0) return;
       const snapshot = await fetchLeaderboardSnapshot();
       io.emit('leaderboard:update', snapshot);
     } catch (err) {
